@@ -1,0 +1,50 @@
+{
+  "name": "schema-mapper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "package.json",
+  "license": "UNLICENSED",
+  "keywords": [
+    "sanity"
+  ],
+  "scripts": {
+    "dev": "sanity dev",
+    "build": "sanity build",
+    "start": "sanity start"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.0",
+    "@sanity/icons": "^3.7.4",
+    "@sanity/sdk": "^2.5.0",
+    "@sanity/sdk-react": "^2.5.0",
+    "@sanity/ui": "^3.1.11",
+    "@tailwindcss/vite": "^4.1.11",
+    "@xyflow/react": "^12.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "elkjs": "^0.9.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.0",
+    "lucide-react": "^0.575.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-icons": "^5.0.0",
+    "react-router-dom": "^7.0.0",
+    "styled-components": "^6.1.17",
+    "tailwind-merge": "^2.5.2",
+    "tailwindcss": "^4.0.0",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "sanity": "^5.12.0",
+    "typescript": "^5.8.0"
+  },
+  "description": "Visual Sanity org/schema explorer built with App SDK and React Flow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/palmerama/schema-mapper.git"
+  }
+}

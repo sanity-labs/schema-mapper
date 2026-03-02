@@ -1,0 +1,783 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  Background,
+  Controls,
+  MiniMap,
+  useReactFlow,
+  useNodesState,
+  useEdgesState,
+  useNodesInitialized,
+  type Node,
+  type Edge,
+  type NodeTypes,
+  type EdgeTypes,
+  type EdgeProps,
+  getBezierPath,
+  BaseEdge,
+} from '@xyflow/react'
+import ELK from 'elkjs/lib/elk.bundled.js'
+import dagre from '@dagrejs/dagre'
+import '@xyflow/react/dist/style.css'
+
+import { Tab } from '@sanity/ui'
+import { RxReset } from 'react-icons/rx'
+import SchemaNode, { SCHEMA_NODE_TYPE, type SchemaNodeData } from './SchemaNode'
+import type { DiscoveredField, DiscoveredType } from './types'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type SchemaNode_RF = Node<SchemaNodeData, 'schema'>
+type SchemaEdge = Edge
+
+type LayoutType = 'dagre' | 'layered' | 'force' | 'stress'
+type EdgeStyle = 'bezier' | 'smoothstep' | 'straight'
+
+const edgeStyleLabels: Record<EdgeStyle, string> = {
+  bezier: 'Bezier',
+  smoothstep: 'Step',
+  straight: 'Straight',
+}
+
+// ---------------------------------------------------------------------------
+// Node & edge types — defined OUTSIDE the component
+// ---------------------------------------------------------------------------
+
+const nodeTypes: NodeTypes = {
+  [SCHEMA_NODE_TYPE]: SchemaNode,
+}
+
+function GentleBezierEdge(props: EdgeProps) {
+  const [path, labelX, labelY] = getBezierPath({
+    ...props,
+    curvature: _curvature,
+  })
+  return (
+    <BaseEdge
+      path={path}
+      style={props.style}
+      label={props.label}
+      labelX={labelX}
+      labelY={labelY}
+      labelStyle={props.labelStyle}
+      labelBgStyle={props.labelBgStyle}
+      labelBgPadding={props.labelBgPadding}
+      labelBgBorderRadius={props.labelBgBorderRadius}
+    />
+  )
+}
+
+const edgeTypes: EdgeTypes = {
+  gentle: GentleBezierEdge,
+}
+
+// Module-level edge style — read by buildNodesAndEdges
+let _edgeStyle: EdgeStyle = 'smoothstep'
+
+// Per-layout spacing multipliers — read by layout functions
+const DEFAULT_SPACING: Record<LayoutType, number> = {
+  dagre: 1.0,
+  layered: 0.4,
+  force: 0.25,
+  stress: 1.6,
+}
+const _spacingMap: Record<LayoutType, number> = { ...DEFAULT_SPACING }
+let _spacing = 1.0 // current active layout's spacing
+
+
+
+// ---------------------------------------------------------------------------
+// ELK layout engine
+// ---------------------------------------------------------------------------
+
+const elk = new ELK()
+
+// Mutable curvature value — updated by slider, read by edge component
+let _curvature = 0.1
+
+function getLayoutConfig(type: LayoutType): Record<string, string> {
+  const s = _spacing
+  if (type === 'layered') {
+    return {
+      'elk.separateConnectedComponents': 'true',
+      'elk.spacing.componentComponent': String(Math.round(200 * s)),
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.round(200 * s)),
+      'elk.spacing.nodeNode': String(Math.round(80 * s)),
+      'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+      'elk.portConstraints': 'FIXED_ORDER',
+      'elk.edgeRouting': 'SPLINES',
+    }
+  }
+  if (type === 'force') return {
+    'elk.separateConnectedComponents': 'true',
+    'elk.spacing.componentComponent': String(Math.round(300 * s)),
+    'elk.algorithm': 'force',
+    'elk.spacing.nodeNode': String(Math.round(120 * s)),
+    'elk.force.iterations': '300',
+    'elk.force.repulsivePower': '1',
+  }
+  if (type === 'stress') {
+    // stress doesn't support separateConnectedComponents — we handle it manually
+    return {
+      'elk.algorithm': 'stress',
+      'elk.spacing.nodeNode': String(Math.round(80 * s)),
+      'elk.stress.desiredEdgeLength': String(Math.round(200 * s)),
+    }
+  }
+  return {}
+}
+
+const layoutLabels: Record<LayoutType, string> = {
+  dagre: 'Dagre',
+  layered: 'Layered',
+  force: 'Force',
+  stress: 'Clustered',
+}
+
+function getDagreLayout(
+  nodes: SchemaNode_RF[],
+  edges: SchemaEdge[],
+): { nodes: SchemaNode_RF[]; edges: SchemaEdge[] } {
+  const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'LR', nodesep: Math.round(50 * _spacing), ranksep: Math.round(150 * _spacing) })
+
+  nodes.forEach((node) => {
+    const fieldCount = node.data.fields?.length ?? 4
+    g.setNode(node.id, {
+      width: node.measured?.width ?? 280,
+      height: node.measured?.height ?? 60 + fieldCount * 28,
+    })
+  })
+
+  edges.forEach((edge) => {
+    g.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(g)
+
+  const layoutedNodes = nodes.map((node) => {
+    const pos = g.node(node.id)
+    const width = node.measured?.width ?? 280
+    const fieldCount = node.data.fields?.length ?? 4
+    const height = node.measured?.height ?? 60 + fieldCount * 28
+    return {
+      ...node,
+      position: {
+        x: pos.x - width / 2,
+        y: pos.y - height / 2,
+      },
+    }
+  })
+
+  return { nodes: layoutedNodes, edges }
+}
+
+function findConnectedComponents(
+  nodes: SchemaNode_RF[],
+  edges: SchemaEdge[],
+): SchemaNode_RF[][] {
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const adj = new Map<string, Set<string>>()
+  nodeIds.forEach(id => adj.set(id, new Set()))
+  edges.forEach(e => {
+    if (adj.has(e.source) && adj.has(e.target)) {
+      adj.get(e.source)!.add(e.target)
+      adj.get(e.target)!.add(e.source)
+    }
+  })
+  const visited = new Set<string>()
+  const components: SchemaNode_RF[][] = []
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  for (const id of nodeIds) {
+    if (visited.has(id)) continue
+    const component: SchemaNode_RF[] = []
+    const queue = [id]
+    while (queue.length > 0) {
+      const curr = queue.pop()!
+      if (visited.has(curr)) continue
+      visited.add(curr)
+      component.push(nodeMap.get(curr)!)
+      adj.get(curr)?.forEach(neighbor => {
+        if (!visited.has(neighbor)) queue.push(neighbor)
+      })
+    }
+    components.push(component)
+  }
+  // Sort: largest component first
+  return components.sort((a, b) => b.length - a.length)
+}
+
+async function getElkLayout(
+  nodes: SchemaNode_RF[],
+  edges: SchemaEdge[],
+  layoutType: LayoutType,
+): Promise<{ nodes: SchemaNode_RF[]; edges: SchemaEdge[] }> {
+  const elkNodes = nodes.map((node) => {
+    const fieldCount = node.data.fields?.length ?? 4
+    const width = node.measured?.width ?? 280
+    const height = node.measured?.height ?? 60 + fieldCount * 28
+
+    // Build ports from reference fields for better edge routing
+    const ports: any[] = []
+
+    // Target ports (left side) — one per incoming edge for spread
+    const inCount = node.data.incomingEdgeCount ?? 1
+    for (let i = 0; i < Math.max(1, inCount); i++) {
+      ports.push({
+        id: `${node.id}-target-${i}`,
+        layoutOptions: {
+          'elk.port.side': 'WEST',
+        },
+      })
+    }
+
+    // Source ports for reference fields (right side)
+    node.data.fields.forEach((field: DiscoveredField) => {
+      if (field.isReference || field.type === 'reference') {
+        ports.push({
+          id: `${node.id}-ref-${field.name}`,
+          layoutOptions: {
+            'elk.port.side': 'EAST',
+          },
+        })
+      }
+    })
+
+    return {
+      id: node.id,
+      width,
+      height,
+      ports,
+      layoutOptions: {
+        'elk.portConstraints': 'FIXED_ORDER',
+      },
+    }
+  })
+
+  const elkEdges = edges.map((edge) => ({
+    id: edge.id,
+    sources: [`${edge.source}-${edge.sourceHandle}`],
+    targets: [`${edge.target}-${edge.targetHandle}`],
+  }))
+
+  // For stress: manually separate connected components and pack in a rectangle
+  if (layoutType === 'stress') {
+    const components = findConnectedComponents(nodes, edges)
+    const positionMap = new Map<string, { x: number; y: number }>()
+    // Cluster gap: small base, scales gently with slider (sqrt curve)
+    const CLUSTER_GAP = Math.round(50 * Math.sqrt(_spacing))
+
+    // First pass: layout each component independently and measure bounding boxes
+    const layoutedComponents: {
+      positions: Map<string, { x: number; y: number }>;
+      width: number;
+      height: number;
+    }[] = []
+
+    for (const component of components) {
+      const compNodeIds = new Set(component.map(n => n.id))
+      const compElkNodes = elkNodes.filter(n => compNodeIds.has(n.id))
+      const compElkEdges = elkEdges.filter(e => {
+        const sourceNodeId = e.sources[0].split('-ref-')[0].replace('-target', '')
+        const targetNodeId = e.targets[0].replace('-target', '')
+        return compNodeIds.has(sourceNodeId) || compNodeIds.has(targetNodeId)
+      })
+
+      const compGraph = {
+        id: 'root',
+        layoutOptions: getLayoutConfig(layoutType),
+        children: compElkNodes,
+        edges: compElkEdges,
+      }
+
+      const layouted = await elk.layout(compGraph)
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      const positions = new Map<string, { x: number; y: number }>()
+      layouted.children?.forEach((n: any) => {
+        const node = nodes.find(nd => nd.id === n.id)
+        const w = node?.measured?.width ?? 280
+        const fCount = node?.data.fields?.length ?? 4
+        const h = node?.measured?.height ?? 60 + fCount * 28
+        minX = Math.min(minX, n.x)
+        minY = Math.min(minY, n.y)
+        maxX = Math.max(maxX, n.x + w)
+        maxY = Math.max(maxY, n.y + h)
+        positions.set(n.id, { x: n.x, y: n.y })
+      })
+
+      // Normalize positions to start at 0,0
+      positions.forEach((pos, id) => {
+        positions.set(id, { x: pos.x - minX, y: pos.y - minY })
+      })
+
+      layoutedComponents.push({
+        positions,
+        width: maxX - minX,
+        height: maxY - minY,
+      })
+    }
+
+    // Second pass: pack components in rows to fill a roughly square area
+    const totalArea = layoutedComponents.reduce((sum, c) => sum + (c.width + CLUSTER_GAP) * (c.height + CLUSTER_GAP), 0)
+    const targetWidth = Math.sqrt(totalArea) * 1.2
+
+    let cursorX = 0
+    let cursorY = 0
+    let rowHeight = 0
+
+    for (const comp of layoutedComponents) {
+      // Start new row if this component would exceed target width
+      if (cursorX > 0 && cursorX + comp.width > targetWidth) {
+        cursorX = 0
+        cursorY += rowHeight + CLUSTER_GAP
+        rowHeight = 0
+      }
+
+      comp.positions.forEach((pos, id) => {
+        positionMap.set(id, { x: pos.x + cursorX, y: pos.y + cursorY })
+      })
+
+      cursorX += comp.width + CLUSTER_GAP
+      rowHeight = Math.max(rowHeight, comp.height)
+    }
+
+    const layoutedNodes = nodes.map((node) => ({
+      ...node,
+      position: positionMap.get(node.id) ?? { x: 0, y: 0 },
+    }))
+
+    return { nodes: layoutedNodes, edges }
+  }
+
+  // All other layouts: single ELK pass
+  const graph = {
+    id: 'root',
+    layoutOptions: getLayoutConfig(layoutType),
+    children: elkNodes,
+    edges: elkEdges,
+  }
+
+  const layoutedGraph = await elk.layout(graph)
+
+  const layoutedNodes = nodes.map((node) => {
+    const elkNode = layoutedGraph.children?.find((n: any) => n.id === node.id)
+    return {
+      ...node,
+      position: {
+        x: elkNode?.x ?? 0,
+        y: elkNode?.y ?? 0,
+      },
+    }
+  })
+
+  return { nodes: layoutedNodes, edges }
+}
+
+// ---------------------------------------------------------------------------
+// Build initial nodes & edges from discovered types
+// ---------------------------------------------------------------------------
+
+function buildNodesAndEdges(types: DiscoveredType[]): {
+  nodes: SchemaNode_RF[]
+  edges: SchemaEdge[]
+} {
+  const typeNames = new Set(types.map((t) => t.name))
+
+  const nodes: SchemaNode_RF[] = types.map((type, index) => ({
+    id: type.name,
+    type: SCHEMA_NODE_TYPE as const,
+    position: { x: 0, y: index * 200 },
+    data: {
+      typeName: type.name,
+      documentCount: type.documentCount,
+      fields: type.fields,
+    },
+  }))
+
+  // Distinct colors for edges — one per source type
+  const edgeColors = [
+    '#6366f1', // indigo
+    '#f59e0b', // amber
+    '#10b981', // emerald
+    '#ef4444', // red
+    '#8b5cf6', // violet
+    '#06b6d4', // cyan
+    '#f97316', // orange
+    '#ec4899', // pink
+    '#14b8a6', // teal
+    '#a855f7', // purple
+  ]
+  const sourceColorMap = new Map<string, string>()
+  let colorIdx = 0
+
+  const edges: SchemaEdge[] = []
+
+  types.forEach((type) => {
+    type.fields.forEach((field) => {
+      if (field.isReference && field.referenceTo && typeNames.has(field.referenceTo)) {
+        if (!sourceColorMap.has(type.name)) {
+          sourceColorMap.set(type.name, edgeColors[colorIdx % edgeColors.length])
+          colorIdx++
+        }
+        const color = sourceColorMap.get(type.name)!
+        edges.push({
+          id: `${type.name}-${field.name}->${field.referenceTo}`,
+          source: type.name,
+          target: field.referenceTo,
+          sourceHandle: `ref-${field.name}`,
+          targetHandle: 'target',
+          type: _edgeStyle === 'bezier' ? 'gentle' : _edgeStyle,
+          animated: false,
+          label: field.name,
+          style: { stroke: color, strokeWidth: 1.5 },
+          labelStyle: { fontSize: 11, fill: '#64748b', fontWeight: 500 },
+          labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgBorderRadius: 4,
+        })
+      }
+    })
+  })
+
+  // Assign unique target handles per incoming edge so they arrive at different Y positions
+  const incomingCount = new Map<string, number>()
+  edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1))
+  const incomingIdx = new Map<string, number>()
+  edges.forEach(e => {
+    const idx = incomingIdx.get(e.target) ?? 0
+    e.targetHandle = `target-${idx}`
+    incomingIdx.set(e.target, idx + 1)
+  })
+
+  // Mark nodes with connection info
+  const hasIncoming = new Set(edges.map(e => e.target))
+  const hasOutgoing = new Set(edges.map(e => e.source))
+  nodes.forEach(node => {
+    node.data.hasIncoming = hasIncoming.has(node.id)
+    node.data.hasOutgoing = hasOutgoing.has(node.id)
+    node.data.incomingEdgeCount = incomingCount.get(node.id) ?? 0
+  })
+
+  return { nodes, edges }
+}
+
+// ---------------------------------------------------------------------------
+// Layout switcher component
+// ---------------------------------------------------------------------------
+
+function GraphControls({
+  layout,
+  onLayoutChange,
+  edgeStyle,
+  onEdgeStyleChange,
+  curvature,
+  onCurvatureChange,
+  spacing,
+  onSpacingChange,
+  onResetSpacing,
+}: {
+  layout: LayoutType
+  onLayoutChange: (layout: LayoutType) => void
+  edgeStyle: EdgeStyle
+  onEdgeStyleChange: (style: EdgeStyle) => void
+  curvature: number
+  onCurvatureChange: (value: number) => void
+  spacing: number
+  onSpacingChange: (value: number) => void
+  onResetSpacing: () => void
+}) {
+  const layouts: LayoutType[] = ['dagre', 'layered', 'force', 'stress']
+  const edgeStyles: EdgeStyle[] = ['bezier', 'smoothstep', 'straight']
+
+  return (
+    <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
+      <div className="flex gap-1">
+        {layouts.map((l) => (
+          <Tab
+            key={l}
+            id={`layout-tab-${l}`}
+            label={layoutLabels[l]}
+            selected={layout === l}
+            onClick={() => onLayoutChange(l)}
+          />
+        ))}
+      </div>
+      <div className="flex gap-1">
+        {edgeStyles.map((s) => (
+          <Tab
+            key={s}
+            id={`edge-tab-${s}`}
+            label={edgeStyleLabels[s]}
+            selected={edgeStyle === s}
+            onClick={() => onEdgeStyleChange(s)}
+            size={2}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-3 px-1">
+        {edgeStyle === 'bezier' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Curve</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={Math.round(curvature * 100)}
+              onChange={(e) => onCurvatureChange(Number(e.target.value) / 100)}
+              className="w-20 h-1 accent-gray-700"
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">Spacing</span>
+          <input
+            type="range"
+            min="25"
+            max="200"
+            value={Math.round(spacing * 100)}
+            onChange={(e) => onSpacingChange(Number(e.target.value) / 100)}
+            className="w-20 h-1 accent-gray-700"
+          />
+          <button
+            onClick={onResetSpacing}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            title="Reset to default"
+          >
+            <RxReset className="text-xs" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Inner component (needs ReactFlowProvider ancestor for hooks)
+// ---------------------------------------------------------------------------
+
+function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
+  const { fitView } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+  const [layoutApplied, setLayoutApplied] = useState(false)
+  const [layoutType, setLayoutType] = useState<LayoutType>(() => {
+    try {
+      const saved = localStorage.getItem('schema-mapper:layoutType')
+      if (saved && ['dagre', 'layered', 'force', 'stress'].includes(saved)) {
+        return saved as LayoutType
+      }
+    } catch {}
+    return 'layered'
+  })
+  const [isLayouting, setIsLayouting] = useState(false)
+
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(
+    () => buildNodesAndEdges(types),
+    [types],
+  )
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<SchemaNode_RF>(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<SchemaEdge>(initialEdges)
+
+  const [curvature, setCurvature] = useState(() => {
+    try {
+      const saved = localStorage.getItem('schema-mapper:curvature')
+      if (saved) {
+        const val = parseFloat(saved)
+        if (!isNaN(val)) { _curvature = val; return val }
+      }
+    } catch {}
+    return 0.1
+  })
+
+  const handleCurvatureChange = useCallback((value: number) => {
+    setCurvature(value)
+    _curvature = value
+    try { localStorage.setItem('schema-mapper:curvature', String(value)) } catch {}
+    // Force edge re-render
+    setEdges((eds) => [...eds])
+  }, [setEdges])
+
+  const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>(() => {
+    try {
+      const saved = localStorage.getItem('schema-mapper:edgeStyle')
+      if (saved && ['bezier', 'smoothstep', 'straight'].includes(saved)) {
+        _edgeStyle = saved as EdgeStyle
+        return saved as EdgeStyle
+      }
+    } catch {}
+    return 'smoothstep'
+  })
+
+  const handleEdgeStyleChange = useCallback((style: EdgeStyle) => {
+    setEdgeStyle(style)
+    _edgeStyle = style
+    try { localStorage.setItem('schema-mapper:edgeStyle', style) } catch {}
+    // Update all edges to use the new type
+    setEdges((eds) => eds.map((e) => ({
+      ...e,
+      type: style === 'bezier' ? 'gentle' : style,
+    })))
+  }, [setEdges])
+
+  const [spacingMap, setSpacingMap] = useState<Record<LayoutType, number>>(() => {
+    const defaults: Record<LayoutType, number> = { dagre: 1.0, layered: 0.4, force: 0.25, stress: 1.6 }
+    try {
+      const saved = localStorage.getItem('schema-mapper:spacingMap')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        Object.keys(defaults).forEach(k => {
+          const key = k as LayoutType
+          if (typeof parsed[key] === 'number') defaults[key] = parsed[key]
+        })
+      }
+    } catch {}
+    Object.assign(_spacingMap, defaults)
+    _spacing = defaults[layoutType]
+    return defaults
+  })
+  const spacing = spacingMap[layoutType]
+
+
+
+  // Re-sync when types change
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(types)
+    setNodes(newNodes)
+    setEdges(newEdges)
+    setLayoutApplied(false)
+  }, [types, setNodes, setEdges])
+
+  // Apply ELK layout once nodes have been measured
+  const applyLayout = useCallback(async (
+    currentNodes: SchemaNode_RF[],
+    currentEdges: SchemaEdge[],
+    layout: LayoutType,
+  ) => {
+    setIsLayouting(true)
+    try {
+      let layoutedNodes: SchemaNode_RF[]
+      if (layout === 'dagre') {
+        const result = getDagreLayout(currentNodes, currentEdges)
+        layoutedNodes = result.nodes
+      } else {
+        const result = await getElkLayout(currentNodes, currentEdges, layout)
+        layoutedNodes = result.nodes
+      }
+      setNodes(layoutedNodes as any)
+      setLayoutApplied(true)
+
+      window.requestAnimationFrame(() => {
+        fitView({ padding: 0.12, duration: 300 })
+      })
+    } catch (err) {
+      console.error('ELK layout failed:', err)
+    } finally {
+      setIsLayouting(false)
+    }
+  }, [setNodes, fitView])
+
+  // Initial layout after nodes are measured
+  useEffect(() => {
+    if (nodesInitialized && !layoutApplied) {
+      applyLayout(nodes as SchemaNode_RF[], edges, layoutType)
+    }
+  }, [nodesInitialized, layoutApplied, nodes, edges, layoutType, applyLayout])
+
+  // Re-layout when layout type changes
+  const handleLayoutChange = useCallback((newLayout: LayoutType) => {
+    setLayoutType(newLayout)
+    _spacing = _spacingMap[newLayout]
+    try { localStorage.setItem('schema-mapper:layoutType', newLayout) } catch {}
+    applyLayout(nodes as SchemaNode_RF[], edges, newLayout)
+  }, [nodes, edges, applyLayout])
+
+  const handleSpacingChange = useCallback((value: number) => {
+    setSpacingMap(prev => {
+      const next = { ...prev, [layoutType]: value }
+      _spacingMap[layoutType] = value
+      _spacing = value
+      try { localStorage.setItem('schema-mapper:spacingMap', JSON.stringify(next)) } catch {}
+      return next
+    })
+    applyLayout(nodes as SchemaNode_RF[], edges, layoutType)
+  }, [nodes, edges, layoutType, applyLayout])
+
+  const handleResetSpacing = useCallback(() => {
+    const defaultVal = DEFAULT_SPACING[layoutType]
+    handleSpacingChange(defaultVal)
+  }, [layoutType, handleSpacingChange])
+
+  return (
+    <div className="relative w-full h-full">
+      <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} edgeStyle={edgeStyle} onEdgeStyleChange={handleEdgeStyleChange} curvature={curvature} onCurvatureChange={handleCurvatureChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
+      {isLayouting && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500">
+          Layouting…
+        </div>
+      )}
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        fitView
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.1}
+        maxZoom={2}
+        defaultEdgeOptions={{
+          type: edgeStyle === 'bezier' ? 'gentle' : edgeStyle,
+          animated: false,
+        }}
+      >
+        <Background gap={16} size={1} color="#e2e8f0" />
+        <Controls showInteractive={false} />
+        <MiniMap
+          nodeStrokeWidth={3}
+          nodeColor="#e0f2fe"
+          maskColor="rgba(240, 240, 240, 0.7)"
+          pannable
+          zoomable
+        />
+      </ReactFlow>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Exported component — wraps with ReactFlowProvider
+// ---------------------------------------------------------------------------
+
+export interface SchemaGraphProps {
+  types: DiscoveredType[]
+}
+
+export function SchemaGraph({ types }: SchemaGraphProps) {
+  if (types.length === 0) {
+    return (
+      <div className="flex items-center justify-center w-full h-full text-gray-400 text-sm">
+        No schema types discovered yet.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', minHeight: 500 }}>
+      <ReactFlowProvider>
+        <SchemaGraphInner types={types} />
+      </ReactFlowProvider>
+    </div>
+  )
+}
+
+export default SchemaGraph

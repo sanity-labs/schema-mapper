@@ -1,0 +1,23 @@
+# Schema Mapper
+
+> A visual Sanity organization and schema explorer built with Sanity App SDK and React Flow.
+
+Schema Mapper connects to a Sanity organization, discovers all projects and datasets, and renders an interactive node graph of document types and their reference relationships.
+
+## Setup
+Clone, edit sanity.cli.ts with your projectId/orgId, pnpm install, npx sanity dev.
+
+## Tech Stack
+Sanity App SDK, React Flow (@xyflow/react), ELK (elkjs), Dagre, Sanity UI, Tailwind CSS v4, React 19, TypeScript, Vite.
+
+## Key Files
+- sanity.cli.ts: CLI config with projectId, orgId, Vite headers
+- src/App.tsx: Root component with ThemeProvider, SanityApp, HashRouter
+- src/components/LiveOrgOverview.tsx: Data orchestration (projects, datasets, schemas)
+- src/components/OrgOverview.tsx: Main UI with tabs, stats, export
+- src/components/SchemaGraph.tsx: React Flow graph with 4 layout algorithms
+- src/components/SchemaNode.tsx: Custom node with field list and handles
+- src/hooks/useSchemaDiscovery.ts: Schema inference by sampling documents
+
+## Features
+4 layout algorithms (dagre, layered, force, clustered), 3 edge styles, spacing control, PNG/SVG/PDF export, multi-project browsing, localStorage persistence, hash routing.

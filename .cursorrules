@@ -1,0 +1,24 @@
+# Schema Mapper — Cursor Rules
+
+This is a Sanity App SDK application using React Flow for schema visualization.
+
+## Key Patterns
+- Sanity App SDK hooks: useProjects(), useDatasets(), useClient(), useDashboardOrganizationId()
+- ResourceProvider wraps per-project/dataset context
+- React Flow: custom nodes (SchemaNode), custom edges (GentleBezierEdge), ELK/dagre layout
+- Module-level mutable variables (_curvature, _spacing, _edgeStyle) for edge component config
+- Tailwind CSS v4 for styling, Sanity UI for tabs/dialogs/spinners
+
+## Important
+- Hook ordering matters: useCallback referencing setEdges must come AFTER useEdgesState
+- Node types and edge types must be defined OUTSIDE React components
+- useDatasets() fails for projects without membership — always wrap in ErrorBoundary
+- ResourceProvider needs fallback={null} prop
+- sanity must be in devDependencies, not dependencies
+
+## File Structure
+- src/components/LiveOrgOverview.tsx — data orchestration
+- src/components/OrgOverview.tsx — main UI
+- src/components/SchemaGraph.tsx — React Flow graph + layout engines
+- src/components/SchemaNode.tsx — custom node component
+- src/hooks/useSchemaDiscovery.ts — schema inference from document sampling

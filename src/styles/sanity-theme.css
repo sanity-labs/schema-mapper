@@ -1,0 +1,1327 @@
+@import "tailwindcss";
+
+@theme {
+    /* ========================================
+     * Sanity UI Color Palette
+     * Mapped from @sanity/color package
+     * ======================================== */
+
+    /*
+     * DEFAULT TAILWIND THEME
+     * Keep in the file for reference
+     */
+    /*
+    @theme {
+        --color-red-50: oklch(0.971 0.013 17.38);
+        --color-red-100: oklch(0.936 0.032 17.717);
+        --color-red-200: oklch(0.885 0.062 18.334);
+        --color-red-300: oklch(0.808 0.114 19.571);
+        --color-red-400: oklch(0.704 0.191 22.216);
+        --color-red-500: oklch(0.637 0.237 25.331);
+        --color-red-600: oklch(0.577 0.245 27.325);
+        --color-red-700: oklch(0.505 0.213 27.518);
+        --color-red-800: oklch(0.444 0.177 26.899);
+        --color-red-900: oklch(0.396 0.141 25.723);
+        --color-red-950: oklch(0.258 0.092 26.042);
+        --color-orange-50: oklch(0.98 0.016 73.684);
+        --color-orange-100: oklch(0.954 0.038 75.164);
+        --color-orange-200: oklch(0.901 0.076 70.697);
+        --color-orange-300: oklch(0.837 0.128 66.29);
+        --color-orange-400: oklch(0.75 0.183 55.934);
+        --color-orange-500: oklch(0.705 0.213 47.604);
+        --color-orange-600: oklch(0.646 0.222 41.116);
+        --color-orange-700: oklch(0.553 0.195 38.402);
+        --color-orange-800: oklch(0.47 0.157 37.304);
+        --color-orange-900: oklch(0.408 0.123 38.172);
+        --color-orange-950: oklch(0.266 0.079 36.259);
+        --color-amber-50: oklch(0.987 0.022 95.277);
+        --color-amber-100: oklch(0.962 0.059 95.617);
+        --color-amber-200: oklch(0.924 0.12 95.746);
+        --color-amber-300: oklch(0.879 0.169 91.605);
+        --color-amber-400: oklch(0.828 0.189 84.429);
+        --color-amber-500: oklch(0.769 0.188 70.08);
+        --color-amber-600: oklch(0.666 0.179 58.318);
+        --color-amber-700: oklch(0.555 0.163 48.998);
+        --color-amber-800: oklch(0.473 0.137 46.201);
+        --color-amber-900: oklch(0.414 0.112 45.904);
+        --color-amber-950: oklch(0.279 0.077 45.635);
+        --color-yellow-50: oklch(0.987 0.026 102.212);
+        --color-yellow-100: oklch(0.973 0.071 103.193);
+        --color-yellow-200: oklch(0.945 0.129 101.54);
+        --color-yellow-300: oklch(0.905 0.182 98.111);
+        --color-yellow-400: oklch(0.852 0.199 91.936);
+        --color-yellow-500: oklch(0.795 0.184 86.047);
+        --color-yellow-600: oklch(0.681 0.162 75.834);
+        --color-yellow-700: oklch(0.554 0.135 66.442);
+        --color-yellow-800: oklch(0.476 0.114 61.907);
+        --color-yellow-900: oklch(0.421 0.095 57.708);
+        --color-yellow-950: oklch(0.286 0.066 53.813);
+        --color-lime-50: oklch(0.986 0.031 120.757);
+        --color-lime-100: oklch(0.967 0.067 122.328);
+        --color-lime-200: oklch(0.938 0.127 124.321);
+        --color-lime-300: oklch(0.897 0.196 126.665);
+        --color-lime-400: oklch(0.841 0.238 128.85);
+        --color-lime-500: oklch(0.768 0.233 130.85);
+        --color-lime-600: oklch(0.648 0.2 131.684);
+        --color-lime-700: oklch(0.532 0.157 131.589);
+        --color-lime-800: oklch(0.453 0.124 130.933);
+        --color-lime-900: oklch(0.405 0.101 131.063);
+        --color-lime-950: oklch(0.274 0.072 132.109);
+        --color-green-50: oklch(0.982 0.018 155.826);
+        --color-green-100: oklch(0.962 0.044 156.743);
+        --color-green-200: oklch(0.925 0.084 155.995);
+        --color-green-300: oklch(0.871 0.15 154.449);
+        --color-green-400: oklch(0.792 0.209 151.711);
+        --color-green-500: oklch(0.723 0.219 149.579);
+        --color-green-600: oklch(0.627 0.194 149.214);
+        --color-green-700: oklch(0.527 0.154 150.069);
+        --color-green-800: oklch(0.448 0.119 151.328);
+        --color-green-900: oklch(0.393 0.095 152.535);
+        --color-green-950: oklch(0.266 0.065 152.934);
+        --color-emerald-50: oklch(0.979 0.021 166.113);
+        --color-emerald-100: oklch(0.95 0.052 163.051);
+        --color-emerald-200: oklch(0.905 0.093 164.15);
+        --color-emerald-300: oklch(0.845 0.143 164.978);
+        --color-emerald-400: oklch(0.765 0.177 163.223);
+        --color-emerald-500: oklch(0.696 0.17 162.48);
+        --color-emerald-600: oklch(0.596 0.145 163.225);
+        --color-emerald-700: oklch(0.508 0.118 165.612);
+        --color-emerald-800: oklch(0.432 0.095 166.913);
+        --color-emerald-900: oklch(0.378 0.077 168.94);
+        --color-emerald-950: oklch(0.262 0.051 172.552);
+        --color-teal-50: oklch(0.984 0.014 180.72);
+        --color-teal-100: oklch(0.953 0.051 180.801);
+        --color-teal-200: oklch(0.91 0.096 180.426);
+        --color-teal-300: oklch(0.855 0.138 181.071);
+        --color-teal-400: oklch(0.777 0.152 181.912);
+        --color-teal-500: oklch(0.704 0.14 182.503);
+        --color-teal-600: oklch(0.6 0.118 184.704);
+        --color-teal-700: oklch(0.511 0.096 186.391);
+        --color-teal-800: oklch(0.437 0.078 188.216);
+        --color-teal-900: oklch(0.386 0.063 188.416);
+        --color-teal-950: oklch(0.277 0.046 192.524);
+        --color-cyan-50: oklch(0.984 0.019 200.873);
+        --color-cyan-100: oklch(0.956 0.045 203.388);
+        --color-cyan-200: oklch(0.917 0.08 205.041);
+        --color-cyan-300: oklch(0.865 0.127 207.078);
+        --color-cyan-400: oklch(0.789 0.154 211.53);
+        --color-cyan-500: oklch(0.715 0.143 215.221);
+        --color-cyan-600: oklch(0.609 0.126 221.723);
+        --color-cyan-700: oklch(0.52 0.105 223.128);
+        --color-cyan-800: oklch(0.45 0.085 224.283);
+        --color-cyan-900: oklch(0.398 0.07 227.392);
+        --color-cyan-950: oklch(0.302 0.056 229.695);
+        --color-sky-50: oklch(0.977 0.013 236.62);
+        --color-sky-100: oklch(0.951 0.026 236.824);
+        --color-sky-200: oklch(0.901 0.058 230.902);
+        --color-sky-300: oklch(0.828 0.111 230.318);
+        --color-sky-400: oklch(0.746 0.16 232.661);
+        --color-sky-500: oklch(0.685 0.169 237.323);
+        --color-sky-600: oklch(0.588 0.158 241.966);
+        --color-sky-700: oklch(0.5 0.134 242.749);
+        --color-sky-800: oklch(0.443 0.11 240.79);
+        --color-sky-900: oklch(0.391 0.09 240.876);
+        --color-sky-950: oklch(0.293 0.066 243.157);
+        --color-blue-50: oklch(0.97 0.014 254.604);
+        --color-blue-100: oklch(0.932 0.032 255.585);
+        --color-blue-200: oklch(0.882 0.059 254.128);
+        --color-blue-300: oklch(0.809 0.105 251.813);
+        --color-blue-400: oklch(0.707 0.165 254.624);
+        --color-blue-500: oklch(0.623 0.214 259.815);
+        --color-blue-600: oklch(0.546 0.245 262.881);
+        --color-blue-700: oklch(0.488 0.243 264.376);
+        --color-blue-800: oklch(0.424 0.199 265.638);
+        --color-blue-900: oklch(0.379 0.146 265.522);
+        --color-blue-950: oklch(0.282 0.091 267.935);
+        --color-indigo-50: oklch(0.962 0.018 272.314);
+        --color-indigo-100: oklch(0.93 0.034 272.788);
+        --color-indigo-200: oklch(0.87 0.065 274.039);
+        --color-indigo-300: oklch(0.785 0.115 274.713);
+        --color-indigo-400: oklch(0.673 0.182 276.935);
+        --color-indigo-500: oklch(0.585 0.233 277.117);
+        --color-indigo-600: oklch(0.511 0.262 276.966);
+        --color-indigo-700: oklch(0.457 0.24 277.023);
+        --color-indigo-800: oklch(0.398 0.195 277.366);
+        --color-indigo-900: oklch(0.359 0.144 278.697);
+        --color-indigo-950: oklch(0.257 0.09 281.288);
+        --color-violet-50: oklch(0.969 0.016 293.756);
+        --color-violet-100: oklch(0.943 0.029 294.588);
+        --color-violet-200: oklch(0.894 0.057 293.283);
+        --color-violet-300: oklch(0.811 0.111 293.571);
+        --color-violet-400: oklch(0.702 0.183 293.541);
+        --color-violet-500: oklch(0.606 0.25 292.717);
+        --color-violet-600: oklch(0.541 0.281 293.009);
+        --color-violet-700: oklch(0.491 0.27 292.581);
+        --color-violet-800: oklch(0.432 0.232 292.759);
+        --color-violet-900: oklch(0.38 0.189 293.745);
+        --color-violet-950: oklch(0.283 0.141 291.089);
+        --color-purple-50: oklch(0.977 0.014 308.299);
+        --color-purple-100: oklch(0.946 0.033 307.174);
+        --color-purple-200: oklch(0.902 0.063 306.703);
+        --color-purple-300: oklch(0.827 0.119 306.383);
+        --color-purple-400: oklch(0.714 0.203 305.504);
+        --color-purple-500: oklch(0.627 0.265 303.9);
+        --color-purple-600: oklch(0.558 0.288 302.321);
+        --color-purple-700: oklch(0.496 0.265 301.924);
+        --color-purple-800: oklch(0.438 0.218 303.724);
+        --color-purple-900: oklch(0.381 0.176 304.987);
+        --color-purple-950: oklch(0.291 0.149 302.717);
+        --color-fuchsia-50: oklch(0.977 0.017 320.058);
+        --color-fuchsia-100: oklch(0.952 0.037 318.852);
+        --color-fuchsia-200: oklch(0.903 0.076 319.62);
+        --color-fuchsia-300: oklch(0.833 0.145 321.434);
+        --color-fuchsia-400: oklch(0.74 0.238 322.16);
+        --color-fuchsia-500: oklch(0.667 0.295 322.15);
+        --color-fuchsia-600: oklch(0.591 0.293 322.896);
+        --color-fuchsia-700: oklch(0.518 0.253 323.949);
+        --color-fuchsia-800: oklch(0.452 0.211 324.591);
+        --color-fuchsia-900: oklch(0.401 0.17 325.612);
+        --color-fuchsia-950: oklch(0.293 0.136 325.661);
+        --color-pink-50: oklch(0.971 0.014 343.198);
+        --color-pink-100: oklch(0.948 0.028 342.258);
+        --color-pink-200: oklch(0.899 0.061 343.231);
+        --color-pink-300: oklch(0.823 0.12 346.018);
+        --color-pink-400: oklch(0.718 0.202 349.761);
+        --color-pink-500: oklch(0.656 0.241 354.308);
+        --color-pink-600: oklch(0.592 0.249 0.584);
+        --color-pink-700: oklch(0.525 0.223 3.958);
+        --color-pink-800: oklch(0.459 0.187 3.815);
+        --color-pink-900: oklch(0.408 0.153 2.432);
+        --color-pink-950: oklch(0.284 0.109 3.907);
+        --color-rose-50: oklch(0.969 0.015 12.422);
+        --color-rose-100: oklch(0.941 0.03 12.58);
+        --color-rose-200: oklch(0.892 0.058 10.001);
+        --color-rose-300: oklch(0.81 0.117 11.638);
+        --color-rose-400: oklch(0.712 0.194 13.428);
+        --color-rose-500: oklch(0.645 0.246 16.439);
+        --color-rose-600: oklch(0.586 0.253 17.585);
+        --color-rose-700: oklch(0.514 0.222 16.935);
+        --color-rose-800: oklch(0.455 0.188 13.697);
+        --color-rose-900: oklch(0.41 0.159 10.272);
+        --color-rose-950: oklch(0.271 0.105 12.094);
+        --color-slate-50: oklch(0.984 0.003 247.858);
+        --color-slate-100: oklch(0.968 0.007 247.896);
+        --color-slate-200: oklch(0.929 0.013 255.508);
+        --color-slate-300: oklch(0.869 0.022 252.894);
+        --color-slate-400: oklch(0.704 0.04 256.788);
+        --color-slate-500: oklch(0.554 0.046 257.417);
+        --color-slate-600: oklch(0.446 0.043 257.281);
+        --color-slate-700: oklch(0.372 0.044 257.287);
+        --color-slate-800: oklch(0.279 0.041 260.031);
+        --color-slate-900: oklch(0.208 0.042 265.755);
+        --color-slate-950: oklch(0.129 0.042 264.695);
+        --color-gray-50: oklch(0.985 0.002 247.839);
+        --color-gray-100: oklch(0.967 0.003 264.542);
+        --color-gray-200: oklch(0.928 0.006 264.531);
+        --color-gray-300: oklch(0.872 0.01 258.338);
+        --color-gray-400: oklch(0.707 0.022 261.325);
+        --color-gray-500: oklch(0.551 0.027 264.364);
+        --color-gray-600: oklch(0.446 0.03 256.802);
+        --color-gray-700: oklch(0.373 0.034 259.733);
+        --color-gray-800: oklch(0.278 0.033 256.848);
+        --color-gray-900: oklch(0.21 0.034 264.665);
+        --color-gray-950: oklch(0.13 0.028 261.692);
+        --color-zinc-50: oklch(0.985 0 0);
+        --color-zinc-100: oklch(0.967 0.001 286.375);
+        --color-zinc-200: oklch(0.92 0.004 286.32);
+        --color-zinc-300: oklch(0.871 0.006 286.286);
+        --color-zinc-400: oklch(0.705 0.015 286.067);
+        --color-zinc-500: oklch(0.552 0.016 285.938);
+        --color-zinc-600: oklch(0.442 0.017 285.786);
+        --color-zinc-700: oklch(0.37 0.013 285.805);
+        --color-zinc-800: oklch(0.274 0.006 286.033);
+        --color-zinc-900: oklch(0.21 0.006 285.885);
+        --color-zinc-950: oklch(0.141 0.005 285.823);
+        --color-neutral-50: oklch(0.985 0 0);
+        --color-neutral-100: oklch(0.97 0 0);
+        --color-neutral-200: oklch(0.922 0 0);
+        --color-neutral-300: oklch(0.87 0 0);
+        --color-neutral-400: oklch(0.708 0 0);
+        --color-neutral-500: oklch(0.556 0 0);
+        --color-neutral-600: oklch(0.439 0 0);
+        --color-neutral-700: oklch(0.371 0 0);
+        --color-neutral-800: oklch(0.269 0 0);
+        --color-neutral-900: oklch(0.205 0 0);
+        --color-neutral-950: oklch(0.145 0 0);
+        --color-stone-50: oklch(0.985 0.001 106.423);
+        --color-stone-100: oklch(0.97 0.001 106.424);
+        --color-stone-200: oklch(0.923 0.003 48.717);
+        --color-stone-300: oklch(0.869 0.005 56.366);
+        --color-stone-400: oklch(0.709 0.01 56.259);
+        --color-stone-500: oklch(0.553 0.013 58.071);
+        --color-stone-600: oklch(0.444 0.011 73.639);
+        --color-stone-700: oklch(0.374 0.01 67.558);
+        --color-stone-800: oklch(0.268 0.007 34.298);
+        --color-stone-900: oklch(0.216 0.006 56.043);
+        --color-stone-950: oklch(0.147 0.004 49.25);
+        --color-black: #000;
+        --color-white: #fff;
+
+    }
+    */
+
+    /* Base Colors */
+    --color-sanity-black: #0d0e12;
+    --color-sanity-white: #ffffff;
+
+    /* Gray */
+    --color-gray-50: #f6f6f8;
+    --color-gray-100: #eeeef1;
+    --color-gray-200: #e3e4e8;
+    --color-gray-300: #bbbdc9;
+    --color-gray-400: #9499ad;
+    --color-gray-500: #727892;
+    --color-gray-600: #515870;
+    --color-gray-700: #383d51;
+    --color-gray-800: #252837;
+    --color-gray-900: #1b1d27;
+    --color-gray-950: #13141b;
+
+    /* Blue */
+    --color-blue-50: #f5f8ff;
+    --color-blue-100: #e5edff;
+    --color-blue-200: #dbe5ff;
+    --color-blue-300: #a8bfff;
+    --color-blue-400: #7595ff;
+    --color-blue-500: #556bfc;
+    --color-blue-600: #4043e7;
+    --color-blue-700: #2927aa;
+    --color-blue-800: #192457;
+    --color-blue-900: #161a41;
+    --color-blue-950: #101228;
+
+    /* Purple */
+    --color-purple-50: #f8f5ff;
+    --color-purple-100: #f1ebff;
+    --color-purple-200: #ece1fe;
+    --color-purple-300: #ccb1fc;
+    --color-purple-400: #b087f7;
+    --color-purple-500: #8f57ef;
+    --color-purple-600: #721fe5;
+    --color-purple-700: #4c1a9e;
+    --color-purple-800: #2f1862;
+    --color-purple-900: #23173f;
+    --color-purple-950: #181128;
+
+    /* Magenta */
+    --color-magenta-50: #fef6f9;
+    --color-magenta-100: #fde8ef;
+    --color-magenta-200: #fcdee9;
+    --color-magenta-300: #f7abc5;
+    --color-magenta-400: #f0709b;
+    --color-magenta-500: #e72767;
+    --color-magenta-600: #b11651;
+    --color-magenta-700: #7c1342;
+    --color-magenta-800: #4b1130;
+    --color-magenta-900: #341325;
+    --color-magenta-950: #1f0f14;
+
+    /* Red (Critical/Destructive) */
+    --color-red-50: #fff6f5;
+    --color-red-100: #ffe7e5;
+    --color-red-200: #ffdedc;
+    --color-red-300: #fdada5;
+    --color-red-400: #f77769;
+    --color-red-500: #ef4434;
+    --color-red-600: #cc2819;
+    --color-red-700: #8b2018;
+    --color-red-800: #4d1714;
+    --color-red-900: #321615;
+    --color-red-950: #1e1011;
+
+    /* Orange (Caution) */
+    --color-orange-50: #fff7f0;
+    --color-orange-100: #ffeadb;
+    --color-orange-200: #ffddc7;
+    --color-orange-300: #ffb685;
+    --color-orange-400: #ff8e42;
+    --color-orange-500: #fa6400;
+    --color-orange-600: #b14802;
+    --color-orange-700: #7c3404;
+    --color-orange-800: #461e07;
+    --color-orange-900: #32160b;
+    --color-orange-950: #21120d;
+
+    /* Yellow (Warning) */
+    --color-yellow-50: #fefae1;
+    --color-yellow-100: #fcf3bb;
+    --color-yellow-200: #f9e994;
+    --color-yellow-300: #f7d455;
+    --color-yellow-400: #f9bc15;
+    --color-yellow-500: #d28a04;
+    --color-yellow-600: #965908;
+    --color-yellow-700: #653a0b;
+    --color-yellow-800: #3b220c;
+    --color-yellow-900: #271a11;
+    --color-yellow-950: #181410;
+
+    /* Green (Positive/Success) */
+    --color-green-50: #e7fef5;
+    --color-green-100: #c5fce8;
+    --color-green-200: #a9f9dc;
+    --color-green-300: #59f3ba;
+    --color-green-400: #0ff0a1;
+    --color-green-500: #04b97a;
+    --color-green-600: #01794f;
+    --color-green-700: #015133;
+    --color-green-800: #023120;
+    --color-green-900: #06231a;
+    --color-green-950: #071715;
+
+    /* Cyan */
+    --color-cyan-50: #e7fefe;
+    --color-cyan-100: #c5fcfc;
+    --color-cyan-200: #96f8f8;
+    --color-cyan-300: #62efef;
+    --color-cyan-400: #18e2e2;
+    --color-cyan-500: #04b8be;
+    --color-cyan-600: #037782;
+    --color-cyan-700: #024950;
+    --color-cyan-800: #042f34;
+    --color-cyan-900: #072227;
+    --color-cyan-950: #0d181c;
+
+    /* ========================================
+     * Semantic Color Aliases
+     * Maps Sanity UI tones to color values
+     * ======================================== */
+
+    /* Default tone */
+    --color-tone-default-bg: var(--color-gray-50);
+    --color-tone-default-fg: var(--color-gray-700);
+    --color-tone-default-border: var(--color-gray-200);
+
+    /* Primary tone */
+    --color-tone-primary-bg: var(--color-blue-500);
+    --color-tone-primary-fg: var(--color-sanity-white);
+    --color-tone-primary-border: var(--color-blue-600);
+
+    /* Positive tone (success) */
+    --color-tone-positive-bg: var(--color-green-500);
+    --color-tone-positive-fg: var(--color-sanity-white);
+    --color-tone-positive-border: var(--color-green-600);
+
+    /* Caution tone (warning) */
+    --color-tone-caution-bg: var(--color-orange-500);
+    --color-tone-caution-fg: var(--color-sanity-white);
+    --color-tone-caution-border: var(--color-orange-600);
+
+    /* Critical tone (destructive/error) */
+    --color-tone-critical-bg: var(--color-red-500);
+    --color-tone-critical-fg: var(--color-sanity-white);
+    --color-tone-critical-border: var(--color-red-600);
+
+    /* ========================================
+     * Sanity UI Spacing Scale
+     *
+     * Tailwind v4 uses --spacing as a base unit (0.25rem = 4px).
+     * We extend the default scale with Sanity UI values where:
+     * - Exact match exists, OR
+     * - Within 10% threshold of a Tailwind value
+     *
+     * Sanity UI space scale:
+     *   space[0] = 0px    → TW 0 (exact)
+     *   space[1] = 4px    → TW 1 (exact: 4px)
+     *   space[2] = 8px    → TW 2 (exact: 8px)
+     *   space[3] = 12px   → TW 3 (exact: 12px)
+     *   space[4] = 20px   → TW 5 (exact: 20px)
+     *   space[5] = 32px   → TW 8 (exact: 32px)
+     *   space[6] = 52px   → TW 13 (custom: 52px, closest is 48px = 8% diff)
+     *   space[7] = 84px   → TW 21 (custom: 84px, closest is 80px = 5% diff)
+     *   space[8] = 136px  → TW 34 (custom: 136px, closest is 128px = 6% diff)
+     *   space[9] = 220px  → TW 55 (custom: 220px, closest is 224px = 2% diff)
+     * ======================================== */
+
+    /* Extend Tailwind spacing with Sanity UI values (within 10% threshold) */
+    --spacing-13: calc(
+        var(--spacing) * 13
+    ); /* 52px - Sanity space[6], closest TW is 12 (48px), 8% diff */
+    --spacing-21: calc(
+        var(--spacing) * 21
+    ); /* 84px - Sanity space[7], closest TW is 20 (80px), 5% diff */
+    --spacing-34: calc(
+        var(--spacing) * 34
+    ); /* 136px - Sanity space[8], closest TW is 32 (128px), 6% diff */
+    --spacing-55: calc(
+        var(--spacing) * 55
+    ); /* 220px - Sanity space[9], closest TW is 56 (224px), 2% diff */
+
+    /* Sanity-specific spacing aliases using base --spacing (0.25rem = 4px) */
+    --spacing-sanity-0: 0px;
+    --spacing-sanity-1: calc(var(--spacing) * 1); /* 4px */
+    --spacing-sanity-2: calc(var(--spacing) * 2); /* 8px */
+    --spacing-sanity-3: calc(var(--spacing) * 3); /* 12px */
+    --spacing-sanity-4: calc(var(--spacing) * 5); /* 20px */
+    --spacing-sanity-5: calc(var(--spacing) * 8); /* 32px */
+    --spacing-sanity-6: calc(var(--spacing) * 13); /* 52px */
+    --spacing-sanity-7: calc(var(--spacing) * 21); /* 84px */
+    --spacing-sanity-8: calc(var(--spacing) * 34); /* 136px */
+    --spacing-sanity-9: calc(var(--spacing) * 55); /* 220px */
+
+    /* ========================================
+     * Sanity UI Radius Scale
+     *
+     * Sanity UI radius scale vs Tailwind defaults:
+     *   radius[0] = 0px  → rounded-none (exact)
+     *   radius[1] = 1px  → rounded-[1px] (custom, TW xs is 2px)
+     *   radius[2] = 3px  → rounded-sm (exact: 0.25rem = 4px, 25% diff - use custom)
+     *   radius[3] = 6px  → rounded-md (exact: 0.375rem = 6px)
+     *   radius[4] = 9px  → rounded-lg (close: 0.5rem = 8px, 12% diff - use custom)
+     *   radius[5] = 12px → rounded-xl (close: 0.75rem = 12px, exact)
+     *   radius[6] = 21px → rounded-[21px] (custom, TW 2xl is 16px)
+     * ======================================== */
+
+    /* Override radius values to match Sanity UI */
+    --radius-sm: 0.1875rem; /* 3px - Sanity radius[2] */
+    --radius-md: 0.375rem; /* 6px - Sanity radius[3] (matches TW default) */
+    --radius-lg: 0.5625rem; /* 9px - Sanity radius[4] */
+    --radius-xl: 0.75rem; /* 12px - Sanity radius[5] (matches TW default) */
+
+    /* Sanity-specific radius aliases */
+    --radius-sanity-0: 0px;
+    --radius-sanity-1: 0.0625rem; /* 1px */
+    --radius-sanity-2: 0.1875rem; /* 3px */
+    --radius-sanity-3: 0.4375rem; /* 7px */
+    --radius-sanity-4: 0.6857rem; /* 11px */
+    --radius-sanity-5: 0.9375rem; /* 15px */
+    --radius-sanity-6: 1.1875rem; /* 19px */
+    --radius-sanity-round: 1000rem;
+
+    /* ========================================
+     * Sanity UI Container Widths
+     * These extend Tailwind's container scale
+     * ======================================== */
+
+    --container-sanity-0: 20rem; /* 320px */
+    --container-sanity-1: 40rem; /* 640px */
+    --container-sanity-2: 60rem; /* 960px */
+    --container-sanity-3: 80rem; /* 1280px */
+    --container-sanity-4: 100rem; /* 1600px */
+    --container-sanity-5: 120rem; /* 1920px */
+
+    /* ========================================
+     * Sanity UI Font Stacks
+     * ======================================== */
+    --font-sans:
+        Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", "Liberation Sans", Helvetica, Arial, system-ui,
+        sans-serif;
+    --font-mono:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+    /* ========================================
+     * Sanity UI Font Sizes
+     * Text, Heading, Label, and Code size scales
+     * ======================================== */
+
+    /* Text Sizes (body text) */
+    --font-size-text-0: 0.625rem; /* 10px */
+    --line-height-text-0: 0.9375rem; /* 15px */
+    --icon-size-text-0: 1.0625rem; /* 17px */
+
+    --font-size-text-1: 0.8125rem; /* 13px */
+    --line-height-text-1: 1.1875rem; /* 19px */
+    --icon-size-text-1: 1.3125rem; /* 21px */
+
+    --font-size-text-2: 0.9375rem; /* 15px */
+    --line-height-text-2: 1.4375rem; /* 23px */
+    --icon-size-text-2: 1.5625rem; /* 25px */
+
+    --font-size-text-3: 1.125rem; /* 18px */
+    --line-height-text-3: 1.6875rem; /* 27px */
+    --icon-size-text-3: 1.8125rem; /* 29px */
+
+    --font-size-text-4: 1.3125rem; /* 21px */
+    --line-height-text-4: 1.9375rem; /* 31px */
+    --icon-size-text-4: 2.0625rem; /* 33px */
+
+    /* Heading Sizes */
+    --font-size-heading-0: 0.8125rem; /* 13px */
+    --line-height-heading-0: 1.1875rem; /* 19px */
+
+    --font-size-heading-1: 1rem; /* 16px */
+    --line-height-heading-1: 1.4375rem; /* 23px */
+
+    --font-size-heading-2: 1.3125rem; /* 21px */
+    --line-height-heading-2: 1.8125rem; /* 29px */
+
+    --font-size-heading-3: 1.6875rem; /* 27px */
+    --line-height-heading-3: 2.1875rem; /* 35px */
+
+    --font-size-heading-4: 2.0625rem; /* 33px */
+    --line-height-heading-4: 2.5625rem; /* 41px */
+
+    --font-size-heading-5: 2.375rem; /* 38px */
+    --line-height-heading-5: 2.9375rem; /* 47px */
+
+    /* Label Sizes (uppercase labels, typically) */
+    --font-size-label-0: 0.50625rem; /* 8.1px */
+    --line-height-label-0: 0.625rem; /* 10px */
+    --letter-spacing-label: 0.03125rem; /* 0.5px */
+
+    --font-size-label-1: 0.59375rem; /* 9.5px */
+    --line-height-label-1: 0.6875rem; /* 11px */
+
+    --font-size-label-2: 0.675rem; /* 10.8px */
+    --line-height-label-2: 0.75rem; /* 12px */
+
+    --font-size-label-3: 0.765625rem; /* 12.25px */
+    --line-height-label-3: 0.8125rem; /* 13px */
+
+    --font-size-label-4: 0.85rem; /* 13.6px */
+    --line-height-label-4: 0.875rem; /* 14px */
+
+    --font-size-label-5: 0.9375rem; /* 15px */
+    --line-height-label-5: 0.9375rem; /* 15px */
+
+    /* Code Sizes (monospace) */
+    --font-size-code-0: 0.625rem; /* 10px */
+    --line-height-code-0: 0.9375rem; /* 15px */
+
+    --font-size-code-1: 0.8125rem; /* 13px */
+    --line-height-code-1: 1.1875rem; /* 19px */
+
+    --font-size-code-2: 1rem; /* 16px */
+    --line-height-code-2: 1.4375rem; /* 23px */
+
+    --font-size-code-3: 1.1875rem; /* 19px */
+    --line-height-code-3: 1.6875rem; /* 27px */
+
+    --font-size-code-4: 1.375rem; /* 22px */
+    --line-height-code-4: 1.9375rem; /* 31px */
+
+    /* Radius */
+    --radius-sm: 0.1875rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.625rem;
+    --radius-xl: 1rem;
+
+    /* Colors - Light Mode */
+    --color-background: oklch(1 0 0);
+    --color-foreground: oklch(0.145 0 0);
+    --color-card: oklch(1 0 0);
+    --color-card-foreground: oklch(0.145 0 0);
+    --color-popover: oklch(1 0 0);
+    --color-popover-foreground: oklch(0.145 0 0);
+    --color-primary: oklch(0.205 0 0);
+    --color-primary-foreground: oklch(0.985 0 0);
+    --color-secondary: oklch(0.97 0 0);
+    --color-secondary-foreground: oklch(0.205 0 0);
+    --color-muted: oklch(0.97 0 0);
+    --color-muted-foreground: oklch(0.556 0 0);
+    --color-accent: oklch(0.97 0 0);
+    --color-accent-foreground: oklch(0.205 0 0);
+    --color-destructive: var(--color-red-500);
+    --color-destructive-foreground: var(--color-sanity-white);
+    --color-border: oklch(0.922 0 0);
+    --color-input: oklch(0.922 0 0);
+    --color-ring: oklch(0.708 0 0);
+
+    /* Chart Colors */
+    --color-chart-1: oklch(0.81 0.1 252);
+    --color-chart-2: oklch(0.62 0.19 260);
+    --color-chart-3: oklch(0.55 0.22 263);
+    --color-chart-4: oklch(0.49 0.22 264);
+    --color-chart-5: oklch(0.42 0.18 266);
+
+    /* Sidebar Colors */
+    --color-sidebar: #fff;
+    --color-sidebar-foreground: oklch(0.145 0 0);
+    --color-sidebar-primary: oklch(0.205 0 0);
+    --color-sidebar-primary-foreground: oklch(0.985 0 0);
+    --color-sidebar-accent: oklch(0.97 0 0);
+    --color-sidebar-accent-foreground: oklch(0.205 0 0);
+    --color-sidebar-border: oklch(0.922 0 0);
+    --color-sidebar-ring: oklch(0.708 0 0);
+
+    /* Shadows */
+    --shadow-2xs: 0 1px 3px 0px oklch(0 0 0 / 0.05);
+    --shadow-xs: 0 1px 3px 0px oklch(0 0 0 / 0.05);
+    --shadow-sm:
+        0 1px 3px 0px oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
+    --shadow:
+        0 1px 3px 0px oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
+    --shadow-md:
+        0 1px 3px 0px oklch(0 0 0 / 0.1), 0 2px 4px -1px oklch(0 0 0 / 0.1);
+    --shadow-lg:
+        0 1px 3px 0px oklch(0 0 0 / 0.1), 0 4px 6px -1px oklch(0 0 0 / 0.1);
+    --shadow-xl:
+        0 1px 3px 0px oklch(0 0 0 / 0.1), 0 8px 10px -1px oklch(0 0 0 / 0.1);
+    --shadow-2xl: 0 1px 3px 0px oklch(0 0 0 / 0.25);
+
+    /* Animations */
+    --animate-accordion-down: accordion-down 0.2s ease-out;
+    --animate-accordion-up: accordion-up 0.2s ease-out;
+    --animate-in: enter 0.2s ease-out;
+    --animate-out: exit 0.15s ease-in forwards;
+
+    @keyframes accordion-down {
+        from {
+            height: 0;
+        }
+        to {
+            height: var(--radix-accordion-content-height);
+        }
+    }
+
+    @keyframes accordion-up {
+        from {
+            height: var(--radix-accordion-content-height);
+        }
+        to {
+            height: 0;
+        }
+    }
+
+    @keyframes enter {
+        from {
+            opacity: var(--tw-enter-opacity, 1);
+            transform: translate3d(
+                    var(--tw-enter-translate-x, 0),
+                    var(--tw-enter-translate-y, 0),
+                    0
+                )
+                scale3d(
+                    var(--tw-enter-scale, 1),
+                    var(--tw-enter-scale, 1),
+                    var(--tw-enter-scale, 1)
+                )
+                rotate(var(--tw-enter-rotate, 0));
+        }
+    }
+
+    @keyframes exit {
+        to {
+            opacity: var(--tw-exit-opacity, 1);
+            transform: translate3d(
+                    var(--tw-exit-translate-x, 0),
+                    var(--tw-exit-translate-y, 0),
+                    0
+                )
+                scale3d(
+                    var(--tw-exit-scale, 1),
+                    var(--tw-exit-scale, 1),
+                    var(--tw-exit-scale, 1)
+                )
+                rotate(var(--tw-exit-rotate, 0));
+        }
+    }
+}
+
+/* Animation utility classes */
+.animate-in {
+    animation-name: enter;
+    animation-duration: 0.15s;
+    --tw-enter-opacity: initial;
+    --tw-enter-scale: initial;
+    --tw-enter-rotate: initial;
+    --tw-enter-translate-x: initial;
+    --tw-enter-translate-y: initial;
+}
+
+.animate-out {
+    animation-name: exit;
+    animation-duration: 0.15s;
+    --tw-exit-opacity: initial;
+    --tw-exit-scale: initial;
+    --tw-exit-rotate: initial;
+    --tw-exit-translate-x: initial;
+    --tw-exit-translate-y: initial;
+}
+
+.fade-in-0 {
+    --tw-enter-opacity: 0;
+}
+.fade-out-0 {
+    --tw-exit-opacity: 0;
+}
+.fade-out-80 {
+    --tw-exit-opacity: 0.8;
+}
+
+.zoom-in-95 {
+    --tw-enter-scale: 0.95;
+}
+.zoom-out-95 {
+    --tw-exit-scale: 0.95;
+}
+
+.slide-in-from-top-2 {
+    --tw-enter-translate-y: -0.5rem;
+}
+.slide-in-from-bottom-2 {
+    --tw-enter-translate-y: 0.5rem;
+}
+.slide-in-from-left-2 {
+    --tw-enter-translate-x: -0.5rem;
+}
+.slide-in-from-right-2 {
+    --tw-enter-translate-x: 0.5rem;
+}
+.slide-in-from-top-full {
+    --tw-enter-translate-y: -100%;
+}
+.slide-in-from-bottom-full {
+    --tw-enter-translate-y: 100%;
+}
+.slide-in-from-left-full {
+    --tw-enter-translate-x: -100%;
+}
+.slide-in-from-right-full {
+    --tw-enter-translate-x: 100%;
+}
+.slide-in-from-left-1\/2 {
+    --tw-enter-translate-x: -50%;
+}
+.slide-in-from-top-\[48\%\] {
+    --tw-enter-translate-y: -48%;
+}
+
+.slide-out-to-top {
+    --tw-exit-translate-y: -100%;
+}
+.slide-out-to-bottom {
+    --tw-exit-translate-y: 100%;
+}
+.slide-out-to-left {
+    --tw-exit-translate-x: -100%;
+}
+.slide-out-to-right {
+    --tw-exit-translate-x: 100%;
+}
+.slide-out-to-right-full {
+    --tw-exit-translate-x: 100%;
+}
+.slide-out-to-left-1\/2 {
+    --tw-exit-translate-x: -50%;
+}
+.slide-out-to-top-\[48\%\] {
+    --tw-exit-translate-y: -48%;
+}
+
+/* Dark Mode Colors */
+.dark {
+    --color-background: oklch(0.145 0 0);
+    --color-foreground: oklch(0.985 0 0);
+    --color-card: oklch(0.205 0 0);
+    --color-card-foreground: oklch(0.985 0 0);
+    --color-popover: oklch(0.269 0 0);
+    --color-popover-foreground: oklch(0.985 0 0);
+    --color-primary: oklch(0.922 0 0);
+    --color-primary-foreground: oklch(0.205 0 0);
+    --color-secondary: oklch(0.269 0 0);
+    --color-secondary-foreground: oklch(0.985 0 0);
+    --color-muted: oklch(0.269 0 0);
+    --color-muted-foreground: oklch(0.708 0 0);
+    --color-accent: oklch(0.371 0 0);
+    --color-accent-foreground: oklch(0.985 0 0);
+    --color-destructive: var(--color-red-500);
+    --color-destructive-foreground: var(--color-sanity-white);
+    --color-border: oklch(0.275 0 0);
+    --color-input: oklch(0.325 0 0);
+    --color-ring: oklch(0.556 0 0);
+    --color-sidebar: oklch(0.205 0 0);
+    --color-sidebar-foreground: oklch(0.985 0 0);
+    --color-sidebar-primary: oklch(0.488 0.243 264.376);
+    --color-sidebar-primary-foreground: oklch(0.985 0 0);
+    --color-sidebar-accent: oklch(0.269 0 0);
+    --color-sidebar-accent-foreground: oklch(0.985 0 0);
+    --color-sidebar-border: oklch(0.275 0 0);
+    --color-sidebar-ring: oklch(0.439 0 0);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    h1 {
+        @apply text-4xl;
+    }
+    h2 {
+        @apply text-3xl;
+    }
+    h3 {
+        @apply text-2xl;
+    }
+    h4 {
+        @apply text-xl;
+    }
+    h5 {
+        @apply text-lg;
+    }
+    p {
+        @apply text-base;
+    }
+    small {
+        @apply text-sm;
+    }
+
+    /* Cursor pointer for buttons */
+    button:not(:disabled),
+    [role="button"]:not(:disabled) {
+        cursor: pointer;
+    }
+}
+
+body {
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: auto;
+}
+
+.rounded-md {
+    border-radius: 3px;
+}
+
+.rounded-lg {
+    border-radius: 5px;
+}
+
+/* Sanity UI Typography Matching Styles */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.text-4xl,
+.text-3xl,
+.text-2xl {
+    margin: 0;
+    font-weight: 700;
+}
+
+.text-4xl {
+    position: relative;
+    font-size: 2.0625rem;
+    line-height: calc(41 / 33);
+    letter-spacing: 0;
+    font-weight: 700;
+}
+
+.text-3xl {
+    position: relative;
+    font-size: 1.6875rem;
+    line-height: calc(35 / 27);
+    font-weight: 700;
+}
+
+.text-2xl {
+    position: relative;
+    font-size: 1.3125rem;
+    line-height: calc(29 / 21);
+    font-weight: 700;
+}
+
+.text-xl {
+    position: relative;
+    font-size: 1rem;
+    line-height: calc(23 / 16);
+}
+
+.text-xl:not(h1, h2, h3, h4, h5, h6) {
+    font-size: 1.125rem;
+    line-height: calc(27 / 18);
+}
+
+.text-lg {
+    position: relative;
+    font-size: 0.8125rem;
+    line-height: calc(19 / 13);
+    font-weight: 700;
+}
+
+.text-lg:not(h1, h2, h3, h4, h5, h6) {
+    font-size: 0.9375rem;
+    line-height: calc(23 / 15);
+    font-weight: 400;
+}
+
+.text-base:not(h1, h2, h3, h4, h5, h6, input, textarea) {
+    font-weight: 400;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: calc(19 / 13);
+    letter-spacing: 0;
+}
+
+.text-sm {
+    font-size: 0.8125rem;
+    line-height: calc(19 / 13);
+}
+
+/* Card Styles */
+[data-slot="card"] {
+    border-radius: 0.1875rem;
+    background: var(--color-card);
+    box-shadow: none;
+    padding: 0;
+}
+
+[data-slot="card-header"] {
+    padding: 1.25rem 1.25rem 0;
+}
+
+[data-slot="card-content"] {
+    padding: 1.25rem;
+}
+
+[data-slot="card-footer"] {
+    padding: 0 1.25rem 1.25rem;
+}
+
+/* Button Styles */
+[data-slot="button"] {
+    border-radius: 0.1875rem;
+    padding: 0.75rem;
+    height: 33px;
+    gap: 8px;
+}
+
+[data-slot="button"] svg {
+    color: rgb(175, 176, 181);
+    width: 21px;
+    height: 21px;
+    margin-left: -4px;
+    margin-right: -4px;
+}
+
+[data-slot="button"][data-variant="outline"],
+[data-slot="button"][data-variant="secondary"] {
+    box-shadow: inset 0 0 0 1px rgb(230, 230, 234);
+    background-color: rgb(246, 246, 248);
+    color: rgb(78, 85, 109);
+    border: 0;
+}
+
+[data-slot="button"][data-variant="outline"] svg,
+[data-slot="button"][data-variant="secondary"] svg {
+    color: rgb(127, 130, 143);
+}
+
+[data-slot="button"][data-variant="destructive"] {
+    background-color: rgb(239, 68, 52);
+}
+
+[data-slot="button"][data-variant="destructive"] svg {
+    color: rgb(250, 186, 179);
+}
+
+[data-slot="button"][data-variant="ghost"] {
+    background-color: transparent;
+    color: rgb(36, 39, 54);
+}
+
+[data-slot="button"][data-size="sm"] {
+    font-size: 13px;
+    padding: 0.5rem;
+    height: 25px;
+}
+
+[data-slot="button"][data-size="icon"] {
+    width: 33px;
+}
+
+[data-slot="button"]:disabled {
+    opacity: 1;
+    background-color: #bbbdc9;
+    color: #ecedf3;
+    box-shadow: inset 0 0 0 1px rgba(215, 218, 230, 0);
+}
+
+[data-slot="button"][data-variant="outline"]:disabled,
+[data-slot="button"][data-variant="secondary"]:disabled {
+    box-shadow: inset 0 0 0 1px #e6e6ea;
+    background-color: #f6f6f8;
+    color: #8f94a8;
+}
+
+/* Input Styles */
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"] {
+    border-radius: 3px;
+    border: 0;
+    font-size: var(--font-size-text-2);
+    box-shadow: inset 0 0 0 1px rgb(229, 231, 235);
+    width: auto;
+    height: auto;
+    padding-top: 0.375rem;
+    padding-right: 0.75rem;
+    padding-bottom: 0.375rem;
+    padding-left: 0.75rem;
+    line-height: 1.5333333333333334;
+    appearance: none;
+    box-sizing: border-box;
+    background: #fff;
+    display: flex;
+    color: #0d0e12;
+}
+
+[data-slot="input"],
+[data-slot="textarea"] {
+    width: 100%;
+}
+
+[data-slot="input"]::placeholder,
+[data-slot="textarea"]::placeholder {
+    color: #9499ad;
+}
+
+[data-slot="input"]:focus,
+[data-slot="textarea"]:focus {
+    border-color: #556bfc;
+}
+
+[data-slot="input"]:read-only,
+[data-slot="textarea"]:read-only,
+[data-slot="input"]:disabled,
+[data-slot="textarea"]:disabled,
+[data-slot="select-trigger"]:disabled {
+    background-color: rgb(246, 246, 248);
+    opacity: 1;
+}
+
+[data-slot="select-trigger"]:disabled {
+    color: #8f94a8;
+}
+
+[data-slot="input"]:disabled::placeholder,
+[data-slot="textarea"]:disabled::placeholder {
+    color: #dbdce2;
+}
+
+[data-slot="textarea"] {
+    resize: none;
+}
+
+/* Checkbox styles */
+[data-slot="checkbox"] {
+    border: 0;
+    box-shadow: inset 0 0 0 1px rgb(229, 231, 235);
+    border-radius: 0.1875rem;
+    height: 1.0625rem;
+    width: 1.0625rem;
+}
+
+[data-slot="checkbox"][data-state="checked"] {
+    box-shadow: none;
+}
+
+[data-slot="checkbox"]:disabled {
+    background-color: #f6f6f8;
+    box-shadow: inset 0 0 0 1px #e6e6ea;
+    color: #8f94a8;
+    opacity: 1;
+}
+
+/* Label Styles */
+[data-slot="label"] {
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 0.675rem;
+    line-height: calc(12 / 10.8);
+    letter-spacing: 0.03125rem;
+    color:;
+}
+
+[data-slot="label"].text-muted-foreground {
+    color: #515870;
+}
+
+/* Avatar Styles */
+[data-slot="avatar"] {
+    width: 1.5625rem;
+    height: 1.5625rem;
+    border-radius: var(--radius-sanity-round);
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--card-avatar-gray-fg-color);
+}
+
+[data-slot="avatar"] [data-slot="avatar-fallback"] {
+    background: #727892;
+}
+
+[data-slot="avatar"].size-6 {
+    width: 1.1875rem;
+    height: 1.1875rem;
+    border-radius: 0.59375rem;
+    font-size: 0.50625rem;
+    line-height: calc(10 / 8.1);
+    letter-spacing: 0.03125rem;
+}
+
+[data-slot="avatar"].size-12 {
+    width: 2.0625rem;
+    height: 2.0625rem;
+    border-radius: 1.03125rem;
+    font-size: 0.765625rem;
+    line-height: calc(13 / 12.25);
+    letter-spacing: 0.03125rem;
+}
+
+/* Badge Styles */
+[data-slot="badge"] {
+    border-radius: var(--radius-sanity-round);
+    font-size: 13px;
+    line-height: 1;
+    font-weight: 400;
+    padding: 0.25rem;
+    height: 19px;
+    background: var(--color-blue-100);
+    color: var(--color-blue-600);
+}
+
+[data-slot="badge"][data-variant="secondary"] {
+    background: var(--color-gray-100);
+    color: var(--color-gray-600);
+}
+
+[data-slot="badge"][data-variant="destructive"] {
+    background: var(--color-red-100);
+    color: var(--color-red-600);
+}
+
+[data-slot="badge"][data-variant="outline"] {
+    background: var(--color-white);
+    color: var(--color-sanity-black);
+    box-shadow: inset 0 0 0 0px var(--color-border);
+}
+
+/* Tabs */
+
+[data-slot="tabs"] {
+    display: inline-block;
+}
+
+[data-slot="tabs-list"] {
+    background: none;
+    display: flex;
+    gap: 4px;
+    padding: 0;
+    height: auto;
+    justify-content: start;
+}
+
+[data-slot="tabs-trigger"] {
+    padding: 0 0.5rem;
+    height: 25px;
+    color: #232635;
+    border-radius: 3px;
+}
+
+[data-slot="tabs-trigger"]:hover {
+    background: #f6f6f8;
+}
+
+[data-slot="tabs-trigger"][data-state="active"] {
+    box-shadow: none;
+    background: rgb(238, 238, 241);
+}
+
+[data-slot="tabs-trigger"][data-state="active"]:hover {
+    background: rgb(238, 238, 241);
+}
+
+/* Popover */
+[data-slot="dropdown-menu-content"] {
+    box-shadow:
+        rgba(114, 120, 146, 0.3) 0px 0px 0px 0.5px,
+        rgba(114, 120, 146, 0.1) 0px 7px 8px -4px,
+        rgba(114, 120, 146, 0.07) 0px 12px 17px 2px,
+        rgba(114, 120, 146, 0.06) 0px 5px 22px 4px;
+    border: 0;
+}
+
+/* Switch */
+[data-slot="switch"] {
+    width: 25px;
+    height: 17px;
+}
+
+[data-slot="switch-thumb"] {
+    width: 7px;
+    height: 7px;
+    --tw-translate-x: calc(var(--spacing));
+    box-shadow: none;
+}
+
+[data-slot="switch-thumb"][data-state="checked"] {
+    --tw-translate-x: calc(var(--spacing) * 3);
+}
+
+[data-slot="switch"]:disabled {
+    opacity: 1;
+    background: oklch(0.922 0 0);
+}
+
+/* Radio */
+
+[data-slot="radio-group-item"] {
+    box-shadow: none;
+    width: 17px;
+    height: 17px;
+}
+
+[data-slot="radio-group-indicator"] {
+    transform: scale(110%);
+}
+
+[data-slot="radio-group-item"]:disabled {
+    background: #f6f6f8;
+    opacity: 1;
+    color: #e6e6ea;
+}
+
+[data-slot="radio-group-item"]:disabled svg {
+    fill: #e6e6ea;
+    stroke: #e6e6ea;
+}
+
+/* Breadcrumbs */
+[data-slot="breadcrumb-list"] {
+    gap: 0;
+}
+
+[data-slot="breadcrumb-separator"] {
+    padding: 0 0.5rem;
+}
+
+[data-slot="breadcrumb-item"] {
+    color: #252837;
+}
+
+[data-slot="breadcrumb-page"] {
+    font-weight: 600;
+}
+
+/*
+ {
+    transform: initial !important;
+}
+
+*::before {
+    margin-top: initial !important;
+}
+
+*::after {
+    margin-bottom: initial !important;
+}
+
+
+* {
+    text-box-trim: trim-both !important;
+}
+*/
+
+/* Hacks for demo */
+[data-slot="input"].pl-9 {
+    padding-left: revert-layer;
+}

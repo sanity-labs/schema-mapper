@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "./sanity-theme.css";
+
+body {
+  margin: 0;
+}
+
+/* Override sanity-theme heading weights */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 400 !important;
+}
+
+.react-flow__node {
+  font-family: inherit;
+}
