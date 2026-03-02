@@ -18,18 +18,32 @@ Schema Mapper connects to your Sanity organization, discovers all projects and d
 
 ## Quick Start
 
+### Interactive setup (recommended)
+
 ```bash
-# Clone the repo
-git clone https://github.com/palmerama/schema-mapper.git
+npx tiged palmerama/schema-mapper/scripts/setup.mjs setup.mjs && node setup.mjs
+```
+
+The setup script will:
+1. Ask where to install (detects `apps/` monorepo structure)
+2. Clone the repo
+3. List your Sanity projects — pick one from the list
+4. Auto-configure `sanity.cli.ts` and `src/App.tsx`
+5. Install dependencies
+
+Then run `npx sanity dev`.
+
+### Manual setup
+
+```bash
+git clone --depth 1 https://github.com/palmerama/schema-mapper.git
 cd schema-mapper
+rm -rf .git scripts/
 
-# Configure your Sanity project
-# Edit sanity.cli.ts and replace YOUR_PROJECT_ID with your project ID
+# Edit sanity.cli.ts — set YOUR_PROJECT_ID and YOUR_ORG_ID
+# Edit src/App.tsx — set YOUR_PROJECT_ID
 
-# Install dependencies
 pnpm install
-
-# Start the dev server
 npx sanity dev
 ```
 
