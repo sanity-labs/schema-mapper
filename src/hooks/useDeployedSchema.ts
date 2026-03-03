@@ -126,8 +126,6 @@ function parseDeployedSchema(
     allTypes = raw.types || []
   }
 
-  console.log('[Schema Mapper] Found', allTypes.length, 'total types in deployed schema')
-
   // Filter to document types only, exclude internal types
   const documentTypes = allTypes.filter(
     (t) =>
@@ -135,8 +133,6 @@ function parseDeployedSchema(
       !t.name.startsWith('sanity.') &&
       !t.name.startsWith('system.'),
   )
-
-  console.log('[Schema Mapper] Document types:', documentTypes.length, documentTypes.map(t => t.name))
 
   return documentTypes.map((docType) => {
     const fields: DiscoveredField[] = (docType.fields || [])
@@ -185,13 +181,10 @@ export function useDeployedSchema(): {
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
 
-        console.log('[Schema Mapper] Deployed schema API response:', JSON.stringify(schemas, null, 2)?.substring(0, 2000))
-
         if (cancelled) return
 
         // Parse the schema
         const parsedTypes = parseDeployedSchema(schemas)
-        console.log('[Schema Mapper] Parsed types:', parsedTypes.length, parsedTypes.map(t => t.name))
 
         if (parsedTypes.length === 0) {
           // No deployed schema available
