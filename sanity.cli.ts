@@ -2,7 +2,7 @@ import {defineCliConfig} from 'sanity/cli'
 
 export default defineCliConfig({
   app: {
-    organizationId: 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID,
+    organizationId: 'YOUR_ORG_ID', // TODO: Replace with your Sanity organization ID
     entry: './src/App.tsx',
   },
   // deployment: {
