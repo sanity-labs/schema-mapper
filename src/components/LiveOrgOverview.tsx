@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useRef, Suspense} from 'react'
+import React, {useEffect, useCallback, useRef, useReducer, Suspense} from 'react'
 import {useProjects, useDatasets, ResourceProvider, useDashboardOrganizationId} from '@sanity/sdk-react'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
@@ -34,6 +34,84 @@ class ErrorBoundary extends React.Component<
 }
 
 // ---------------------------------------------------------------------------
+// Reducer — single source of truth for all discovery state
+// ---------------------------------------------------------------------------
+
+type DatasetState = {
+  deployedTypes: DiscoveredType[] | null
+  inferredTypes: DiscoveredType[] | null
+  schemaSource: 'deployed' | 'inferred'
+  hasDeployedSchema: boolean
+  status: 'loading' | 'complete' | 'error'
+  error?: Error
+}
+
+type State = {
+  datasets: Map<string, string[]>           // projectId → dataset names
+  schemas: Map<string, DatasetState>        // "projectId::dataset" → state
+  completedProjects: Set<string>
+  failedProjects: Set<string>
+}
+
+type Action =
+  | { type: 'DATASETS_DISCOVERED'; projectId: string; datasets: string[] }
+  | { type: 'SCHEMA_DISCOVERED'; projectId: string; dataset: string; types: DiscoveredType[]; schemaSource: 'deployed' | 'inferred'; hasDeployedSchema: boolean; deployedTypes: DiscoveredType[] | null; inferredTypes: DiscoveredType[] | null }
+  | { type: 'DISCOVERY_ERROR'; projectId: string }
+  | { type: 'DATASET_ERROR'; projectId: string }
+
+const initialState: State = {
+  datasets: new Map(),
+  schemas: new Map(),
+  completedProjects: new Set(),
+  failedProjects: new Set(),
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'DATASETS_DISCOVERED': {
+      const nextDatasets = new Map(state.datasets)
+      nextDatasets.set(action.projectId, action.datasets)
+      return { ...state, datasets: nextDatasets }
+    }
+
+    case 'SCHEMA_DISCOVERED': {
+      const key = `${action.projectId}::${action.dataset}`
+      const nextSchemas = new Map(state.schemas)
+      nextSchemas.set(key, {
+        deployedTypes: action.deployedTypes,
+        inferredTypes: action.inferredTypes,
+        schemaSource: action.schemaSource,
+        hasDeployedSchema: action.hasDeployedSchema,
+        status: 'complete',
+      })
+      const nextCompleted = new Set(state.completedProjects)
+      nextCompleted.add(action.projectId)
+      return { ...state, schemas: nextSchemas, completedProjects: nextCompleted }
+    }
+
+    case 'DISCOVERY_ERROR': {
+      const nextFailed = new Set(state.failedProjects)
+      nextFailed.add(action.projectId)
+      const nextCompleted = new Set(state.completedProjects)
+      nextCompleted.add(action.projectId)
+      return { ...state, failedProjects: nextFailed, completedProjects: nextCompleted }
+    }
+
+    case 'DATASET_ERROR': {
+      // Fall back to 'production' for this project
+      const nextDatasets = new Map(state.datasets)
+      if (!nextDatasets.has(action.projectId)) {
+        nextDatasets.set(action.projectId, ['production'])
+      }
+      return { ...state, datasets: nextDatasets }
+    }
+
+    default:
+      return state
+  }
+}
+
+// ---------------------------------------------------------------------------
 // DatasetDiscovery — discovers schema for a single dataset, reports up
 // ---------------------------------------------------------------------------
 
@@ -45,11 +123,16 @@ function DatasetDiscovery({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => void
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => void
   onError: (projectId: string) => void
 }) {
-  const {types, isLoading, error, schemaSource, hasDeployedSchema} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource, hasDeployedSchema, deployedTypes, inferredTypes} = useSchemaDiscovery()
   const reportedRef = useRef(false)
+
+  // Reset reported flag when projectId or datasetName changes
+  useEffect(() => {
+    reportedRef.current = false
+  }, [projectId, datasetName])
 
   useEffect(() => {
     if (!isLoading && !reportedRef.current) {
@@ -57,14 +140,10 @@ function DatasetDiscovery({
       if (error) {
         onError(projectId)
       } else {
-        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema)
+        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema, deployedTypes, inferredTypes)
       }
     }
   }, [isLoading, types, error, schemaSource, projectId, datasetName, onDiscovered, onError])
-
-  useEffect(() => {
-    reportedRef.current = false
-  }, [projectId, datasetName])
 
   return null
 }
@@ -81,7 +160,7 @@ function DatasetDiscoveryWrapper({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => void
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => void
   onError: (projectId: string) => void
 }) {
   return (
@@ -153,112 +232,71 @@ function LiveOrgOverviewInner() {
   const projects = useProjects()
   const orgId = useDashboardOrganizationId()
 
-  // Track discovered datasets per project
-  const [projectDatasets, setProjectDatasets] = useState<Map<string, string[]>>(new Map())
-  const [datasetErrors, setDatasetErrors] = useState<Map<string, Error>>(new Map())
+  const [state, dispatch] = useReducer(reducer, initialState)
 
   const handleDatasetsDiscovered = useCallback((projectId: string, datasetNames: string[]) => {
     console.log('[LiveOrgOverview] Datasets for', projectId, ':', datasetNames)
-    setProjectDatasets(prev => {
-      const next = new Map(prev)
-      next.set(projectId, datasetNames)
-      return next
-    })
+    dispatch({ type: 'DATASETS_DISCOVERED', projectId, datasets: datasetNames })
   }, [])
 
-  const handleDatasetError = useCallback((projectId: string, error: Error) => {
-    console.error('[LiveOrgOverview] Dataset error for', projectId, ':', error)
-    setDatasetErrors(prev => {
-      const next = new Map(prev)
-      next.set(projectId, error)
-      return next
-    })
-    // Fall back to 'production'
-    setProjectDatasets(prev => {
-      const next = new Map(prev)
-      if (!next.has(projectId)) next.set(projectId, ['production'])
-      return next
-    })
+  const handleDatasetError = useCallback((projectId: string, _error: Error) => {
+    console.error('[LiveOrgOverview] Dataset error for', projectId, ':', _error)
+    dispatch({ type: 'DATASET_ERROR', projectId })
   }, [])
-
-  // Track completed projects (both successful and failed)
-  const [schemasMap, setSchemasMap] = useState<Map<string, DiscoveredType[]>>(new Map())
-  const [schemaSourceMap, setSchemaSourceMap] = useState<Map<string, 'deployed' | 'inferred'>>(new Map())
-  const [hasDeployedMap, setHasDeployedMap] = useState<Map<string, boolean>>(new Map())
-
-  const [completedProjects, setCompletedProjects] = useState<Set<string>>(new Set())
-  const [failedProjects, setFailedProjects] = useState<Set<string>>(new Set())
-
-  const markCompleted = useCallback((projectId: string) => {
-    setCompletedProjects((prev) => {
-      const next = new Set(prev)
-      next.add(projectId)
-      return next
-    })
-  }, [])
-
-  const markFailed = useCallback((projectId: string) => {
-    setFailedProjects((prev) => {
-      const next = new Set(prev)
-      next.add(projectId)
-      return next
-    })
-    markCompleted(projectId)
-  }, [markCompleted])
 
   const handleSchemaDiscovered = useCallback(
-    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => {
-      const key = `${projectId}::${datasetName}`
-      setSchemasMap((prev) => {
-        const next = new Map(prev)
-        next.set(key, types)
-        return next
+    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => {
+      dispatch({
+        type: 'SCHEMA_DISCOVERED',
+        projectId,
+        dataset: datasetName,
+        types,
+        schemaSource,
+        hasDeployedSchema,
+        deployedTypes,
+        inferredTypes,
       })
-      setSchemaSourceMap((prev) => {
-        const next = new Map(prev)
-        next.set(key, schemaSource)
-        return next
-      })
-      setHasDeployedMap((prev) => {
-        const next = new Map(prev)
-        next.set(key, hasDeployedSchema)
-        return next
-      })
-      markCompleted(projectId)
     },
-    [markCompleted]
+    []
   )
 
   // Called when useSchemaDiscovery returns an error (e.g. user not a project member)
   const handleDiscoveryError = useCallback(
     (projectId: string) => {
-      markFailed(projectId)
+      dispatch({ type: 'DISCOVERY_ERROR', projectId })
     },
-    [markFailed]
+    []
   )
 
   // Called when ErrorBoundary catches a thrown error
   const handleBoundaryError = useCallback(
     (projectId: string) => (_error: Error) => {
-      markFailed(projectId)
+      dispatch({ type: 'DISCOVERY_ERROR', projectId })
     },
-    [markFailed]
+    []
   )
 
-  // Build ProjectInfo[] — use real datasets from useDatasets() if available
+  // Build ProjectInfo[] from reducer state (derived, not stored)
   const projectInfos: ProjectInfo[] = (projects || []).map((p: any) => {
-    const dsNames = projectDatasets.get(p.id) || ['production']
+    const dsNames = state.datasets.get(p.id) || ['production']
     const datasets = dsNames.map(datasetName => {
       const key = `${p.id}::${datasetName}`
-      const types = schemasMap.get(key) || []
+      const schemaState = state.schemas.get(key)
+      const types = schemaState
+        ? (schemaState.schemaSource === 'deployed' && schemaState.deployedTypes
+            ? schemaState.deployedTypes
+            : schemaState.inferredTypes || [])
+        : []
       const totalDocuments = types.reduce((sum: number, t: DiscoveredType) => sum + t.documentCount, 0)
       return {
         name: datasetName,
         aclMode: 'public' as const,
         totalDocuments,
         types,
-        schemaSource: schemaSourceMap.get(key),
-        hasDeployedSchema: hasDeployedMap.get(key) || false,
+        schemaSource: schemaState?.schemaSource,
+        hasDeployedSchema: schemaState?.hasDeployedSchema || false,
+        deployedTypes: schemaState?.deployedTypes || null,
+        inferredTypes: schemaState?.inferredTypes || null,
       }
     })
 
@@ -266,7 +304,7 @@ function LiveOrgOverviewInner() {
       id: p.id,
       displayName: p.displayName || p.id,
       studioHost: p.studioHost || undefined,
-      hasAccess: !failedProjects.has(p.id),
+      hasAccess: !state.failedProjects.has(p.id),
       datasets,
     }
   })
@@ -280,7 +318,7 @@ function LiveOrgOverviewInner() {
   })
 
   const totalProjects = projects?.length || 0
-  const isLoading = completedProjects.size < totalProjects
+  const isLoading = state.completedProjects.size < totalProjects
 
   return (
     <>
@@ -298,7 +336,7 @@ function LiveOrgOverviewInner() {
           </ErrorBoundary>
         ))}
         {(projects || []).map((p: any) => {
-          const dsNames = projectDatasets.get(p.id) || ['production']
+          const dsNames = state.datasets.get(p.id) || ['production']
           return dsNames.map(dsName => (
             <ErrorBoundary key={`${p.id}-${dsName}`} fallback={null} onError={handleBoundaryError(p.id)}>
               <Suspense fallback={null}>

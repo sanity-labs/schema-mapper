@@ -68,6 +68,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
   // ---- State ----
   const graphRef = useRef<HTMLDivElement>(null)
   const [showLockedDialog, setShowLockedDialog] = useState(false)
+  const [schemaViewOverride, setSchemaViewOverride] = useState<'deployed' | 'inferred' | null>(null)
 
   const lockedProjects = projects.filter(p => p.hasAccess === false)
   const accessibleProjects = projects.filter(p => p.hasAccess !== false)
@@ -134,9 +135,24 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
     }
   }, [selectedProjectId, selectedDatasetName, projects, navigateTo])
 
+  // Reset schema view override when switching datasets
+  useEffect(() => {
+    setSchemaViewOverride(null)
+  }, [selectedProjectId, selectedDatasetName])
+
   // Derived state
   const selectedProject = projects.find(p => p.id === selectedProjectId)
   const selectedDataset = selectedProject?.datasets.find(d => d.name === selectedDatasetName)
+
+  // Compute effective types based on override
+  const effectiveSource = schemaViewOverride ?? selectedDataset?.schemaSource ?? null
+  const effectiveTypes = selectedDataset
+    ? (effectiveSource === 'deployed' && selectedDataset.deployedTypes
+        ? selectedDataset.deployedTypes
+        : effectiveSource === 'inferred' && selectedDataset.inferredTypes
+        ? selectedDataset.inferredTypes
+        : selectedDataset.types)
+    : []
 
   // ---- Handlers ----
   const handleProjectSelect = (projectId: string) => {
@@ -147,6 +163,14 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
 
   const handleDatasetSelect = (datasetName: string) => {
     navigateTo(selectedProjectId, datasetName)
+  }
+
+  const handleToggleSchemaView = () => {
+    if (!selectedDataset?.hasDeployedSchema) return
+    setSchemaViewOverride(prev => {
+      const current = prev ?? selectedDataset?.schemaSource ?? 'inferred'
+      return current === 'deployed' ? 'inferred' : 'deployed'
+    })
   }
 
   // ---- Compute aggregate stats ----
@@ -180,7 +204,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
-            <span>v1.4</span>
+            <span>v1.5</span>
           </div>
         )}
       </div>
@@ -256,22 +280,25 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
               >
                 {selectedDataset.aclMode}
               </Badge>
-              {selectedDataset.schemaSource && (
+              {effectiveSource && (
                 <Badge
                   variant="default"
                   className={
-                    selectedDataset.schemaSource === 'deployed'
+                    (effectiveSource === 'deployed'
                       ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal')
+                    + (selectedDataset.hasDeployedSchema ? ' cursor-pointer select-none' : '')
                   }
+                  onClick={selectedDataset.hasDeployedSchema ? handleToggleSchemaView : undefined}
                 >
-                  {selectedDataset.schemaSource === 'deployed' ? 'deployed schema' : 'inferred schema'}
+                  {effectiveSource === 'deployed' ? 'deployed schema' : 'inferred schema'}
+                  {selectedDataset.hasDeployedSchema && ' ⇄'}
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
               <span>{formatNumber(selectedDataset.totalDocuments)} documents</span>
               <span className="text-muted-foreground">·</span>
-              <span>{selectedDataset.types.length} {selectedDataset.types.length === 1 ? 'type' : 'types'}</span>
+              <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
               {selectedProject && (
                 <>
                   <span className="flex-1" />
@@ -282,7 +309,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                       datasetName: selectedDataset.name,
                       aclMode: selectedDataset.aclMode,
                       totalDocuments: selectedDataset.totalDocuments,
-                      typeCount: selectedDataset.types.length,
+                      typeCount: effectiveTypes.length,
                       orgId: orgId ?? undefined,
                     }}
                   />
@@ -292,7 +319,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
           )}
           <div ref={graphRef} className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden">
             {selectedDataset ? (
-              <SchemaGraph types={selectedDataset.types} />
+              <SchemaGraph types={effectiveTypes} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Select a project and dataset to view the schema graph</p>
@@ -337,109 +364,3 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
 }
 
 export default OrgOverview
-
-// ---------------------------------------------------------------------------
-// Mock Data (for development / testing)
-// ---------------------------------------------------------------------------
-
-const postFields: DiscoveredField[] = [
-  { name: 'title', type: 'string' },
-  { name: 'slug', type: 'slug' },
-  { name: 'body', type: 'block' },
-  { name: 'author', type: 'reference', isReference: true, referenceTo: 'author' },
-  { name: 'category', type: 'reference', isReference: true, referenceTo: 'category' },
-  { name: 'publishedAt', type: 'datetime' },
-  { name: 'featured', type: 'boolean' },
-]
-
-const authorFields: DiscoveredField[] = [
-  { name: 'name', type: 'string' },
-  { name: 'bio', type: 'text' },
-  { name: 'image', type: 'image' },
-  { name: 'email', type: 'string' },
-]
-
-const categoryFields: DiscoveredField[] = [
-  { name: 'title', type: 'string' },
-  { name: 'description', type: 'text' },
-  { name: 'slug', type: 'slug' },
-]
-
-const productFields: DiscoveredField[] = [
-  { name: 'title', type: 'string' },
-  { name: 'price', type: 'number' },
-  { name: 'description', type: 'block' },
-  { name: 'image', type: 'image' },
-  { name: 'category', type: 'reference', isReference: true, referenceTo: 'category' },
-  { name: 'sku', type: 'string' },
-]
-
-const orderFields: DiscoveredField[] = [
-  { name: 'orderNumber', type: 'string' },
-  { name: 'total', type: 'number' },
-  { name: 'customer', type: 'reference', isReference: true, referenceTo: 'customer' },
-  { name: 'items', type: 'array', isArray: true },
-  { name: 'createdAt', type: 'datetime' },
-  { name: 'status', type: 'string' },
-]
-
-const customerFields: DiscoveredField[] = [
-  { name: 'name', type: 'string' },
-  { name: 'email', type: 'string' },
-  { name: 'address', type: 'object' },
-  { name: 'createdAt', type: 'datetime' },
-]
-
-export const MOCK_PROJECTS: ProjectInfo[] = [
-  {
-    id: 'proj-blog-123',
-    displayName: 'My Blog',
-    studioHost: 'my-blog',
-    hasAccess: true,
-    datasets: [
-      {
-        name: 'production',
-        aclMode: 'public',
-        totalDocuments: 15234,
-        types: [
-          { name: 'post', documentCount: 8432, fields: postFields },
-          { name: 'author', documentCount: 156, fields: authorFields },
-          { name: 'category', documentCount: 42, fields: categoryFields },
-        ],
-      },
-      {
-        name: 'staging',
-        aclMode: 'private',
-        totalDocuments: 3201,
-        types: [
-          { name: 'post', documentCount: 2100, fields: postFields },
-          { name: 'author', documentCount: 89, fields: authorFields },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'proj-ecom-456',
-    displayName: 'E-Commerce',
-    studioHost: 'my-shop',
-    hasAccess: true,
-    datasets: [
-      {
-        name: 'production',
-        aclMode: 'public',
-        totalDocuments: 45678,
-        types: [
-          { name: 'product', documentCount: 12340, fields: productFields },
-          { name: 'order', documentCount: 28901, fields: orderFields },
-          { name: 'customer', documentCount: 4437, fields: customerFields },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'proj-locked-789',
-    displayName: 'Secret Project',
-    hasAccess: false,
-    datasets: [],
-  },
-]

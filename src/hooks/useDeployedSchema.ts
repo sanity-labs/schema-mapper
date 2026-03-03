@@ -1,5 +1,5 @@
 import {useClient} from '@sanity/sdk-react'
-import {useState, useEffect} from 'react'
+import {useState, useEffect, useRef} from 'react'
 import type {DiscoveredType, DiscoveredField} from '../types'
 
 // --- Schema API response types ---
@@ -168,6 +168,12 @@ export function useDeployedSchema(): {
   const countClient = useClient({apiVersion: '2024-01-01'})
   const {projectId, dataset} = client.config()
 
+  // Store clients in refs so they don't trigger re-runs
+  const clientRef = useRef(client)
+  clientRef.current = client
+  const countClientRef = useRef(countClient)
+  countClientRef.current = countClient
+
   useEffect(() => {
     let cancelled = false
 
@@ -176,7 +182,7 @@ export function useDeployedSchema(): {
         setIsLoading(true)
 
         // Fetch the deployed schema from the API
-        const schemas: StoredWorkspaceSchema[] = await client.request({
+        const schemas: StoredWorkspaceSchema[] = await clientRef.current.request({
           method: 'GET',
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
@@ -200,7 +206,7 @@ export function useDeployedSchema(): {
         const typesWithCounts = await Promise.all(
           parsedTypes.map(async (docType) => {
             try {
-              const count: number = await countClient.fetch(
+              const count: number = await countClientRef.current.fetch(
                 `count(*[_type == $type])`,
                 {type: docType.name},
               )
@@ -224,6 +230,7 @@ export function useDeployedSchema(): {
       } catch (err) {
         if (!cancelled) {
           // Schema API failed — signal no deployed schema so caller can fallback
+          console.warn('[Schema Mapper] Deployed schema API error:', err)
           setHasDeployedSchema(false)
           setTypes([])
           setError(null) // Don't propagate — let fallback handle it
@@ -239,7 +246,7 @@ export function useDeployedSchema(): {
     return () => {
       cancelled = true
     }
-  }, [client, projectId, dataset])
+  }, [projectId, dataset])
 
   return {types, isLoading, error, hasDeployedSchema}
 }

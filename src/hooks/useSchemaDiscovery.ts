@@ -1,5 +1,5 @@
 import {useClient} from '@sanity/sdk-react'
-import {useState, useEffect} from 'react'
+import {useState, useEffect, useRef} from 'react'
 import type {DiscoveredType, DiscoveredField} from '../types'
 import {useDeployedSchema} from './useDeployedSchema'
 
@@ -124,8 +124,11 @@ async function resolveReferenceTargets(
 /**
  * Hook to discover schema types from a dataset by sampling documents.
  * This is the original inference-based approach, kept as fallback.
+ *
+ * @param enabled - When false, skips the effect and returns empty/loading state.
+ *                  Used to sequence after deployed schema resolves.
  */
-function useSchemaDiscoveryInference(): {
+function useSchemaDiscoveryInference(enabled: boolean = true): {
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
@@ -134,8 +137,18 @@ function useSchemaDiscoveryInference(): {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const client = useClient({apiVersion: '2024-01-01'})
+  const clientRef = useRef(client)
+  clientRef.current = client
 
   useEffect(() => {
+    if (!enabled) {
+      // Not enabled yet — stay in loading state with empty results
+      setTypes([])
+      setIsLoading(true)
+      setError(null)
+      return
+    }
+
     let cancelled = false
 
     async function discover() {
@@ -143,7 +156,7 @@ function useSchemaDiscoveryInference(): {
         setIsLoading(true)
 
         // Step 1: Get all unique document types
-        const typeNames: string[] = await client.fetch(
+        const typeNames: string[] = await clientRef.current.fetch(
           `array::unique(*[]._type)`
         )
 
@@ -156,8 +169,8 @@ function useSchemaDiscoveryInference(): {
         const typeData = await Promise.all(
           userTypes.map(async (typeName) => {
             const [sample, count] = await Promise.all([
-              client.fetch(`*[_type == $type][0]`, {type: typeName}),
-              client.fetch(`count(*[_type == $type])`, {type: typeName}),
+              clientRef.current.fetch(`*[_type == $type][0]`, {type: typeName}),
+              clientRef.current.fetch(`count(*[_type == $type])`, {type: typeName}),
             ])
 
             // Step 3: Infer fields from sample
@@ -178,7 +191,7 @@ function useSchemaDiscoveryInference(): {
         if (cancelled) return
 
         // Step 4: Resolve reference targets
-        const resolvedTypes = await resolveReferenceTargets(client, typeData)
+        const resolvedTypes = await resolveReferenceTargets(clientRef.current, typeData)
 
         if (cancelled) return
 
@@ -199,36 +212,43 @@ function useSchemaDiscoveryInference(): {
     return () => {
       cancelled = true
     }
-  }, [client])
+  }, [enabled])
 
   return {types, isLoading, error}
 }
 
 // ============================================================================
-// Main hook — tries deployed schema first, falls back to inference
+// Main hook — tries deployed schema first, then starts inference in background
 // ============================================================================
 
 /**
  * Hook to discover schema types for the current dataset.
  *
- * Strategy:
- * 1. First tries the deployed schema API (fast, accurate, returns actual schema definitions)
- * 2. If no deployed schema exists (studio hasn't deployed schema), falls back to
- *    document-sampling inference (slower, less accurate but works for any dataset)
+ * Strategy (sequential):
+ * 1. Phase 1: Try the deployed schema API (fast, accurate)
+ * 2. Phase 2: After deployed resolves (success or empty), start inference in background
+ * 3. Return both deployedTypes and inferredTypes when available
+ * 4. Active types = deployed if available, else inferred
  */
 export function useSchemaDiscovery(): {
-  types: DiscoveredType[]
+  types: DiscoveredType[]          // currently active types
   isLoading: boolean
   error: Error | null
   schemaSource: 'deployed' | 'inferred' | null
   hasDeployedSchema: boolean
+  deployedTypes: DiscoveredType[] | null   // null = not available
+  inferredTypes: DiscoveredType[] | null   // null = still loading
 } {
   const deployed = useDeployedSchema()
-  const inference = useSchemaDiscoveryInference()
+
+  // Inference starts only after deployed resolves (sequential)
+  const inference = useSchemaDiscoveryInference(!deployed.isLoading)
 
   const hasDeployedSchema = deployed.hasDeployedSchema && deployed.types.length > 0
+  const deployedTypes = hasDeployedSchema ? deployed.types : null
+  const inferredTypes = !inference.isLoading ? inference.types : null
 
-  // Try deployed first
+  // Phase 1: deployed still loading
   if (deployed.isLoading) {
     return {
       types: [],
@@ -236,9 +256,12 @@ export function useSchemaDiscovery(): {
       error: null,
       schemaSource: null,
       hasDeployedSchema: false,
+      deployedTypes: null,
+      inferredTypes: null,
     }
   }
 
+  // Phase 2: deployed resolved with schema — use it as active, inference runs in background
   if (hasDeployedSchema) {
     return {
       types: deployed.types,
@@ -246,15 +269,19 @@ export function useSchemaDiscovery(): {
       error: deployed.error,
       schemaSource: 'deployed',
       hasDeployedSchema: true,
+      deployedTypes,
+      inferredTypes,
     }
   }
 
-  // No deployed schema — fall back to inference
+  // Phase 2: no deployed schema — fall back to inference
   return {
     types: inference.types,
     isLoading: inference.isLoading,
     error: inference.error,
     schemaSource: inference.isLoading ? null : 'inferred',
     hasDeployedSchema: false,
+    deployedTypes: null,
+    inferredTypes,
   }
 }
