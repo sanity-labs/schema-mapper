@@ -45,10 +45,10 @@ function DatasetDiscovery({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[]) => void
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => void
   onError: (projectId: string) => void
 }) {
-  const {types, isLoading, error} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource} = useSchemaDiscovery()
   const reportedRef = useRef(false)
 
   useEffect(() => {
@@ -57,10 +57,10 @@ function DatasetDiscovery({
       if (error) {
         onError(projectId)
       } else {
-        onDiscovered(projectId, datasetName, types)
+        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred')
       }
     }
-  }, [isLoading, types, error, projectId, datasetName, onDiscovered, onError])
+  }, [isLoading, types, error, schemaSource, projectId, datasetName, onDiscovered, onError])
 
   useEffect(() => {
     reportedRef.current = false
@@ -81,7 +81,7 @@ function DatasetDiscoveryWrapper({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[]) => void
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => void
   onError: (projectId: string) => void
 }) {
   return (
@@ -183,6 +183,7 @@ function LiveOrgOverviewInner() {
 
   // Track completed projects (both successful and failed)
   const [schemasMap, setSchemasMap] = useState<Map<string, DiscoveredType[]>>(new Map())
+  const [schemaSourceMap, setSchemaSourceMap] = useState<Map<string, 'deployed' | 'inferred'>>(new Map())
   const [completedProjects, setCompletedProjects] = useState<Set<string>>(new Set())
   const [failedProjects, setFailedProjects] = useState<Set<string>>(new Set())
 
@@ -204,11 +205,16 @@ function LiveOrgOverviewInner() {
   }, [markCompleted])
 
   const handleSchemaDiscovered = useCallback(
-    (projectId: string, datasetName: string, types: DiscoveredType[]) => {
+    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => {
       const key = `${projectId}::${datasetName}`
       setSchemasMap((prev) => {
         const next = new Map(prev)
         next.set(key, types)
+        return next
+      })
+      setSchemaSourceMap((prev) => {
+        const next = new Map(prev)
+        next.set(key, schemaSource)
         return next
       })
       markCompleted(projectId)
@@ -244,6 +250,7 @@ function LiveOrgOverviewInner() {
         aclMode: 'public' as const,
         totalDocuments,
         types,
+        schemaSource: schemaSourceMap.get(key),
       }
     })
 

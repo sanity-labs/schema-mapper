@@ -17,6 +17,7 @@ export type DatasetInfo = {
   aclMode: 'public' | 'private'
   totalDocuments: number
   types: DiscoveredType[]
+  schemaSource?: 'deployed' | 'inferred'
 }
 
 export type ProjectInfo = {

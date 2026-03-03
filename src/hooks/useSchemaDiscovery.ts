@@ -220,6 +220,7 @@ export function useSchemaDiscovery(): {
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
+  schemaSource: 'deployed' | 'inferred' | null
 } {
   const deployed = useDeployedSchema()
   const inference = useSchemaDiscoveryInference()
@@ -230,6 +231,7 @@ export function useSchemaDiscovery(): {
       types: [],
       isLoading: true,
       error: null,
+      schemaSource: null,
     }
   }
 
@@ -239,6 +241,7 @@ export function useSchemaDiscovery(): {
       types: deployed.types,
       isLoading: false,
       error: deployed.error,
+      schemaSource: 'deployed',
     }
   }
 
@@ -247,5 +250,6 @@ export function useSchemaDiscovery(): {
     types: inference.types,
     isLoading: inference.isLoading,
     error: inference.error,
+    schemaSource: inference.isLoading ? null : 'inferred',
   }
 }

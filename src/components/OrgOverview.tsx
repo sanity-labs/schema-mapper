@@ -180,7 +180,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
-            <span>v1.1</span>
+            <span>v1.2</span>
           </div>
         )}
       </div>
@@ -256,6 +256,18 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
               >
                 {selectedDataset.aclMode}
               </Badge>
+              {selectedDataset.schemaSource && (
+                <Badge
+                  variant="default"
+                  className={
+                    selectedDataset.schemaSource === 'deployed'
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal'
+                  }
+                >
+                  {selectedDataset.schemaSource === 'deployed' ? 'deployed schema' : 'inferred schema'}
+                </Badge>
+              )}
               <span className="text-muted-foreground">·</span>
               <span>{formatNumber(selectedDataset.totalDocuments)} documents</span>
               <span className="text-muted-foreground">·</span>
