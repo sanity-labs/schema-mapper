@@ -6,13 +6,15 @@ import type {DiscoveredType, DiscoveredField} from '../types'
 
 type StoredWorkspaceSchema = {
   _id: string
-  _createdAt: string
-  workspace: {
+  _createdAt?: string
+  _updatedAt?: string
+  _type?: string
+  version?: string
+  workspace?: {
     name: string
-    schema: {
-      types: SchemaType[]
-    }
+    title?: string
   }
+  schema?: string | { types?: SchemaType[] } | SchemaType[]
 }
 
 type SchemaType = {
@@ -99,9 +101,32 @@ function parseDeployedSchema(
 ): {name: string; fields: DiscoveredField[]}[] {
   if (!schemas || schemas.length === 0) return []
 
-  // Use the first workspace schema (most common case: single workspace)
-  const schema = schemas[0]
-  const allTypes = schema?.workspace?.schema?.types || []
+  // Use the first schema entry
+  const entry = schemas[0]
+  if (!entry) return []
+
+  // The schema field can be:
+  // 1. A JSON string containing an array of types
+  // 2. An object with a types array
+  // 3. An array of types directly
+  let allTypes: SchemaType[] = []
+
+  const raw = entry.schema
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      allTypes = Array.isArray(parsed) ? parsed : (parsed?.types || [])
+    } catch {
+      console.warn('[Schema Mapper] Failed to parse schema JSON string')
+      return []
+    }
+  } else if (Array.isArray(raw)) {
+    allTypes = raw
+  } else if (raw && typeof raw === 'object' && 'types' in raw) {
+    allTypes = raw.types || []
+  }
+
+  console.log('[Schema Mapper] Found', allTypes.length, 'total types in deployed schema')
 
   // Filter to document types only, exclude internal types
   const documentTypes = allTypes.filter(
@@ -110,6 +135,8 @@ function parseDeployedSchema(
       !t.name.startsWith('sanity.') &&
       !t.name.startsWith('system.'),
   )
+
+  console.log('[Schema Mapper] Document types:', documentTypes.length, documentTypes.map(t => t.name))
 
   return documentTypes.map((docType) => {
     const fields: DiscoveredField[] = (docType.fields || [])
