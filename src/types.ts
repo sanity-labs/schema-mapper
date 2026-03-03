@@ -18,6 +18,7 @@ export type DatasetInfo = {
   totalDocuments: number
   types: DiscoveredType[]
   schemaSource?: 'deployed' | 'inferred'
+  hasDeployedSchema?: boolean
 }
 
 export type ProjectInfo = {

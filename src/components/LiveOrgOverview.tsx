@@ -45,10 +45,11 @@ function DatasetDiscovery({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => void
+  forceSource?: 'deployed' | 'inferred'
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => void
   onError: (projectId: string) => void
 }) {
-  const {types, isLoading, error, schemaSource} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource, hasDeployedSchema} = useSchemaDiscovery(forceSource)
   const reportedRef = useRef(false)
 
   useEffect(() => {
@@ -57,7 +58,7 @@ function DatasetDiscovery({
       if (error) {
         onError(projectId)
       } else {
-        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred')
+        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema)
       }
     }
   }, [isLoading, types, error, schemaSource, projectId, datasetName, onDiscovered, onError])
@@ -76,12 +77,14 @@ function DatasetDiscovery({
 function DatasetDiscoveryWrapper({
   projectId,
   datasetName,
+  forceSource,
   onDiscovered,
   onError,
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => void
+  forceSource?: 'deployed' | 'inferred'
+  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => void
   onError: (projectId: string) => void
 }) {
   return (
@@ -90,6 +93,7 @@ function DatasetDiscoveryWrapper({
         <DatasetDiscovery
           projectId={projectId}
           datasetName={datasetName}
+          forceSource={forceSource}
           onDiscovered={onDiscovered}
           onError={onError}
         />
@@ -184,6 +188,8 @@ function LiveOrgOverviewInner() {
   // Track completed projects (both successful and failed)
   const [schemasMap, setSchemasMap] = useState<Map<string, DiscoveredType[]>>(new Map())
   const [schemaSourceMap, setSchemaSourceMap] = useState<Map<string, 'deployed' | 'inferred'>>(new Map())
+  const [hasDeployedMap, setHasDeployedMap] = useState<Map<string, boolean>>(new Map())
+  const [forceSource, setForceSource] = useState<'deployed' | 'inferred' | undefined>(undefined)
   const [completedProjects, setCompletedProjects] = useState<Set<string>>(new Set())
   const [failedProjects, setFailedProjects] = useState<Set<string>>(new Set())
 
@@ -205,7 +211,7 @@ function LiveOrgOverviewInner() {
   }, [markCompleted])
 
   const handleSchemaDiscovered = useCallback(
-    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred') => {
+    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean) => {
       const key = `${projectId}::${datasetName}`
       setSchemasMap((prev) => {
         const next = new Map(prev)
@@ -215,6 +221,11 @@ function LiveOrgOverviewInner() {
       setSchemaSourceMap((prev) => {
         const next = new Map(prev)
         next.set(key, schemaSource)
+        return next
+      })
+      setHasDeployedMap((prev) => {
+        const next = new Map(prev)
+        next.set(key, hasDeployedSchema)
         return next
       })
       markCompleted(projectId)
@@ -251,6 +262,7 @@ function LiveOrgOverviewInner() {
         totalDocuments,
         types,
         schemaSource: schemaSourceMap.get(key),
+        hasDeployedSchema: hasDeployedMap.get(key) || false,
       }
     })
 
@@ -295,8 +307,10 @@ function LiveOrgOverviewInner() {
             <ErrorBoundary key={`${p.id}-${dsName}`} fallback={null} onError={handleBoundaryError(p.id)}>
               <Suspense fallback={null}>
                 <DatasetDiscoveryWrapper
+                  key={`${p.id}-${dsName}-${forceSource || 'auto'}`}
                   projectId={p.id}
                   datasetName={dsName}
+                  forceSource={forceSource}
                   onDiscovered={handleSchemaDiscovered}
                   onError={handleDiscoveryError}
                 />
@@ -307,7 +321,12 @@ function LiveOrgOverviewInner() {
       </div>
 
       {/* Render the visual component with progressive data */}
-      <OrgOverview projects={projectInfos} isLoading={isLoading} orgId={orgId || undefined} />
+      <OrgOverview projects={projectInfos} isLoading={isLoading} orgId={orgId || undefined} onToggleSchemaSource={(source) => {
+        setForceSource(source)
+        // Clear cached schemas so they re-fetch with new source
+        setSchemasMap(new Map())
+        setSchemaSourceMap(new Map())
+      }} />
     </>
   )
 }

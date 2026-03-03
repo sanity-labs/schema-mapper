@@ -216,32 +216,47 @@ function useSchemaDiscoveryInference(): {
  * 2. If no deployed schema exists (studio hasn't deployed schema), falls back to
  *    document-sampling inference (slower, less accurate but works for any dataset)
  */
-export function useSchemaDiscovery(): {
+export function useSchemaDiscovery(forceSource?: 'deployed' | 'inferred'): {
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
   schemaSource: 'deployed' | 'inferred' | null
+  hasDeployedSchema: boolean
 } {
   const deployed = useDeployedSchema()
   const inference = useSchemaDiscoveryInference()
 
-  // While deployed schema is still loading, show loading state
+  const hasDeployedSchema = deployed.hasDeployedSchema && deployed.types.length > 0
+
+  // If forced to inferred, use inference results
+  if (forceSource === 'inferred') {
+    return {
+      types: inference.types,
+      isLoading: inference.isLoading,
+      error: inference.error,
+      schemaSource: inference.isLoading ? null : 'inferred',
+      hasDeployedSchema,
+    }
+  }
+
+  // If forced to deployed (or auto), try deployed first
   if (deployed.isLoading) {
     return {
       types: [],
       isLoading: true,
       error: null,
       schemaSource: null,
+      hasDeployedSchema: false,
     }
   }
 
-  // If deployed schema returned results, use them
-  if (deployed.hasDeployedSchema && deployed.types.length > 0) {
+  if (hasDeployedSchema) {
     return {
       types: deployed.types,
       isLoading: false,
       error: deployed.error,
       schemaSource: 'deployed',
+      hasDeployedSchema: true,
     }
   }
 
@@ -251,5 +266,6 @@ export function useSchemaDiscovery(): {
     isLoading: inference.isLoading,
     error: inference.error,
     schemaSource: inference.isLoading ? null : 'inferred',
+    hasDeployedSchema: false,
   }
 }

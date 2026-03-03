@@ -18,6 +18,7 @@ interface OrgOverviewProps {
   projects: ProjectInfo[]
   isLoading?: boolean
   orgId?: string
+  onToggleSchemaSource?: (source: 'deployed' | 'inferred') => void
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +61,7 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
-function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
+function OrgOverview({ projects, isLoading = false, orgId, onToggleSchemaSource }: OrgOverviewProps) {
   // ---- Routing ----
   const { projectId: urlProjectId, dataset: urlDataset } = useParams()
   const navigate = useNavigate()
@@ -180,7 +181,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
-            <span>v1.2</span>
+            <span>v1.3</span>
           </div>
         )}
       </div>
@@ -261,11 +262,19 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                   variant="default"
                   className={
                     selectedDataset.schemaSource === 'deployed'
-                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal'
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal cursor-pointer'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal cursor-pointer'
                   }
+                  onClick={() => {
+                    if (onToggleSchemaSource && selectedDataset.hasDeployedSchema) {
+                      onToggleSchemaSource(selectedDataset.schemaSource === 'deployed' ? 'inferred' : 'deployed')
+                    }
+                  }}
+                  title={selectedDataset.hasDeployedSchema ? 'Click to toggle between deployed and inferred schema' : undefined}
                 >
                   {selectedDataset.schemaSource === 'deployed' ? 'deployed schema' : 'inferred schema'}
+                  {selectedDataset.hasDeployedSchema && selectedDataset.schemaSource === 'inferred' ? ' ⇄' : ''}
+                  {selectedDataset.hasDeployedSchema && selectedDataset.schemaSource === 'deployed' ? ' ⇄' : ''}
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
