@@ -19,6 +19,7 @@ interface OrgOverviewProps {
   projects: ProjectInfo[]
   isLoading?: boolean
   orgId?: string
+  orgName?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +62,7 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
-function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
+function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOverviewProps) {
   // ---- Routing ----
   const { projectId: urlProjectId, dataset: urlDataset } = useParams()
   const navigate = useNavigate()
@@ -174,7 +175,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
       {/* ---- Header with inline stats ---- */}
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
+          <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper{orgName ? <span className="text-base font-normal text-muted-foreground ml-1">— {orgName}</span> : null}</h1>
         </div>
         {!isLoading && (
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -294,6 +295,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                       typeCount: effectiveTypes.length,
                       schemaSource: effectiveSource,
                       orgId: orgId ?? undefined,
+                      orgName: orgName,
                     }}
                   />
                 </>

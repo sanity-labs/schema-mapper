@@ -1,5 +1,5 @@
-import React, {useEffect, useCallback, useRef, useReducer, Suspense} from 'react'
-import {useProjects, useDatasets, ResourceProvider, useDashboardOrganizationId} from '@sanity/sdk-react'
+import React, {useEffect, useCallback, useRef, useReducer, useState, Suspense} from 'react'
+import {useProjects, useDatasets, ResourceProvider, useDashboardOrganizationId, useClient} from '@sanity/sdk-react'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import type {ProjectInfo, DiscoveredType} from '../types'
@@ -244,6 +244,19 @@ function ProjectDatasetsWrapper({
 function LiveOrgOverviewInner() {
   const projects = useProjects()
   const orgId = useDashboardOrganizationId()
+  const client = useClient({apiVersion: '2024-01-01'})
+  const [orgName, setOrgName] = useState<string | undefined>(undefined)
+
+  // Fetch org name from management API
+  useEffect(() => {
+    if (!orgId) return
+    client.request({uri: '/organizations'})
+      .then((orgs: {id: string; name: string}[]) => {
+        const org = orgs.find(o => o.id === orgId)
+        if (org) setOrgName(org.name)
+      })
+      .catch(() => {/* org name is optional */})
+  }, [orgId, client])
 
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -374,7 +387,7 @@ function LiveOrgOverviewInner() {
       </div>
 
       {/* Render the visual component with progressive data */}
-      <OrgOverview projects={projectInfos} isLoading={isLoading} orgId={orgId || undefined} />
+      <OrgOverview projects={projectInfos} isLoading={isLoading} orgId={orgId || undefined} orgName={orgName} />
     </>
   )
 }
