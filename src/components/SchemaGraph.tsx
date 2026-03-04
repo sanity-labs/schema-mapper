@@ -55,8 +55,7 @@ const DEFAULT_SPACING: Record<LayoutType, number> = {
   force: 0.25,
   stress: 1.6,
 }
-const _spacingMap: Record<LayoutType, number> = { ...DEFAULT_SPACING }
-let _spacing = 1.0 // current active layout's spacing
+
 
 
 
@@ -66,10 +65,7 @@ let _spacing = 1.0 // current active layout's spacing
 
 const elk = new ELK()
 
-// Mutable curvature value — no longer used (floating edges handle routing)
-
-function getLayoutConfig(type: LayoutType): Record<string, string> {
-  const s = _spacing
+function getLayoutConfig(type: LayoutType, s: number): Record<string, string> {
   if (type === 'layered') {
     return {
       'elk.separateConnectedComponents': 'true',
@@ -113,9 +109,10 @@ const layoutLabels: Record<LayoutType, string> = {
 function getDagreLayout(
   nodes: SchemaNode_RF[],
   edges: SchemaEdge[],
+  spacing: number,
 ): { nodes: SchemaNode_RF[]; edges: SchemaEdge[] } {
   const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'LR', nodesep: Math.round(50 * _spacing), ranksep: Math.round(150 * _spacing) })
+  g.setGraph({ rankdir: 'LR', nodesep: Math.round(50 * spacing), ranksep: Math.round(150 * spacing) })
 
   nodes.forEach((node) => {
     const fieldCount = node.data.fields?.length ?? 4
@@ -183,7 +180,7 @@ function findConnectedComponents(
   return components.sort((a, b) => b.length - a.length)
 }
 
-async function getElkLayout(
+async function getElkLayout(spacing: number, 
   nodes: SchemaNode_RF[],
   edges: SchemaEdge[],
   layoutType: LayoutType,
@@ -238,7 +235,7 @@ async function getElkLayout(
     const components = findConnectedComponents(nodes, edges)
     const positionMap = new Map<string, { x: number; y: number }>()
     // Cluster gap: small base, scales gently with slider (sqrt curve)
-    const CLUSTER_GAP = Math.round(50 * Math.sqrt(_spacing))
+    const CLUSTER_GAP = Math.round(50 * Math.sqrt(spacing))
 
     // First pass: layout each component independently and measure bounding boxes
     const layoutedComponents: {
@@ -258,7 +255,7 @@ async function getElkLayout(
 
       const compGraph = {
         id: 'root',
-        layoutOptions: getLayoutConfig(layoutType),
+        layoutOptions: getLayoutConfig(layoutType, spacing),
         children: compElkNodes,
         edges: compElkEdges,
       }
@@ -326,7 +323,7 @@ async function getElkLayout(
   // All other layouts: single ELK pass
   const graph = {
     id: 'root',
-    layoutOptions: getLayoutConfig(layoutType),
+    layoutOptions: getLayoutConfig(layoutType, spacing),
     children: elkNodes,
     edges: elkEdges,
   }
@@ -527,8 +524,6 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
         })
       }
     } catch {}
-    Object.assign(_spacingMap, defaults)
-    _spacing = defaults[layoutType]
     return defaults
   })
   const spacing = spacingMap[layoutType]
@@ -548,15 +543,16 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     currentNodes: SchemaNode_RF[],
     currentEdges: SchemaEdge[],
     layout: LayoutType,
+    currentSpacing: number,
   ) => {
     setIsLayouting(true)
     try {
       let layoutedNodes: SchemaNode_RF[]
       if (layout === 'dagre') {
-        const result = getDagreLayout(currentNodes, currentEdges)
+        const result = getDagreLayout(currentNodes, currentEdges, currentSpacing)
         layoutedNodes = result.nodes
       } else {
-        const result = await getElkLayout(currentNodes, currentEdges, layout)
+        const result = await getElkLayout(currentSpacing, currentNodes, currentEdges, layout)
         layoutedNodes = result.nodes
       }
       setNodes(layoutedNodes as any)
@@ -575,27 +571,24 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   // Initial layout after nodes are measured
   useEffect(() => {
     if (nodesInitialized && !layoutApplied) {
-      applyLayout(nodes as SchemaNode_RF[], edges, layoutType)
+      applyLayout(nodes as SchemaNode_RF[], edges, layoutType, spacing)
     }
-  }, [nodesInitialized, layoutApplied, nodes, edges, layoutType, applyLayout])
+  }, [nodesInitialized, layoutApplied, nodes, edges, layoutType, spacing, applyLayout])
 
   // Re-layout when layout type changes
   const handleLayoutChange = useCallback((newLayout: LayoutType) => {
     setLayoutType(newLayout)
-    _spacing = _spacingMap[newLayout]
     try { localStorage.setItem('schema-mapper:layoutType', newLayout) } catch {}
-    applyLayout(nodes as SchemaNode_RF[], edges, newLayout)
-  }, [nodes, edges, applyLayout])
+    applyLayout(nodes as SchemaNode_RF[], edges, newLayout, spacingMap[newLayout])
+  }, [nodes, edges, spacingMap, applyLayout])
 
   const handleSpacingChange = useCallback((value: number) => {
     setSpacingMap(prev => {
       const next = { ...prev, [layoutType]: value }
-      _spacingMap[layoutType] = value
-      _spacing = value
       try { localStorage.setItem('schema-mapper:spacingMap', JSON.stringify(next)) } catch {}
       return next
     })
-    applyLayout(nodes as SchemaNode_RF[], edges, layoutType)
+    applyLayout(nodes as SchemaNode_RF[], edges, layoutType, value)
   }, [nodes, edges, layoutType, applyLayout])
 
   const handleResetSpacing = useCallback(() => {
