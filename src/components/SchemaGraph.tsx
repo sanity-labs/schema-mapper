@@ -31,12 +31,14 @@ import type { DiscoveredField, DiscoveredType } from './types'
 // Debounce utility
 // ---------------------------------------------------------------------------
 
-function debounce<T extends (...args: any[]) => any>(fn: T, ms: number): T {
+function debounce<T extends (...args: any[]) => any>(fn: T, ms: number): T & { cancel: () => void } {
   let timer: ReturnType<typeof setTimeout>
-  return ((...args: any[]) => {
+  const debounced = ((...args: any[]) => {
     clearTimeout(timer)
     timer = setTimeout(() => fn(...args), ms)
-  }) as T
+  }) as T & { cancel: () => void }
+  debounced.cancel = () => clearTimeout(timer)
+  return debounced
 }
 
 // ---------------------------------------------------------------------------
@@ -695,10 +697,11 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   // Re-layout when layout type changes
   const handleLayoutChange = useCallback((newLayout: LayoutType) => {
+    debouncedApplyLayout.cancel()
     setLayoutType(newLayout)
     try { localStorage.setItem('schema-mapper:layoutType', newLayout) } catch {}
     applyLayout(nodes as SchemaNode_RF[], edges, newLayout, spacingMap[newLayout])
-  }, [nodes, edges, spacingMap, applyLayout])
+  }, [nodes, edges, spacingMap, applyLayout, debouncedApplyLayout])
 
   const handleSpacingChange = useCallback((value: number) => {
     setSpacingMap(prev => {
