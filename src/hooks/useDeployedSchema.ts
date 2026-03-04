@@ -299,15 +299,49 @@ export function useDeployedSchema(): {
         setIsLoading(true)
 
         // Fetch the deployed schema from the API
-        const schema: SchemaEntry[] = await clientRef.current.request({
+        // API returns an array of workspace schema documents
+        // Each has { _id, schema, workspace, ... } where schema contains the GROQ type schema
+        const schemas: any[] = await clientRef.current.request({
           method: 'GET',
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
 
         if (cancelled) return
 
+        // Extract the schema content from the first workspace entry
+        if (!schemas || schemas.length === 0) {
+          setHasDeployedSchema(false)
+          setTypes([])
+          setIsLoading(false)
+          return
+        }
+
+        const entry = schemas[0]
+        let schemaData: SchemaEntry[] = []
+
+        const raw = entry.schema
+        if (typeof raw === 'string') {
+          try {
+            schemaData = JSON.parse(raw)
+          } catch {
+            console.warn('[Schema Mapper] Failed to parse schema JSON string')
+          }
+        } else if (Array.isArray(raw)) {
+          schemaData = raw
+        } else if (raw && typeof raw === 'object') {
+          // Could be wrapped in another structure
+          schemaData = raw.types || raw
+        }
+
+        if (!Array.isArray(schemaData) || schemaData.length === 0) {
+          setHasDeployedSchema(false)
+          setTypes([])
+          setIsLoading(false)
+          return
+        }
+
         // Parse the schema
-        const parsedTypes = parseDeployedSchema(schema)
+        const parsedTypes = parseDeployedSchema(schemaData)
 
         if (parsedTypes.length === 0) {
           // No deployed schema available
