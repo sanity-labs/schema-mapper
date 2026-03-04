@@ -175,10 +175,11 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
       {/* ---- Header with inline stats ---- */}
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper{orgName ? <span className="text-base font-normal text-muted-foreground ml-1">— {orgName}</span> : null}</h1>
+          <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
         {!isLoading && (
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
             <span>{formatNumber(totalProjects)} projects</span>
             <span>·</span>
             <span>{formatNumber(totalDatasets)} datasets</span>
