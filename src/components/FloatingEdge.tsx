@@ -74,6 +74,7 @@ function getHandleAwareSourcePoint(
     if (handle) {
       // handle.y is relative to the node, handle.height is the handle size
       sourceY = pos.y + handle.y + (handle.height ?? 0) / 2
+      console.debug('[FloatingEdge]', sourceHandleId, 'handle.y:', handle.y, 'handle.h:', handle.height, 'nodeH:', height, 'sourceY:', sourceY)
     }
   }
 

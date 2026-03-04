@@ -82,12 +82,11 @@ function FieldRow({
         relative flex items-center justify-between gap-2 px-3 py-1.5 text-xs
         ${even ? 'bg-transparent' : 'bg-muted/40'}
         ${isRef ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}
-        ${isInline ? 'bg-violet-50/60 dark:bg-violet-950/20' : ''}
       `}
     >
       {/* Field name */}
       <span
-        className={`truncate font-mono ${isRef ? 'font-medium text-indigo-700 dark:text-indigo-300' : isInline ? 'font-medium text-violet-700 dark:text-violet-300' : 'text-card-foreground'}`}
+        className={`truncate font-mono ${isRef || isInline ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-card-foreground'}`}
         title={field.name}
       >
         {field.name}
@@ -96,25 +95,20 @@ function FieldRow({
       {/* Type badge */}
       <Badge
         variant={style.variant}
-        className={`shrink-0 px-1.5 py-0 text-[10px] leading-4 font-normal ${style.className} ${isInline ? '!bg-violet-100 !text-violet-700 dark:!bg-violet-900 dark:!text-violet-300' : ''}`}
+        className={`shrink-0 px-1.5 py-0 text-[10px] leading-4 font-normal ${style.className}`}
       >
         {isRef && <ArrowRight className="mr-0.5 h-2.5 w-2.5" />}
         {isInline ? field.referenceTo : field.type}
         {field.isArray && '[]'}
       </Badge>
 
-      {/* Source handle for reference and inline object fields — invisible, floating edges handle visuals */}
+      {/* Source handle for reference and inline object fields — tiny but positioned for edge routing */}
       {(isRef || isInline) && (
         <Handle
           type="source"
           position={Position.Right}
           id={`ref-${field.name}`}
-          className="!absolute !right-0 !translate-x-1/2 !w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
-          style={{
-            top: '50%',
-            transform: 'translate(50%, -50%)',
-            opacity: 0,
-          }}
+          className="!absolute !right-0 !top-1/2 !-translate-y-1/2 !translate-x-1/2 !w-[1px] !h-[1px] !border-0 !bg-transparent !min-w-0 !min-h-0"
         />
       )}
     </div>
