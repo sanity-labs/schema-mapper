@@ -47,7 +47,7 @@ To update later:
 ```bash
 npx skills update
 ```
-Then tell your agent: *"Apply the Schema Mapper update"*
+Then tell your agent: *"Update Schema Mapper"*
 
 ### Manual setup
 
