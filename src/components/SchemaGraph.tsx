@@ -661,6 +661,8 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
+        panOnScroll
+        zoomOnScroll={false}
         proOptions={{ hideAttribution: true }}
         minZoom={0.1}
         maxZoom={2}
