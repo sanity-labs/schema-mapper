@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock } from 'react-icons/go'
+import { RiAlertFill } from 'react-icons/ri'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -291,7 +292,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                   }
                   onClick={selectedDataset.hasDeployedSchema ? handleToggleSchemaView : undefined}
                 >
-                  {effectiveSource === 'deployed' ? 'deployed schema' : 'inferred schema'}
+                  {effectiveSource === 'deployed' ? 'deployed schema' : <><RiAlertFill className="inline-block mr-1 -mt-0.5" />inferred schema</>}
                   {selectedDataset.hasDeployedSchema && ' ⇄'}
                 </Badge>
               )}
