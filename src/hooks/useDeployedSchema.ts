@@ -2,143 +2,259 @@ import {useClient} from '@sanity/sdk-react'
 import {useState, useEffect, useRef} from 'react'
 import type {DiscoveredType, DiscoveredField} from '../types'
 
-// --- Schema API response types ---
+// --- GROQ Type Schema API response types ---
 
-type StoredWorkspaceSchema = {
-  _id: string
-  _createdAt?: string
-  _updatedAt?: string
-  _type?: string
-  version?: string
-  workspace?: {
-    name: string
-    title?: string
+/** A single entry in the deployed schema array */
+type SchemaEntry = {
+  name: string
+  type: 'document' | 'type'
+  attributes?: Record<string, ObjectAttribute>
+  value?: SchemaValue
+}
+
+type ObjectAttribute = {
+  type: 'objectAttribute'
+  value: SchemaValue
+  optional?: boolean
+}
+
+type SchemaValue =
+  | {type: 'string'; value?: string}
+  | {type: 'number'}
+  | {type: 'boolean'}
+  | {type: 'null'}
+  | {type: 'unknown'}
+  | {type: 'inline'; name: string}
+  | {type: 'array'; of: SchemaValue}
+  | {type: 'union'; of: SchemaValue[]}
+  | {
+      type: 'object'
+      attributes?: Record<string, ObjectAttribute>
+      rest?: SchemaValue
+      dereferencesTo?: string
+    }
+
+// System attributes to skip on document types
+const SYSTEM_ATTRIBUTES = new Set([
+  '_id',
+  '_type',
+  '_createdAt',
+  '_updatedAt',
+  '_rev',
+])
+
+// --- Reference resolution ---
+
+/**
+ * Build a map from reference type names to their target document type names.
+ * e.g. "customerType.reference" → "customerType"
+ */
+function buildReferenceMap(schema: SchemaEntry[]): Map<string, string> {
+  const refMap = new Map<string, string>()
+  for (const entry of schema) {
+    if (
+      entry.type === 'type' &&
+      entry.name.endsWith('.reference') &&
+      entry.value?.type === 'object' &&
+      entry.value.dereferencesTo
+    ) {
+      refMap.set(entry.name, entry.value.dereferencesTo)
+    }
   }
-  schema?: string | { types?: SchemaType[] } | SchemaType[]
+  return refMap
 }
 
-type SchemaType = {
-  name: string
-  type: string // 'document', 'object', etc.
-  fields?: SchemaField[]
+// --- Field type detection ---
+
+/**
+ * Check if an object value represents an image field.
+ * Image objects have `_type.value.value === "image"` in their attributes.
+ */
+function isImageObject(value: SchemaValue): boolean {
+  if (value.type !== 'object' || !value.attributes) return false
+  const typeAttr = value.attributes._type
+  if (!typeAttr) return false
+  const typeVal = typeAttr.value
+  return typeVal?.type === 'string' && typeVal.value === 'image'
 }
 
-type SchemaField = {
-  name: string
-  type: string
-  of?: {type: string}[]
-  to?: {type: string}[]
-}
-
-// --- Field type mapping ---
-
-function mapFieldType(field: SchemaField): DiscoveredField {
-  const {name, type} = field
-
-  switch (type) {
+/**
+ * Resolve a field's SchemaValue into a DiscoveredField.
+ */
+function resolveField(
+  fieldName: string,
+  value: SchemaValue,
+  refMap: Map<string, string>,
+  documentTypeNames: Set<string>,
+): DiscoveredField {
+  switch (value.type) {
     case 'string':
-      return {name, type: 'string'}
-    case 'text':
-      return {name, type: 'text'}
-    case 'number':
-      return {name, type: 'number'}
-    case 'boolean':
-      return {name, type: 'boolean'}
-    case 'datetime':
-    case 'date':
-      return {name, type: 'datetime'}
-    case 'url':
-      return {name, type: 'url'}
-    case 'image':
-      return {name, type: 'image'}
-    case 'slug':
-      return {name, type: 'slug'}
-    case 'block':
-    case 'portableText':
-      return {name, type: 'block'}
-    case 'reference':
-      return {
-        name,
-        type: 'reference',
-        isReference: true,
-        referenceTo: field.to?.[0]?.type,
-      }
-    case 'array': {
-      const ofTypes = field.of || []
-      const hasReferences = ofTypes.some((o) => o.type === 'reference')
-      const hasBlocks = ofTypes.some(
-        (o) => o.type === 'block' || o.type === 'portableText',
-      )
+      return {name: fieldName, type: 'string'}
 
-      if (hasReferences) {
-        // For array of references, the target type is on the reference item inside 'of'
-        // Schema shape: { type: 'array', of: [{ type: 'reference', to: [{ type: 'projectType' }] }] }
-        const refItem = ofTypes.find((o) => o.type === 'reference') as any
-        const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
-        return {
-          name,
-          type: 'reference',
-          isReference: true,
-          isArray: true,
-          referenceTo,
+    case 'number':
+      return {name: fieldName, type: 'number'}
+
+    case 'boolean':
+      return {name: fieldName, type: 'boolean'}
+
+    case 'inline': {
+      const inlineName = value.name
+
+      // Slug type
+      if (inlineName === 'slug') {
+        return {name: fieldName, type: 'slug'}
+      }
+
+      // Reference type: ends with .reference and resolves to a document
+      if (inlineName.endsWith('.reference')) {
+        const target = refMap.get(inlineName)
+        if (target) {
+          return {
+            name: fieldName,
+            type: 'reference',
+            isReference: true,
+            referenceTo: target,
+          }
         }
       }
-      if (hasBlocks) {
-        return {name, type: 'block', isArray: true}
-      }
-      return {name, type: 'array', isArray: true}
+
+      // Otherwise it's an inline object type (e.g. customerInfoType)
+      return {name: fieldName, type: 'object'}
     }
-    case 'object':
-      return {name, type: 'object'}
+
+    case 'array': {
+      const ofValue = value.of
+      if (!ofValue) {
+        return {name: fieldName, type: 'array', isArray: true}
+      }
+
+      // Check for array of references via rest.type === "inline" with .reference
+      if (ofValue.type === 'object' && ofValue.rest) {
+        const rest = ofValue.rest as SchemaValue
+        if (rest.type === 'inline' && rest.name?.endsWith('.reference')) {
+          const target = refMap.get(rest.name)
+          if (target) {
+            return {
+              name: fieldName,
+              type: 'reference',
+              isReference: true,
+              isArray: true,
+              referenceTo: target,
+            }
+          }
+        }
+      }
+
+      // Check for array of blocks (portable text)
+      if (ofValue.type === 'object') {
+        const attrs = ofValue.attributes || {}
+        const typeAttr = attrs._type
+        if (typeAttr?.value?.type === 'string' && typeAttr.value.value === 'block') {
+          return {name: fieldName, type: 'block', isArray: true}
+        }
+      }
+
+      // Check for union inside array
+      if (ofValue.type === 'union') {
+        const unionItems = ofValue.of || []
+        const hasBlock = unionItems.some(
+          (item: SchemaValue) =>
+            item.type === 'object' &&
+            item.attributes?._type?.value?.type === 'string' &&
+            item.attributes._type.value.value === 'block',
+        )
+        if (hasBlock) {
+          return {name: fieldName, type: 'block', isArray: true}
+        }
+      }
+
+      return {name: fieldName, type: 'array', isArray: true}
+    }
+
+    case 'union': {
+      // String enums: union of string values → treat as string
+      const unionItems = value.of || []
+      const allStrings = unionItems.every(
+        (item: SchemaValue) => item.type === 'string',
+      )
+      if (allStrings && unionItems.length > 0) {
+        return {name: fieldName, type: 'string'}
+      }
+
+      // Union with number types
+      const allNumbers = unionItems.every(
+        (item: SchemaValue) => item.type === 'number',
+      )
+      if (allNumbers && unionItems.length > 0) {
+        return {name: fieldName, type: 'number'}
+      }
+
+      // Union with boolean types
+      const allBooleans = unionItems.every(
+        (item: SchemaValue) => item.type === 'boolean',
+      )
+      if (allBooleans && unionItems.length > 0) {
+        return {name: fieldName, type: 'boolean'}
+      }
+
+      return {name: fieldName, type: 'unknown'}
+    }
+
+    case 'object': {
+      // Check if it's an image object
+      if (isImageObject(value)) {
+        return {name: fieldName, type: 'image'}
+      }
+      return {name: fieldName, type: 'object'}
+    }
+
+    case 'null':
+    case 'unknown':
     default:
-      return {name, type: 'unknown'}
+      return {name: fieldName, type: 'unknown'}
   }
 }
 
 // --- Parse deployed schema into DiscoveredType[] ---
 
 function parseDeployedSchema(
-  schemas: StoredWorkspaceSchema[],
+  schema: SchemaEntry[],
 ): {name: string; fields: DiscoveredField[]}[] {
-  if (!schemas || schemas.length === 0) return []
+  if (!schema || !Array.isArray(schema) || schema.length === 0) return []
 
-  // Use the first schema entry
-  const entry = schemas[0]
-  if (!entry) return []
+  // Build reference resolution map
+  const refMap = buildReferenceMap(schema)
 
-  // The schema field can be:
-  // 1. A JSON string containing an array of types
-  // 2. An object with a types array
-  // 3. An array of types directly
-  let allTypes: SchemaType[] = []
+  // Collect document type names for reference validation
+  const documentTypeNames = new Set<string>(
+    schema
+      .filter((entry) => entry.type === 'document')
+      .map((entry) => entry.name),
+  )
 
-  const raw = entry.schema
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      allTypes = Array.isArray(parsed) ? parsed : (parsed?.types || [])
-    } catch {
-      console.warn('[Schema Mapper] Failed to parse schema JSON string')
-      return []
-    }
-  } else if (Array.isArray(raw)) {
-    allTypes = raw
-  } else if (raw && typeof raw === 'object' && 'types' in raw) {
-    allTypes = raw.types || []
-  }
-
-  // Filter to document types only, exclude internal types
-  const documentTypes = allTypes.filter(
-    (t) =>
-      t.type === 'document' &&
-      !t.name.startsWith('sanity.') &&
-      !t.name.startsWith('system.'),
+  // Filter to document types, skip internal types
+  const documentTypes = schema.filter(
+    (entry) =>
+      entry.type === 'document' &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.'),
   )
 
   return documentTypes.map((docType) => {
-    const fields: DiscoveredField[] = (docType.fields || [])
-      .filter((f) => !f.name.startsWith('_')) // Skip internal fields
-      .map(mapFieldType)
+    const attributes = docType.attributes || {}
+    const fields: DiscoveredField[] = []
+
+    for (const [attrName, attrValue] of Object.entries(attributes)) {
+      // Skip system attributes
+      if (SYSTEM_ATTRIBUTES.has(attrName)) continue
+
+      // attrValue is an ObjectAttribute with { type: "objectAttribute", value: SchemaValue }
+      const attr = attrValue as ObjectAttribute
+      if (!attr.value) continue
+
+      const field = resolveField(attrName, attr.value, refMap, documentTypeNames)
+      fields.push(field)
+    }
 
     return {
       name: docType.name,
@@ -183,7 +299,7 @@ export function useDeployedSchema(): {
         setIsLoading(true)
 
         // Fetch the deployed schema from the API
-        const schemas: StoredWorkspaceSchema[] = await clientRef.current.request({
+        const schema: SchemaEntry[] = await clientRef.current.request({
           method: 'GET',
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
@@ -191,7 +307,7 @@ export function useDeployedSchema(): {
         if (cancelled) return
 
         // Parse the schema
-        const parsedTypes = parseDeployedSchema(schemas)
+        const parsedTypes = parseDeployedSchema(schema)
 
         if (parsedTypes.length === 0) {
           // No deployed schema available
