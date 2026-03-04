@@ -290,9 +290,15 @@ function parseStudioSchema(
   )
 
   return documentTypes.map((docType: any) => {
-    const fields: DiscoveredField[] = (docType.fields || [])
+    const allFields = docType.fields || []
+    const fields: DiscoveredField[] = allFields
       .filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
       .map((f: any) => mapStudioField(f))
+
+    console.log('[Schema Mapper] Studio parser:', docType.name, 
+      'raw fields:', allFields.length, 
+      'after filter:', fields.length,
+      'names:', fields.map((f: any) => f.name).join(', '))
 
     return {
       name: docType.name,
