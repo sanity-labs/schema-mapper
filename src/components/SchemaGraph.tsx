@@ -51,10 +51,10 @@ const edgeTypes: EdgeTypes = {
 
 // Per-layout spacing multipliers — read by layout functions
 const DEFAULT_SPACING: Record<LayoutType, number> = {
-  dagre: 1.0,
-  layered: 0.4,
-  force: 0.25,
-  stress: 1.6,
+  dagre: 0.8,
+  layered: 0.3,
+  force: 0.2,
+  stress: 1.0,
 }
 
 
@@ -98,8 +98,8 @@ function getLayoutConfig(type: LayoutType, s: number): Record<string, string> {
     // stress doesn't support separateConnectedComponents — we handle it manually
     return {
       'elk.algorithm': 'stress',
-      'elk.spacing.nodeNode': String(Math.round(80 * s)),
-      'elk.stress.desiredEdgeLength': String(Math.round(200 * s)),
+      'elk.spacing.nodeNode': String(Math.round(150 * s)),
+      'elk.stress.desiredEdgeLength': String(Math.round(300 * s)),
     }
   }
   return {}
@@ -186,6 +186,56 @@ function findConnectedComponents(
   }
   // Sort: largest component first
   return components.sort((a, b) => b.length - a.length)
+}
+
+/**
+ * Post-layout overlap removal — iteratively pushes overlapping nodes apart.
+ * Preserves the general layout structure while guaranteeing no overlaps.
+ */
+function removeOverlaps(
+  nodes: { id: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; data: any }[],
+  padding: number = 30,
+  maxIterations: number = 50,
+): void {
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let hadOverlap = false
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i]
+        const b = nodes[j]
+        const aW = a.measured?.width ?? 280
+        const aH = a.measured?.height ?? 60 + (a.data.fields?.length ?? 4) * 28
+        const bW = b.measured?.width ?? 280
+        const bH = b.measured?.height ?? 60 + (b.data.fields?.length ?? 4) * 28
+
+        // Check bounding box overlap with padding
+        const overlapX = (aW / 2 + bW / 2 + padding) - Math.abs((a.position.x + aW / 2) - (b.position.x + bW / 2))
+        const overlapY = (aH / 2 + bH / 2 + padding) - Math.abs((a.position.y + aH / 2) - (b.position.y + bH / 2))
+
+        if (overlapX > 0 && overlapY > 0) {
+          hadOverlap = true
+          // Push apart along the axis with less overlap (shorter escape)
+          const dx = (a.position.x + aW / 2) - (b.position.x + bW / 2)
+          const dy = (a.position.y + aH / 2) - (b.position.y + bH / 2)
+
+          if (overlapX < overlapY) {
+            // Push horizontally
+            const push = overlapX / 2 + 1
+            const sign = dx >= 0 ? 1 : -1
+            a.position.x += sign * push
+            b.position.x -= sign * push
+          } else {
+            // Push vertically
+            const push = overlapY / 2 + 1
+            const sign = dy >= 0 ? 1 : -1
+            a.position.y += sign * push
+            b.position.y -= sign * push
+          }
+        }
+      }
+    }
+    if (!hadOverlap) break
+  }
 }
 
 async function getElkLayout(spacing: number, 
@@ -324,6 +374,9 @@ async function getElkLayout(spacing: number,
       ...node,
       position: positionMap.get(node.id) ?? { x: 0, y: 0 },
     }))
+
+    // Remove any remaining overlaps from the stress layout
+    removeOverlaps(layoutedNodes)
 
     return { nodes: layoutedNodes, edges }
   }
@@ -497,8 +550,8 @@ function GraphControls({
           <span className="text-xs text-gray-500">Spacing</span>
           <input
             type="range"
-            min="25"
-            max="200"
+            min="10"
+            max="300"
             value={Math.round(spacing * 100)}
             onChange={(e) => onSpacingChange(Number(e.target.value) / 100)}
             className="w-20 h-1 accent-gray-700"
@@ -551,7 +604,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<SchemaEdge>(initialEdges)
 
   const [spacingMap, setSpacingMap] = useState<Record<LayoutType, number>>(() => {
-    const defaults: Record<LayoutType, number> = { dagre: 1.0, layered: 0.4, force: 0.25, stress: 1.6 }
+    const defaults: Record<LayoutType, number> = { dagre: 0.8, layered: 0.3, force: 0.2, stress: 1.0 }
     try {
       const saved = localStorage.getItem('schema-mapper:spacingMap')
       if (saved) {
