@@ -256,6 +256,10 @@ function parseDeployedSchema(
       fields.push(field)
     }
 
+    console.log('[Schema Mapper] Parsed', docType.name, ':', fields.length, 'fields', 
+      'attrs:', Object.keys(attributes).length,
+      'sample attr:', Object.keys(attributes)[0], JSON.stringify(attributes[Object.keys(attributes)[0]])?.substring(0, 200))
+
     return {
       name: docType.name,
       fields,
@@ -320,20 +324,26 @@ export function useDeployedSchema(): {
         let schemaData: SchemaEntry[] = []
 
         const raw = entry.schema
+        console.log('[Schema Mapper] API response entry keys:', Object.keys(entry))
+        console.log('[Schema Mapper] schema field type:', typeof raw, Array.isArray(raw) ? 'array(' + raw.length + ')' : '')
         if (typeof raw === 'string') {
           try {
             schemaData = JSON.parse(raw)
+            console.log('[Schema Mapper] Parsed JSON string, got', schemaData.length, 'entries')
           } catch {
             console.warn('[Schema Mapper] Failed to parse schema JSON string')
           }
         } else if (Array.isArray(raw)) {
           schemaData = raw
+          console.log('[Schema Mapper] Direct array, got', schemaData.length, 'entries')
         } else if (raw && typeof raw === 'object') {
           // Could be wrapped in another structure
           schemaData = raw.types || raw
+          console.log('[Schema Mapper] Object, extracted', Array.isArray(schemaData) ? schemaData.length : 'non-array')
         }
 
         if (!Array.isArray(schemaData) || schemaData.length === 0) {
+          console.log('[Schema Mapper] No schema data found, first entry sample:', JSON.stringify(entry).substring(0, 500))
           setHasDeployedSchema(false)
           setTypes([])
           setIsLoading(false)
