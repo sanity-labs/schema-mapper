@@ -215,24 +215,118 @@ function resolveField(
   }
 }
 
-// --- Parse deployed schema into DiscoveredType[] ---
+// --- Studio Schema Format Parser ---
+// Studio format: { name, type, fields: [{ name, type, of?, to? }] }
+
+function mapStudioField(field: any): DiscoveredField {
+  const {name, type} = field
+
+  switch (type) {
+    case 'string':
+    case 'text':
+    case 'email':
+      return {name, type: 'string'}
+    case 'number':
+      return {name, type: 'number'}
+    case 'boolean':
+      return {name, type: 'boolean'}
+    case 'datetime':
+    case 'date':
+      return {name, type: 'datetime'}
+    case 'url':
+      return {name, type: 'url'}
+    case 'slug':
+      return {name, type: 'slug'}
+    case 'image':
+    case 'file':
+      return {name, type: 'image'}
+    case 'geopoint':
+      return {name, type: 'object'}
+    case 'reference':
+      return {
+        name,
+        type: 'reference',
+        isReference: true,
+        referenceTo: field.to?.[0]?.type,
+      }
+    case 'array': {
+      const ofTypes = field.of || []
+      const hasReferences = ofTypes.some((o: any) => o.type === 'reference')
+      const hasBlocks = ofTypes.some(
+        (o: any) => o.type === 'block' || o.type === 'portableText',
+      )
+
+      if (hasReferences) {
+        const refItem = ofTypes.find((o: any) => o.type === 'reference')
+        const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
+        return {
+          name,
+          type: 'reference',
+          isReference: true,
+          isArray: true,
+          referenceTo,
+        }
+      }
+      if (hasBlocks) {
+        return {name, type: 'block', isArray: true}
+      }
+      return {name, type: 'array', isArray: true}
+    }
+    case 'object':
+      return {name, type: 'object'}
+    default:
+      return {name, type: 'unknown'}
+  }
+}
+
+function parseStudioSchema(
+  schema: any[],
+): {name: string; fields: DiscoveredField[]}[] {
+  const documentTypes = schema.filter(
+    (entry: any) =>
+      entry.type === 'document' &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.'),
+  )
+
+  return documentTypes.map((docType: any) => {
+    const fields: DiscoveredField[] = (docType.fields || [])
+      .filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+      .map((f: any) => mapStudioField(f))
+
+    return {
+      name: docType.name,
+      fields,
+    }
+  })
+}
+
+// --- Parse deployed schema — auto-detect format ---
 
 function parseDeployedSchema(
-  schema: SchemaEntry[],
+  schema: any[],
 ): {name: string; fields: DiscoveredField[]}[] {
   if (!schema || !Array.isArray(schema) || schema.length === 0) return []
 
-  // Build reference resolution map
-  const refMap = buildReferenceMap(schema)
+  // Detect format: Studio schema has 'fields' arrays, GROQ type schema has 'attributes' objects
+  const sample = schema.find((e: any) => e.type === 'document') || schema[0]
+  const isStudioFormat = sample && ('fields' in sample || !('attributes' in sample))
 
-  // Collect document type names for reference validation
+  if (isStudioFormat) {
+    console.log('[Schema Mapper] Detected Studio schema format')
+    return parseStudioSchema(schema)
+  }
+
+  console.log('[Schema Mapper] Detected GROQ type schema format')
+
+  // GROQ type schema format
+  const refMap = buildReferenceMap(schema as SchemaEntry[])
   const documentTypeNames = new Set<string>(
     schema
       .filter((entry) => entry.type === 'document')
       .map((entry) => entry.name),
   )
 
-  // Filter to document types, skip internal types
   const documentTypes = schema.filter(
     (entry) =>
       entry.type === 'document' &&
@@ -241,24 +335,16 @@ function parseDeployedSchema(
   )
 
   return documentTypes.map((docType) => {
-    const attributes = docType.attributes || {}
+    const attributes = (docType as SchemaEntry).attributes || {}
     const fields: DiscoveredField[] = []
 
     for (const [attrName, attrValue] of Object.entries(attributes)) {
-      // Skip system attributes
       if (SYSTEM_ATTRIBUTES.has(attrName)) continue
-
-      // attrValue is an ObjectAttribute with { type: "objectAttribute", value: SchemaValue }
       const attr = attrValue as ObjectAttribute
       if (!attr.value) continue
-
       const field = resolveField(attrName, attr.value, refMap, documentTypeNames)
       fields.push(field)
     }
-
-    console.log('[Schema Mapper] Parsed', docType.name, ':', fields.length, 'fields', 
-      'attrs:', Object.keys(attributes).length,
-      'sample attr:', Object.keys(attributes)[0], JSON.stringify(attributes[Object.keys(attributes)[0]])?.substring(0, 200))
 
     return {
       name: docType.name,
@@ -324,22 +410,9 @@ export function useDeployedSchema(): {
         let schemaData: SchemaEntry[] = []
 
         const raw = entry.schema
-        console.log('[Schema Mapper] API response entry keys:', Object.keys(entry))
-        console.log('[Schema Mapper] schema field type:', typeof raw, Array.isArray(raw) ? 'array(' + raw.length + ')' : '')
         if (typeof raw === 'string') {
           try {
             schemaData = JSON.parse(raw)
-            console.log('[Schema Mapper] Parsed JSON string, got', schemaData.length, 'entries')
-            if (schemaData.length > 0) {
-              console.log('[Schema Mapper] First entry keys:', Object.keys(schemaData[0]))
-              console.log('[Schema Mapper] First entry sample:', JSON.stringify(schemaData[0]).substring(0, 500))
-              // Find a document type
-              const docSample = schemaData.find((e: any) => e.type === 'document')
-              if (docSample) {
-                console.log('[Schema Mapper] Doc type sample keys:', Object.keys(docSample))
-                console.log('[Schema Mapper] Doc type sample:', JSON.stringify(docSample).substring(0, 800))
-              }
-            }
           } catch {
             console.warn('[Schema Mapper] Failed to parse schema JSON string')
           }
@@ -353,7 +426,6 @@ export function useDeployedSchema(): {
         }
 
         if (!Array.isArray(schemaData) || schemaData.length === 0) {
-          console.log('[Schema Mapper] No schema data found, first entry sample:', JSON.stringify(entry).substring(0, 500))
           setHasDeployedSchema(false)
           setTypes([])
           setIsLoading(false)
