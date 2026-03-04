@@ -28,6 +28,18 @@ import FloatingEdge from './FloatingEdge'
 import type { DiscoveredField, DiscoveredType } from './types'
 
 // ---------------------------------------------------------------------------
+// Debounce utility
+// ---------------------------------------------------------------------------
+
+function debounce<T extends (...args: any[]) => any>(fn: T, ms: number): T {
+  let timer: ReturnType<typeof setTimeout>
+  return ((...args: any[]) => {
+    clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), ms)
+  }) as T
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -99,7 +111,7 @@ function getLayoutConfig(type: LayoutType, s: number): Record<string, string> {
     return {
       'elk.algorithm': 'stress',
       'elk.spacing.nodeNode': String(Math.round(150 * s)),
-      'elk.stress.desiredEdgeLength': String(Math.round(300 * s)),
+      'elk.stress.desiredEdgeLength': String(Math.round(200 * s)),
     }
   }
   return {}
@@ -295,56 +307,52 @@ async function getElkLayout(spacing: number,
     // Cluster gap: small base, scales gently with slider (sqrt curve)
     const CLUSTER_GAP = Math.round(50 * Math.sqrt(spacing))
 
-    // First pass: layout each component independently and measure bounding boxes
-    const layoutedComponents: {
-      positions: Map<string, { x: number; y: number }>;
-      width: number;
-      height: number;
-    }[] = []
+    // First pass: layout each component independently in parallel and measure bounding boxes
+    const layoutedComponents = await Promise.all(
+      components.map(async (component) => {
+        const compNodeIds = new Set(component.map(n => n.id))
+        const compElkNodes = elkNodes.filter(n => compNodeIds.has(n.id))
+        const compElkEdges = elkEdges.filter(e => {
+          const sourceNodeId = e.sources[0].split('-ref-')[0]
+          const targetNodeId = e.targets[0].replace('-target-left', '')
+          return compNodeIds.has(sourceNodeId) || compNodeIds.has(targetNodeId)
+        })
 
-    for (const component of components) {
-      const compNodeIds = new Set(component.map(n => n.id))
-      const compElkNodes = elkNodes.filter(n => compNodeIds.has(n.id))
-      const compElkEdges = elkEdges.filter(e => {
-        const sourceNodeId = e.sources[0].split('-ref-')[0]
-        const targetNodeId = e.targets[0].replace('-target-left', '')
-        return compNodeIds.has(sourceNodeId) || compNodeIds.has(targetNodeId)
+        const compGraph = {
+          id: 'root',
+          layoutOptions: getLayoutConfig(layoutType, spacing),
+          children: compElkNodes,
+          edges: compElkEdges,
+        }
+
+        const layouted = await elk.layout(compGraph)
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        const positions = new Map<string, { x: number; y: number }>()
+        layouted.children?.forEach((n: any) => {
+          const node = nodes.find(nd => nd.id === n.id)
+          const w = node?.measured?.width ?? 280
+          const fCount = node?.data.fields?.length ?? 4
+          const h = node?.measured?.height ?? 60 + fCount * 28
+          minX = Math.min(minX, n.x)
+          minY = Math.min(minY, n.y)
+          maxX = Math.max(maxX, n.x + w)
+          maxY = Math.max(maxY, n.y + h)
+          positions.set(n.id, { x: n.x, y: n.y })
+        })
+
+        // Normalize positions to start at 0,0
+        positions.forEach((pos, id) => {
+          positions.set(id, { x: pos.x - minX, y: pos.y - minY })
+        })
+
+        return {
+          positions,
+          width: maxX - minX,
+          height: maxY - minY,
+        }
       })
-
-      const compGraph = {
-        id: 'root',
-        layoutOptions: getLayoutConfig(layoutType, spacing),
-        children: compElkNodes,
-        edges: compElkEdges,
-      }
-
-      const layouted = await elk.layout(compGraph)
-
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-      const positions = new Map<string, { x: number; y: number }>()
-      layouted.children?.forEach((n: any) => {
-        const node = nodes.find(nd => nd.id === n.id)
-        const w = node?.measured?.width ?? 280
-        const fCount = node?.data.fields?.length ?? 4
-        const h = node?.measured?.height ?? 60 + fCount * 28
-        minX = Math.min(minX, n.x)
-        minY = Math.min(minY, n.y)
-        maxX = Math.max(maxX, n.x + w)
-        maxY = Math.max(maxY, n.y + h)
-        positions.set(n.id, { x: n.x, y: n.y })
-      })
-
-      // Normalize positions to start at 0,0
-      positions.forEach((pos, id) => {
-        positions.set(id, { x: pos.x - minX, y: pos.y - minY })
-      })
-
-      layoutedComponents.push({
-        positions,
-        width: maxX - minX,
-        height: maxY - minY,
-      })
-    }
+    )
 
     // Second pass: pack components in rows to fill a roughly square area
     const totalArea = layoutedComponents.reduce((sum, c) => sum + (c.width + CLUSTER_GAP) * (c.height + CLUSTER_GAP), 0)
@@ -665,6 +673,14 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     }
   }, [setNodes, fitView])
 
+  const debouncedApplyLayout = useMemo(
+    () => debounce(
+      (n: SchemaNode_RF[], e: SchemaEdge[], l: LayoutType, s: number) => applyLayout(n, e, l, s),
+      250
+    ),
+    [applyLayout]
+  )
+
   // Update edge types when style changes
   useEffect(() => {
     setEdges((eds) => eds.map(e => ({ ...e, type: 'floating', data: { ...e.data, edgeStyle } })))
@@ -690,8 +706,8 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
       try { localStorage.setItem('schema-mapper:spacingMap', JSON.stringify(next)) } catch {}
       return next
     })
-    applyLayout(nodes as SchemaNode_RF[], edges, layoutType, value)
-  }, [nodes, edges, layoutType, applyLayout])
+    debouncedApplyLayout(nodes as SchemaNode_RF[], edges, layoutType, value)
+  }, [nodes, edges, layoutType, debouncedApplyLayout])
 
   const handleResetSpacing = useCallback(() => {
     const defaultVal = DEFAULT_SPACING[layoutType]
