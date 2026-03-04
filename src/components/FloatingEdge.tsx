@@ -188,6 +188,8 @@ export default memo(function FloatingEdge({
     return null
   }
 
+  console.debug('[FloatingEdge] edge', source, '->', target, 'sourceHandleId:', sourceHandleId, 'handles:', sourceNode.internals.handleBounds?.source?.map(h => h.id + ':y=' + h.y))
+
   // Source side: use handle-aware calculation so edges from different
   // reference fields fan out from their respective handle positions
   const sourceIntersection = getHandleAwareSourcePoint(
