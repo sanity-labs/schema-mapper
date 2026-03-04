@@ -71,9 +71,10 @@ function mapFieldType(field: SchemaField): DiscoveredField {
       )
 
       if (hasReferences) {
-        // For array of references, find the reference's `to` target
-        // The `to` on the array field itself may contain the target types
-        const referenceTo = field.to?.[0]?.type
+        // For array of references, the target type is on the reference item inside 'of'
+        // Schema shape: { type: 'array', of: [{ type: 'reference', to: [{ type: 'projectType' }] }] }
+        const refItem = ofTypes.find((o) => o.type === 'reference') as any
+        const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
         return {
           name,
           type: 'reference',
