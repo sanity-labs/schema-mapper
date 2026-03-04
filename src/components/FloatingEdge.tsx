@@ -2,6 +2,8 @@ import { memo } from 'react'
 import {
   useInternalNode,
   getBezierPath,
+  getSmoothStepPath,
+  getStraightPath,
   EdgeLabelRenderer,
   BaseEdge,
   Position,
@@ -125,6 +127,7 @@ export default memo(function FloatingEdge({
   style,
   label,
   labelStyle,
+  data,
 }: EdgeProps) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
@@ -132,8 +135,6 @@ export default memo(function FloatingEdge({
   if (!sourceNode || !targetNode) {
     return null
   }
-
-  console.debug('[FloatingEdge] edge', source, '->', target, 'sourceHandleId:', sourceHandleId, 'handles:', sourceNode.internals.handleBounds?.source?.map(h => h.id + ':y=' + h.y))
 
   // Source side: use handle-aware calculation so edges from different
   // reference fields fan out from their respective handle positions
@@ -149,14 +150,28 @@ export default memo(function FloatingEdge({
   const sourcePos = getEdgePosition(sourceNode, sourceIntersection)
   const targetPos = getEdgePosition(targetNode, targetIntersection)
 
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const pathParams = {
     sourceX: sourceIntersection.x,
     sourceY: sourceIntersection.y,
     sourcePosition: sourcePos,
     targetX: targetIntersection.x,
     targetY: targetIntersection.y,
     targetPosition: targetPos,
-  })
+  }
+
+  // Pick path function based on edge style passed via data
+  const edgeStyle = (data as any)?.edgeStyle as string | undefined
+  let edgePath: string
+  let labelX: number
+  let labelY: number
+
+  if (edgeStyle === 'step') {
+    ;[edgePath, labelX, labelY] = getSmoothStepPath(pathParams)
+  } else if (edgeStyle === 'straight') {
+    ;[edgePath, labelX, labelY] = getStraightPath(pathParams)
+  } else {
+    ;[edgePath, labelX, labelY] = getBezierPath(pathParams)
+  }
 
   return (
     <>

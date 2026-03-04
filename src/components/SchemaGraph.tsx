@@ -112,7 +112,7 @@ const layoutLabels: Record<LayoutType, string> = {
   stress: 'Clustered',
 }
 const edgeStyleLabels: Record<EdgeStyle, string> = { bezier: 'Bezier', step: 'Step', straight: 'Straight' }
-const edgeStyleToType: Record<EdgeStyle, string> = { bezier: 'floating', step: 'smoothstep', straight: 'straight' }
+const edgeStyleToType: Record<EdgeStyle, string> = { bezier: 'floating', step: 'floating', straight: 'floating' }
 
 function getDagreLayout(
   nodes: SchemaNode_RF[],
@@ -569,7 +569,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   const handleEdgeStyleChange = useCallback((style: EdgeStyle) => {
     setEdgeStyle(style)
     try { localStorage.setItem('schema-mapper:edgeStyle', style) } catch {}
-    setEdges((eds) => eds.map(e => ({ ...e, type: edgeStyleToType[style] })))
+    setEdges((eds) => eds.map(e => ({ ...e, type: 'floating', data: { ...e.data, edgeStyle: style } })))
   }, [setEdges])
 
 
@@ -614,7 +614,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   // Update edge types when style changes
   useEffect(() => {
-    setEdges((eds) => eds.map(e => ({ ...e, type: edgeStyleToType[edgeStyle] })))
+    setEdges((eds) => eds.map(e => ({ ...e, type: 'floating', data: { ...e.data, edgeStyle } })))
   }, [edgeStyle, setEdges])
 
   // Initial layout after nodes are measured
