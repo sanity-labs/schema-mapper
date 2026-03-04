@@ -735,6 +735,8 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
         fitView
         panOnScroll
         zoomOnScroll={false}
+        zoomOnPinch
+        noPanClassName="react-flow__nopan"
         proOptions={{ hideAttribution: true }}
         minZoom={0.1}
         maxZoom={2}
