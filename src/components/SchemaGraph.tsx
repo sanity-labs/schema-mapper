@@ -15,9 +15,7 @@ import {
   type Edge,
   type NodeTypes,
   type EdgeTypes,
-  type EdgeProps,
-  getBezierPath,
-  BaseEdge,
+  MarkerType,
 } from '@xyflow/react'
 import ELK from 'elkjs/lib/elk.bundled.js'
 import dagre from '@dagrejs/dagre'
@@ -26,6 +24,7 @@ import '@xyflow/react/dist/style.css'
 import { Tab } from '@sanity/ui'
 import { RxReset } from 'react-icons/rx'
 import SchemaNode, { SCHEMA_NODE_TYPE, type SchemaNodeData } from './SchemaNode'
+import FloatingEdge from './FloatingEdge'
 import type { DiscoveredField, DiscoveredType } from './types'
 
 // ---------------------------------------------------------------------------
@@ -36,13 +35,6 @@ type SchemaNode_RF = Node<SchemaNodeData, 'schema'>
 type SchemaEdge = Edge
 
 type LayoutType = 'dagre' | 'layered' | 'force' | 'stress'
-type EdgeStyle = 'bezier' | 'smoothstep' | 'straight'
-
-const edgeStyleLabels: Record<EdgeStyle, string> = {
-  bezier: 'Bezier',
-  smoothstep: 'Step',
-  straight: 'Straight',
-}
 
 // ---------------------------------------------------------------------------
 // Node & edge types — defined OUTSIDE the component
@@ -52,32 +44,9 @@ const nodeTypes: NodeTypes = {
   [SCHEMA_NODE_TYPE]: SchemaNode,
 }
 
-function GentleBezierEdge(props: EdgeProps) {
-  const [path, labelX, labelY] = getBezierPath({
-    ...props,
-    curvature: _curvature,
-  })
-  return (
-    <BaseEdge
-      path={path}
-      style={props.style}
-      label={props.label}
-      labelX={labelX}
-      labelY={labelY}
-      labelStyle={props.labelStyle}
-      labelBgStyle={props.labelBgStyle}
-      labelBgPadding={props.labelBgPadding}
-      labelBgBorderRadius={props.labelBgBorderRadius}
-    />
-  )
-}
-
 const edgeTypes: EdgeTypes = {
-  gentle: GentleBezierEdge,
+  floating: FloatingEdge,
 }
-
-// Module-level edge style — read by buildNodesAndEdges
-let _edgeStyle: EdgeStyle = 'smoothstep'
 
 // Per-layout spacing multipliers — read by layout functions
 const DEFAULT_SPACING: Record<LayoutType, number> = {
@@ -97,8 +66,7 @@ let _spacing = 1.0 // current active layout's spacing
 
 const elk = new ELK()
 
-// Mutable curvature value — updated by slider, read by edge component
-let _curvature = 0.1
+// Mutable curvature value — no longer used (floating edges handle routing)
 
 function getLayoutConfig(type: LayoutType): Record<string, string> {
   const s = _spacing
@@ -228,16 +196,13 @@ async function getElkLayout(
     // Build ports from reference fields for better edge routing
     const ports: any[] = []
 
-    // Target ports (left side) — one per incoming edge for spread
-    const inCount = node.data.incomingEdgeCount ?? 1
-    for (let i = 0; i < Math.max(1, inCount); i++) {
-      ports.push({
-        id: `${node.id}-target-${i}`,
-        layoutOptions: {
-          'elk.port.side': 'WEST',
-        },
-      })
-    }
+    // Target port — single port for floating edge connections
+    ports.push({
+      id: `${node.id}-target-left`,
+      layoutOptions: {
+        'elk.port.side': 'WEST',
+      },
+    })
 
     // Source ports for reference fields (right side)
     node.data.fields.forEach((field: DiscoveredField) => {
@@ -286,8 +251,8 @@ async function getElkLayout(
       const compNodeIds = new Set(component.map(n => n.id))
       const compElkNodes = elkNodes.filter(n => compNodeIds.has(n.id))
       const compElkEdges = elkEdges.filter(e => {
-        const sourceNodeId = e.sources[0].split('-ref-')[0].replace('-target', '')
-        const targetNodeId = e.targets[0].replace('-target', '')
+        const sourceNodeId = e.sources[0].split('-ref-')[0]
+        const targetNodeId = e.targets[0].replace('-target-left', '')
         return compNodeIds.has(sourceNodeId) || compNodeIds.has(targetNodeId)
       })
 
@@ -434,29 +399,26 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
           source: type.name,
           target: field.referenceTo,
           sourceHandle: `ref-${field.name}`,
-          targetHandle: 'target',
-          type: _edgeStyle === 'bezier' ? 'gentle' : _edgeStyle,
+          targetHandle: 'target-left',
+          type: 'floating',
           animated: false,
           label: field.name,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 15,
+            height: 15,
+            color,
+          },
           style: { stroke: color, strokeWidth: 1.5 },
-          labelStyle: { fontSize: 11, fill: '#64748b', fontWeight: 500 },
-          labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
-          labelBgPadding: [6, 3] as [number, number],
-          labelBgBorderRadius: 4,
         })
       }
     })
   })
 
-  // Assign unique target handles per incoming edge so they arrive at different Y positions
+  // Floating edges calculate their own connection points, but we keep
+  // targetHandle for React Flow's internal bookkeeping
   const incomingCount = new Map<string, number>()
   edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1))
-  const incomingIdx = new Map<string, number>()
-  edges.forEach(e => {
-    const idx = incomingIdx.get(e.target) ?? 0
-    e.targetHandle = `target-${idx}`
-    incomingIdx.set(e.target, idx + 1)
-  })
 
   // Mark nodes with connection info
   const hasIncoming = new Set(edges.map(e => e.target))
@@ -477,26 +439,17 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
 function GraphControls({
   layout,
   onLayoutChange,
-  edgeStyle,
-  onEdgeStyleChange,
-  curvature,
-  onCurvatureChange,
   spacing,
   onSpacingChange,
   onResetSpacing,
 }: {
   layout: LayoutType
   onLayoutChange: (layout: LayoutType) => void
-  edgeStyle: EdgeStyle
-  onEdgeStyleChange: (style: EdgeStyle) => void
-  curvature: number
-  onCurvatureChange: (value: number) => void
   spacing: number
   onSpacingChange: (value: number) => void
   onResetSpacing: () => void
 }) {
   const layouts: LayoutType[] = ['dagre', 'layered', 'force', 'stress']
-  const edgeStyles: EdgeStyle[] = ['bezier', 'smoothstep', 'straight']
 
   return (
     <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
@@ -511,32 +464,7 @@ function GraphControls({
           />
         ))}
       </div>
-      <div className="flex gap-1">
-        {edgeStyles.map((s) => (
-          <Tab
-            key={s}
-            id={`edge-tab-${s}`}
-            label={edgeStyleLabels[s]}
-            selected={edgeStyle === s}
-            onClick={() => onEdgeStyleChange(s)}
-            size={2}
-          />
-        ))}
-      </div>
       <div className="flex items-center gap-3 px-1">
-        {edgeStyle === 'bezier' && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Curve</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={Math.round(curvature * 100)}
-              onChange={(e) => onCurvatureChange(Number(e.target.value) / 100)}
-              className="w-20 h-1 accent-gray-700"
-            />
-          </div>
-        )}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">Spacing</span>
           <input
@@ -586,47 +514,6 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<SchemaNode_RF>(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<SchemaEdge>(initialEdges)
-
-  const [curvature, setCurvature] = useState(() => {
-    try {
-      const saved = localStorage.getItem('schema-mapper:curvature')
-      if (saved) {
-        const val = parseFloat(saved)
-        if (!isNaN(val)) { _curvature = val; return val }
-      }
-    } catch {}
-    return 0.1
-  })
-
-  const handleCurvatureChange = useCallback((value: number) => {
-    setCurvature(value)
-    _curvature = value
-    try { localStorage.setItem('schema-mapper:curvature', String(value)) } catch {}
-    // Force edge re-render
-    setEdges((eds) => [...eds])
-  }, [setEdges])
-
-  const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>(() => {
-    try {
-      const saved = localStorage.getItem('schema-mapper:edgeStyle')
-      if (saved && ['bezier', 'smoothstep', 'straight'].includes(saved)) {
-        _edgeStyle = saved as EdgeStyle
-        return saved as EdgeStyle
-      }
-    } catch {}
-    return 'smoothstep'
-  })
-
-  const handleEdgeStyleChange = useCallback((style: EdgeStyle) => {
-    setEdgeStyle(style)
-    _edgeStyle = style
-    try { localStorage.setItem('schema-mapper:edgeStyle', style) } catch {}
-    // Update all edges to use the new type
-    setEdges((eds) => eds.map((e) => ({
-      ...e,
-      type: style === 'bezier' ? 'gentle' : style,
-    })))
-  }, [setEdges])
 
   const [spacingMap, setSpacingMap] = useState<Record<LayoutType, number>>(() => {
     const defaults: Record<LayoutType, number> = { dagre: 1.0, layered: 0.4, force: 0.25, stress: 1.6 }
@@ -718,7 +605,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   return (
     <div className="relative w-full h-full">
-      <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} edgeStyle={edgeStyle} onEdgeStyleChange={handleEdgeStyleChange} curvature={curvature} onCurvatureChange={handleCurvatureChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
+      <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
       {isLayouting && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500">
           Layouting…
@@ -736,7 +623,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
         minZoom={0.1}
         maxZoom={2}
         defaultEdgeOptions={{
-          type: edgeStyle === 'bezier' ? 'gentle' : edgeStyle,
+          type: 'floating',
           animated: false,
         }}
       >

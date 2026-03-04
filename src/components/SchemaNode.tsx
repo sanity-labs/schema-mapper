@@ -101,16 +101,17 @@ function FieldRow({
         {field.isArray && '[]'}
       </Badge>
 
-      {/* Source handle for reference fields — positioned on the right edge */}
+      {/* Source handle for reference fields — invisible, floating edges handle visuals */}
       {isRef && (
         <Handle
           type="source"
           position={Position.Right}
           id={`ref-${field.name}`}
-          className="!absolute !right-0 !translate-x-1/2 !h-2.5 !w-2.5 !rounded-full !border-2 !border-indigo-500 !bg-indigo-300"
+          className="!absolute !right-0 !translate-x-1/2 !w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
           style={{
             top: '50%',
             transform: 'translate(50%, -50%)',
+            opacity: 0,
           }}
         />
       )}
@@ -141,22 +142,35 @@ function SchemaNode({ data }: NodeProps<SchemaNodeType>) {
 
   return (
     <div className="rounded-md border bg-card text-card-foreground min-w-[200px] max-w-[280px] overflow-hidden">
-      {/* ---- Target handles (left side, spread vertically for incoming references) ---- */}
-      {data.hasIncoming !== false && Array.from({ length: data.incomingEdgeCount || 1 }, (_, i) => {
-        const count = data.incomingEdgeCount || 1
-        const spacing = Math.min(80, (100 / (count + 1)))
-        const topPercent = spacing * (i + 1)
-        return (
-          <Handle
-            key={`target-${i}`}
-            type="target"
-            position={Position.Left}
-            id={`target-${i}`}
-            className="!h-2.5 !w-2.5 !rounded-full !border-2 !border-primary !bg-primary/40"
-            style={{ top: `${topPercent}%` }}
-          />
-        )
-      })}
+      {/* ---- Invisible handles on all 4 sides for floating edge connections ---- */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="target-left"
+        className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
+        style={{ top: '50%', opacity: 0 }}
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
+        style={{ top: '50%', opacity: 0 }}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
+        style={{ left: '50%', opacity: 0 }}
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
+        style={{ left: '50%', opacity: 0 }}
+      />
 
       {/* ---- Header ---- */}
       <div className="flex items-center justify-between gap-2 border-b bg-muted/70 px-3 py-2">
