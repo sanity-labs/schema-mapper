@@ -7,9 +7,12 @@ Schema Mapper connects to your Sanity organization, discovers all projects and d
 ## Features
 
 - **Visual schema graph** — Document types as nodes, references as colored edges
-- **4 layout algorithms** — Dagre, ELK Layered, Force, and Clustered (stress with auto-clustering)
-- **Edge styles** — Bezier, Step, and Straight with adjustable curvature
-- **Spacing control** — Per-layout spacing with sensible defaults
+- **Deployed + inferred schemas** — Reads your Studio's deployed schema when available, falls back to inference from document data
+- **Inline object detection** — Shows relationships for embedded types (dotted edges) alongside references (solid edges)
+- **4 layout algorithms** — Dagre, ELK Layered, Force, and Clustered (stress with auto-clustering and overlap removal)
+- **3 edge styles** — Bezier, Step, and Straight — all with handle-aware routing pinned to field rows
+- **Trackpad navigation** — Two-finger scroll to pan, pinch to zoom (like Google Maps)
+- **Spacing control** — Per-layout spacing slider with sensible defaults
 - **Export** — PNG, SVG, and PDF (landscape/portrait auto-detected, metadata header)
 - **Multi-project** — Browse all org projects and datasets via tabs
 - **Progressive loading** — Projects load independently with error isolation
@@ -20,15 +23,31 @@ Schema Mapper connects to your Sanity organization, discovers all projects and d
 
 ### With an AI agent (recommended)
 
-Install the skill, then ask your agent to set it up:
-
 ```bash
 npx skills add palmerama/schema-mapper
 ```
 
-Then tell your agent: *"Set up Schema Mapper"* — it will clone the repo, ask which Sanity project to use, and configure everything.
+Then tell your agent: *"Set up Schema Mapper"*
 
-To update later: *"Update Schema Mapper"*
+The agent will:
+1. Clone the repo into your project
+2. Ask which Sanity project to use (shows you a list with IDs)
+3. Look up your org ID automatically
+4. Configure everything — you don't need to know any IDs
+
+To run:
+```bash
+cd apps/schema-mapper   # or wherever the agent put it
+npx sanity dev
+```
+
+Then **open your Sanity dashboard in the browser** — the app runs inside the dashboard, not directly at localhost.
+
+To update later:
+```bash
+npx skills update
+```
+Then tell your agent: *"Apply the Schema Mapper update"*
 
 ### Manual setup
 
@@ -37,14 +56,20 @@ git clone --depth 1 https://github.com/palmerama/schema-mapper.git
 cd schema-mapper
 rm -rf .git scripts/
 
-# Edit sanity.cli.ts — set YOUR_PROJECT_ID and YOUR_ORG_ID
-# Edit src/App.tsx — set YOUR_PROJECT_ID
+# Edit sanity.cli.ts — set your project ID and org ID
+# Edit src/App.tsx — set your project ID
 
 pnpm install
 npx sanity dev
 ```
 
-The dev server starts at `http://localhost:3333`, but **open your Sanity dashboard in the browser** — the app runs inside the dashboard as a local app, not directly at localhost.
+## Permissions
+
+**Minimum required:** Org member + Project Viewer on the target project.
+
+- The app only reads schemas and runs count/sample queries — no write access needed
+- Projects you don't have access to show as locked (greyed out)
+- Dataset ACL mode (public/private) is displayed per dataset
 
 ## Configuration
 
@@ -63,7 +88,7 @@ export default defineCliConfig({
 })
 ```
 
-The `projectId` is used for CLI bootstrapping — the app discovers all org projects at runtime.
+The `projectId` is only needed for the CLI dev server — at runtime in the dashboard, the app discovers all org projects automatically.
 
 ## Prerequisites
 
@@ -76,7 +101,7 @@ The `projectId` is used for CLI bootstrapping — the app discovers all org proj
 
 - [Sanity App SDK](https://www.sanity.io/docs/app-sdk) — Dashboard embedding, auth, data hooks
 - [React Flow](https://reactflow.dev/) (@xyflow/react) — Interactive node graph
-- [ELK](https://github.com/kieler/elkjs) — Layout algorithms
+- [ELK](https://github.com/kieler/elkjs) — Layout algorithms (layered, force, stress)
 - [Dagre](https://github.com/dagrejs/dagre) — Additional layout algorithm
 - [Sanity UI](https://www.sanity.io/ui) — Tab components, dialogs, spinners
 - [Tailwind CSS v4](https://tailwindcss.com/) — Styling
