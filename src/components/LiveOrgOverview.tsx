@@ -130,12 +130,15 @@ function DatasetDiscovery({
 }) {
   const {types, isLoading, error, schemaSource, hasDeployedSchema, deployedTypes, inferredTypes} = useSchemaDiscovery()
   const reportedRef = useRef(false)
+  const reportedInferredRef = useRef(false)
 
-  // Reset reported flag when projectId or datasetName changes
+  // Reset flags when projectId or datasetName changes
   useEffect(() => {
     reportedRef.current = false
+    reportedInferredRef.current = false
   }, [projectId, datasetName])
 
+  // Report initial results (deployed or inferred)
   useEffect(() => {
     if (!isLoading && !reportedRef.current) {
       reportedRef.current = true
@@ -146,6 +149,14 @@ function DatasetDiscovery({
       }
     }
   }, [isLoading, types, error, schemaSource, projectId, datasetName, onDiscovered, onError])
+
+  // Report again when inferred types arrive (for toggle comparison)
+  useEffect(() => {
+    if (reportedRef.current && !reportedInferredRef.current && inferredTypes && inferredTypes.length > 0) {
+      reportedInferredRef.current = true
+      onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema, deployedTypes, inferredTypes)
+    }
+  }, [inferredTypes, reportedRef.current, projectId, datasetName, types, schemaSource, hasDeployedSchema, deployedTypes, onDiscovered])
 
   return null
 }
@@ -248,6 +259,9 @@ function LiveOrgOverviewInner() {
 
   const handleSchemaDiscovered = useCallback(
     (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => {
+      console.log('[Schema Mapper]', projectId, datasetName, '→', schemaSource, 
+        'deployed:', deployedTypes?.length ?? 'null', 
+        'inferred:', inferredTypes?.length ?? 'null')
       dispatch({
         type: 'SCHEMA_DISCOVERED',
         projectId,
