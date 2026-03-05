@@ -21,3 +21,9 @@ h1, h2, h3, h4, h5, h6 {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Sanity UI Dialog backdrop — blur + click-to-close */
+[data-ui="DialogCard"] {
+  position: relative;
+  z-index: 1;
+}

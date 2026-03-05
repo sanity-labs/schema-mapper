@@ -721,6 +721,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     currentEdges: SchemaEdge[],
     layout: LayoutType,
     currentSpacing: number,
+    skipAnimation = false,
   ) => {
     setIsLayouting(true)
     try {
@@ -736,7 +737,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
       setLayoutApplied(true)
 
       window.requestAnimationFrame(() => {
-        fitView({ padding: 0.12, duration: 300 })
+        fitView({ padding: 0.12, duration: skipAnimation ? 0 : 300 })
       })
     } catch (err) {
       console.error('ELK layout failed:', err)
@@ -747,8 +748,8 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   const debouncedApplyLayout = useMemo(
     () => debounce(
-      (n: SchemaNode_RF[], e: SchemaEdge[], l: LayoutType, s: number) => applyLayout(n, e, l, s),
-      250
+      (n: SchemaNode_RF[], e: SchemaEdge[], l: LayoutType, s: number) => applyLayout(n, e, l, s, true),
+      350
     ),
     [applyLayout]
   )
