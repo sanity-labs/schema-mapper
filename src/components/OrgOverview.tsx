@@ -16,6 +16,16 @@ import type { DiscoveredField, ProjectInfo } from './types'
 // Version badge with latest version check
 // ---------------------------------------------------------------------------
 
+function isNewer(a: string, b: string): boolean {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true
+    if ((pa[i] || 0) < (pb[i] || 0)) return false
+  }
+  return false
+}
+
 function useLatestVersion() {
   const [latest, setLatest] = useState<string | null>(null)
   useEffect(() => {
@@ -29,14 +39,14 @@ function useLatestVersion() {
 
 function VersionBadge() {
   const latest = useLatestVersion()
-  const isUpToDate = !latest || latest === version
-  const hasUpdate = latest && latest !== version
+  const isUpToDate = !latest || latest === version || !isNewer(latest, version)
+  const hasUpdate = !!latest && isNewer(latest, version)
 
   const tooltipContent = (
     <Box padding={2}>
       <Text size={1} muted>
         {hasUpdate
-          ? `v${latest} available. Ask your agent to "update schema mapper"`
+          ? `v${latest} available. Ask your agent to "update schema mapper".`
           : 'Up to date!'}
       </Text>
     </Box>
@@ -47,13 +57,12 @@ function VersionBadge() {
       <Badge
         variant="secondary"
         className={
-          (hasUpdate
-            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700')
+          'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
           + ' cursor-default transition-colors font-normal'
         }
       >
-        v{version}{hasUpdate ? ` → v${latest}` : ''}
+        v{version}
+        {hasUpdate && <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 ml-1.5 align-middle animate-pulse" />}
       </Badge>
     </span>
   )
