@@ -357,25 +357,48 @@ export default memo(function FloatingEdge({
     ;[edgePath, labelX, labelY] = getBezierPath(pathParams)
   }
 
-  // Crossfade animation when edge style changes
+  // Crossfade + draw-on animation when edge style changes
   const prevStyleRef = useRef(edgeStyle)
   const [fadingOutPath, setFadingOutPath] = useState<string | null>(null)
+  const [drawingIn, setDrawingIn] = useState(false)
   const prevPathRef = useRef(edgePath)
 
   useEffect(() => {
     if (prevStyleRef.current !== edgeStyle) {
-      // Capture the old path before it changes
       setFadingOutPath(prevPathRef.current)
+      setDrawingIn(true)
       prevStyleRef.current = edgeStyle
-      const timer = setTimeout(() => setFadingOutPath(null), 300)
+      const timer = setTimeout(() => {
+        setFadingOutPath(null)
+        setDrawingIn(false)
+      }, 500)
       return () => clearTimeout(timer)
     }
   }, [edgeStyle])
 
-  // Always track the latest path for next transition
   useEffect(() => {
     prevPathRef.current = edgePath
   })
+
+  // Compute path length and trigger draw-on via Web Animations API
+  const drawPathRef = useRef<SVGPathElement>(null)
+  useEffect(() => {
+    if (drawingIn && drawPathRef.current) {
+      const len = drawPathRef.current.getTotalLength()
+      drawPathRef.current.style.strokeDasharray = `${len}`
+      drawPathRef.current.style.strokeDashoffset = `${len}`
+      drawPathRef.current.animate(
+        [
+          { strokeDashoffset: `${len}`, opacity: 0.4 },
+          { strokeDashoffset: '0', opacity: 1 },
+        ],
+        { duration: 500, easing: 'ease-out', fill: 'forwards' },
+      )
+    }
+  }, [drawingIn, edgePath])
+
+  // Build the dash style for inline objects (not animation-related)
+  const baseDash = style?.strokeDasharray
 
   return (
     <>
@@ -386,21 +409,30 @@ export default memo(function FloatingEdge({
           fill="none"
           style={{
             ...style,
+            strokeDasharray: baseDash,
             opacity: 0,
             transition: 'opacity 0.3s ease-out',
           }}
           markerEnd={typeof markerEnd === 'string' ? markerEnd : undefined}
         />
       )}
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        markerEnd={markerEnd}
-        style={{
-          ...style,
-          ...(fadingOutPath ? { opacity: 0, animation: 'edgeFadeIn 0.3s ease-in forwards' } : {}),
-        }}
-      />
+      {/* New path — draw-on animation or static */}
+      {drawingIn ? (
+        <path
+          ref={drawPathRef}
+          d={edgePath}
+          fill="none"
+          style={style}
+          markerEnd={typeof markerEnd === 'string' ? markerEnd : undefined}
+        />
+      ) : (
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          markerEnd={markerEnd}
+          style={style}
+        />
+      )}
       {label && (
         <EdgeLabelRenderer>
           <div

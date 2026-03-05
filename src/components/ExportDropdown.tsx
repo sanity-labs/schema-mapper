@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
-import { jsPDF } from 'jspdf'
 import { GoDownload } from 'react-icons/go'
+import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 
 export interface ExportContext {
   projectName: string
@@ -102,103 +102,177 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
     if (!el) return
     setExporting('pdf')
     try {
-      // Capture at high res
-      const dataUrl = await toPng(el, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 3,
-        filter: (node) => {
-          const cls = node.className?.toString?.() || ''
-          if (cls.includes('react-flow__controls')) return false
-          if (cls.includes('react-flow__minimap')) return false
-          return true
-        },
+      // ---------------------------------------------------------------
+      // 1. Extract node data from the DOM
+      // ---------------------------------------------------------------
+      const pdfNodes: PDFNodeData[] = []
+      const nodeEls = el.querySelectorAll('.react-flow__node')
+
+      // Build a map of node data for edge extraction
+      const nodeDataMap = new Map<string, PDFNodeData>()
+
+      nodeEls.forEach((nodeEl) => {
+        const htmlEl = nodeEl as HTMLElement
+        const nodeId = htmlEl.getAttribute('data-id')
+        if (!nodeId) return
+
+        // Extract position from transform style
+        const transform = htmlEl.style.transform || ''
+        const translateMatch = transform.match(
+          /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/,
+        )
+        if (!translateMatch) return
+
+        const x = parseFloat(translateMatch[1])
+        const y = parseFloat(translateMatch[2])
+        const width = htmlEl.offsetWidth
+        const height = htmlEl.offsetHeight
+
+        // Extract type name from header
+        const headerSpan = htmlEl.querySelector(
+          '.truncate.text-sm.font-medium',
+        ) as HTMLElement | null
+        const typeName = headerSpan?.textContent?.trim() || nodeId
+
+        // Extract document count from badge
+        const badgeEl = htmlEl.querySelector(
+          '.tabular-nums',
+        ) as HTMLElement | null
+        const docCountText = badgeEl?.textContent?.trim() || '0'
+        const documentCount = parseInt(docCountText.replace(/,/g, ''), 10) || 0
+
+        // Extract fields from field rows
+        const fields: PDFNodeData['fields'] = []
+        const fieldRows = htmlEl.querySelectorAll(
+          '.flex.items-center.justify-between.gap-2.px-3',
+        )
+        fieldRows.forEach((row) => {
+          const nameEl = row.querySelector('.font-mono') as HTMLElement | null
+          const badgeTextEl = row.querySelector(
+            '[class*="badge"]',
+          ) as HTMLElement | null
+          if (!nameEl) return
+
+          const name = nameEl.textContent?.trim() || ''
+          let typeText =
+            badgeTextEl?.textContent?.trim().toLowerCase() || 'unknown'
+
+          // Detect array types (ends with [])
+          const isArray = typeText.endsWith('[]')
+          if (isArray) typeText = typeText.slice(0, -2)
+
+          // Detect reference fields
+          const isRef =
+            row.classList.contains('bg-indigo-50/60') ||
+            nameEl.classList.contains('text-indigo-700')
+          const hasArrowIcon = row.querySelector('svg') !== null
+
+          // Determine if it's a reference or inline object
+          const isReference = isRef && hasArrowIcon && typeText === 'reference'
+          const isInlineObject = isRef && !isReference && typeText !== 'reference'
+
+          fields.push({
+            name,
+            type: isReference
+              ? 'reference'
+              : isInlineObject
+                ? 'object'
+                : typeText,
+            isReference,
+            referenceTo: isInlineObject ? typeText : undefined,
+            isArray,
+            isInlineObject,
+          })
+        })
+
+        const nodeData: PDFNodeData = {
+          id: nodeId,
+          x,
+          y,
+          width,
+          height,
+          typeName,
+          documentCount,
+          fields,
+        }
+        pdfNodes.push(nodeData)
+        nodeDataMap.set(nodeId, nodeData)
       })
 
-      const img = new Image()
-      img.src = dataUrl
-      await new Promise((resolve) => { img.onload = resolve })
+      // ---------------------------------------------------------------
+      // 2. Extract edge paths from rendered SVG
+      // ---------------------------------------------------------------
+      const pdfEdges: PDFEdgeData[] = []
+      const edgeEls = el.querySelectorAll('.react-flow__edge')
 
-      // Detect the actual content bounds (non-white pixels) to crop whitespace
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const { data, width, height } = imageData
+      edgeEls.forEach((edgeEl) => {
+        const htmlEl = edgeEl as SVGGElement
+        const edgeId = htmlEl.getAttribute('data-id') || htmlEl.id || ''
 
-      let minX = width, minY = height, maxX = 0, maxY = 0
-      for (let y = 0; y < height; y += 2) {
-        for (let x = 0; x < width; x += 2) {
-          const i = (y * width + x) * 4
-          if (data[i] < 240 || data[i + 1] < 240 || data[i + 2] < 240) {
-            minX = Math.min(minX, x)
-            minY = Math.min(minY, y)
-            maxX = Math.max(maxX, x)
-            maxY = Math.max(maxY, y)
-          }
-        }
-      }
+        // Find the main path element (not the interaction path)
+        const pathEl = htmlEl.querySelector(
+          'path.react-flow__edge-path',
+        ) as SVGPathElement | null
+        if (!pathEl) return
 
-      const cropPad = 40
-      minX = Math.max(0, minX - cropPad)
-      minY = Math.max(0, minY - cropPad)
-      maxX = Math.min(width, maxX + cropPad)
-      maxY = Math.min(height, maxY + cropPad)
+        const d = pathEl.getAttribute('d')
+        if (!d) return
 
-      const cropW = maxX - minX
-      const cropH = maxY - minY
-      const croppedCanvas = document.createElement('canvas')
-      croppedCanvas.width = cropW
-      croppedCanvas.height = cropH
-      const cropCtx = croppedCanvas.getContext('2d')!
-      cropCtx.fillStyle = '#ffffff'
-      cropCtx.fillRect(0, 0, cropW, cropH)
-      cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
-      const croppedUrl = croppedCanvas.toDataURL('image/png')
+        // Extract stroke color and width from computed style
+        const computedStyle = window.getComputedStyle(pathEl)
+        const stroke =
+          pathEl.getAttribute('stroke') ||
+          computedStyle.stroke ||
+          '#6366f1'
+        const strokeWidth = parseFloat(
+          pathEl.getAttribute('stroke-width') ||
+            computedStyle.strokeWidth ||
+            '1.5',
+        )
 
-      const contentAspect = cropW / cropH
-      const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        // Check for dashed stroke
+        const dashArray =
+          pathEl.getAttribute('stroke-dasharray') ||
+          computedStyle.strokeDasharray
+        const isDashed =
+          !!dashArray && dashArray !== 'none' && dashArray !== ''
 
-      const orientation = contentAspect >= 1 ? 'landscape' : 'portrait'
-      const pageW = orientation === 'landscape' ? 297 : 210
-      const pageH = orientation === 'landscape' ? 210 : 297
+        // Extract label if present
+        const labelEl = edgeEl
+          .closest('.react-flow__edges')
+          ?.parentElement?.querySelector(
+            `.react-flow__edgelabel[data-id="${edgeId}"]`,
+          ) as HTMLElement | null
+        const label = labelEl?.textContent?.trim() || undefined
 
-      const margin = 10
-      const headerH = 8
+        pdfEdges.push({
+          id: edgeId,
+          path: d,
+          color: stroke,
+          strokeWidth,
+          isDashed,
+          label,
+        })
+      })
 
-      const availW = pageW - margin * 2
-      const availH = pageH - margin * 2 - headerH
+      // ---------------------------------------------------------------
+      // 3. Render PDF via @react-pdf/renderer
+      // ---------------------------------------------------------------
+      const [{ pdf }, { SchemaGraphPDF }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('./SchemaGraphPDF'),
+      ])
 
-      let imgW = availW
-      let imgH = imgW / contentAspect
-      if (imgH > availH) {
-        imgH = availH
-        imgW = imgH * contentAspect
-      }
-
-      const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' })
-
-      // Tiny metadata in top-left corner
-      pdf.setFontSize(5)
-      pdf.setTextColor(170)
-      const metaParts: string[] = ['Schema Mapper']
-      if (context.orgName) metaParts.push(context.orgName)
-      if (context.orgId) metaParts.push(`org: ${context.orgId}`)
-      metaParts.push(context.projectName)
-      metaParts.push(`project: ${context.projectId}`)
-      metaParts.push(`${context.datasetName} (${context.aclMode})`)
-      metaParts.push(`${context.totalDocuments.toLocaleString()} docs · ${context.typeCount} types`)
-      if (context.schemaSource) metaParts.push(`${context.schemaSource} schema`)
-      metaParts.push(now)
-      pdf.text(metaParts.join('  ·  '), margin, margin + 3)
-
-      // Graph image — centered, fills the page
-      const imgX = margin + (availW - imgW) / 2
-      const imgY = margin + headerH
-      pdf.addImage(croppedUrl, 'PNG', imgX, imgY, imgW, imgH)
-
-      pdf.save(`schema-${context.projectName}-${context.datasetName}.pdf`)
+      const pdfDoc = pdf(
+        createElement(SchemaGraphPDF, { nodes: pdfNodes, edges: pdfEdges, context }),
+      )
+      const blob = await pdfDoc.toBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `schema-${context.projectName}-${context.datasetName}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PDF export failed:', err)
     } finally {
@@ -237,7 +311,7 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
             disabled={!!exporting}
             className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            {exporting === 'pdf' ? 'Exporting…' : 'PDF'}
+            {exporting === 'pdf' ? 'Exporting…' : 'PDF (vector)'}
           </button>
         </div>
       )}
