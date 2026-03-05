@@ -227,22 +227,34 @@ function OrgOverview({
                 <TabList space={1}>
                   {projects.map(project => {
                     const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
-                    return isLoading ? (
-                      <span key={project.id} className="inline-flex h-[33px] w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                    ) : (
-                      <Tooltip
-                        key={project.id}
-                        content={<Text size={1} muted>{project.id}</Text>}
-                        placement="bottom"
-                      >
-                        <Tab
-                          aria-controls={`project-panel-${project.id}`}
-                          id={`project-tab-${project.id}`}
-                          label={project.displayName}
-                          selected={selectedProjectId === project.id}
-                          onClick={() => onProjectSelect(project.id)}
-                        />
-                      </Tooltip>
+                    return (
+                      <span key={project.id} className="relative inline-flex">
+                        {!isLoading ? (
+                          <Tooltip
+                            content={<Text size={1} muted>{project.id}</Text>}
+                            placement="bottom"
+                          >
+                            <Tab
+                              aria-controls={`project-panel-${project.id}`}
+                              id={`project-tab-${project.id}`}
+                              label={project.displayName}
+                              selected={selectedProjectId === project.id}
+                              onClick={() => onProjectSelect(project.id)}
+                            />
+                          </Tooltip>
+                        ) : (
+                          <Tab
+                            aria-controls={`project-panel-${project.id}`}
+                            id={`project-tab-${project.id}`}
+                            label={project.displayName}
+                            selected={selectedProjectId === project.id}
+                            disabled
+                          />
+                        )}
+                        {isLoading && (
+                          <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
+                        )}
+                      </span>
                     )
                   })}
                 </TabList>
