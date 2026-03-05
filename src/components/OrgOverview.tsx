@@ -107,7 +107,7 @@ function ContentSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 flex-1 min-h-[500px]">
       <Spinner muted />
-      <p className="text-sm text-muted-foreground">Loading Schema Mapper…</p>
+      <p className="text-sm text-muted-foreground">Fetching your schemas…</p>
     </div>
   )
 }
@@ -285,7 +285,12 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                         <Tab
                           aria-controls={`project-panel-${project.id}`}
                           id={`project-tab-${project.id}`}
-                          label={project.displayName}
+                          label={
+                            <span className="flex items-center gap-1.5">
+                              {project.displayName}
+                              {project.isProjectLoading && <Spinner muted style={{width: 12, height: 12}} />}
+                            </span>
+                          }
                           selected={selectedProjectId === project.id}
                           onClick={() => handleProjectSelect(project.id)}
                         />
