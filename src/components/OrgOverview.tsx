@@ -322,14 +322,13 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
       {showSchemaInfoDialog && (
         <Dialog
           id="schema-info-dialog"
-          header=""
+          header="Schema sources"
           onClose={() => setShowSchemaInfoDialog(false)}
           width={1}
           animate
         >
-          <Box padding={4} style={{marginTop: '-20px'}}>
+          <Box padding={4} paddingTop={0}>
             <Stack space={4}>
-              <h2 className="text-2xl font-normal tracking-tight">Schema sources</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Schema Mapper can read your schema from two different sources. The source used for the current dataset is shown in the badge next to the dataset info.
               </p>
@@ -371,14 +370,13 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
       {showLockedDialog && (
         <Dialog
           id="locked-projects-dialog"
-          header=""
+          header="Projects with no access"
           onClose={() => setShowLockedDialog(false)}
           width={1}
           animate
         >
-          <Box padding={4} style={{marginTop: '-20px'}}>
+          <Box padding={4} paddingTop={0}>
             <Stack space={4}>
-              <h2 className="text-2xl font-normal tracking-tight">Projects with no access</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 These projects are in your organization, but you don't have permission to access them. You likely haven't been added as a member. Ask a project admin or organization owner for access.
               </p>
