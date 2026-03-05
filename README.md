@@ -4,6 +4,8 @@ Visual schema explorer for Sanity organizations. Built with [Sanity App SDK](htt
 
 Discovers all projects and datasets in your org, renders document types as an interactive node graph with reference edges.
 
+![Schema Mapper](assets/screenshot.png)
+
 ## Features
 
 - **Schema graph** — Document types as nodes, references as colored edges, inline objects as dotted edges
