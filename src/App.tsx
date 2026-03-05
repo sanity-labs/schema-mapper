@@ -1,6 +1,6 @@
 import type {SanityConfig} from '@sanity/sdk'
 import {SanityApp} from '@sanity/sdk-react'
-import {ThemeProvider, Spinner, usePrefersDark} from '@sanity/ui'
+import {ThemeProvider, Card, Spinner, usePrefersDark} from '@sanity/ui'
 import {buildTheme} from '@sanity/ui/theme'
 import {Suspense, useEffect} from 'react'
 import {HashRouter, Routes, Route} from 'react-router-dom'
@@ -36,18 +36,20 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme} scheme={scheme}>
-      <SanityApp config={config} fallback={<LoadingScreen />}>
-        <Suspense fallback={<LoadingScreen />}>
-          <HashRouter>
-            <Routes>
-              <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
-              <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
-              <Route path="/:orgId" element={<LiveOrgOverview />} />
-              <Route path="/" element={<LiveOrgOverview />} />
-            </Routes>
-          </HashRouter>
-        </Suspense>
-      </SanityApp>
+      <Card style={{minHeight: '100vh'}}>
+        <SanityApp config={config} fallback={<LoadingScreen />}>
+          <Suspense fallback={<LoadingScreen />}>
+            <HashRouter>
+              <Routes>
+                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
+                <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
+                <Route path="/:orgId" element={<LiveOrgOverview />} />
+                <Route path="/" element={<LiveOrgOverview />} />
+              </Routes>
+            </HashRouter>
+          </Suspense>
+        </SanityApp>
+      </Card>
     </ThemeProvider>
   )
 }
