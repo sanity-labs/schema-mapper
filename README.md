@@ -12,7 +12,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 - **Deployed + inferred schemas** — Uses your Studio's deployed schema when available, infers from documents as fallback
 - **4 layouts** — Dagre, ELK Layered, Force, Clustered — with per-layout spacing control
 - **3 edge styles** — Bezier, Step (rounded corners, sibling offset), Straight — animated transitions
-- **Export** — PDF (vector), PNG (3x), SVG — PDF includes structured metadata header
+- **Export** — Vector PDF (react-pdf), PNG (3x resolution), SVG — PDF includes structured metadata header with org, project, dataset info
 - **Multi-project** — Browse all org projects/datasets via tabs, locked projects shown separately
 - **Dark mode** — Follows system preference
 - **Version check** — In-app badge shows current version, pulsing dot when updates are available
