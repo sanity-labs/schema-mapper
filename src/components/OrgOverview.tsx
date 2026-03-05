@@ -225,36 +225,26 @@ function OrgOverview({
               <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
               <div className="flex items-start gap-2">
                 <TabList space={1}>
-                  {projects.map(project => (
-                    <span key={project.id} className="relative inline-flex">
-                      {!(isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)) ? (
-                        <Tooltip
-                          content={<Text size={1} muted>{project.id}</Text>}
-                          placement="bottom"
-                        >
-                          <Tab
-                            aria-controls={`project-panel-${project.id}`}
-                            id={`project-tab-${project.id}`}
-                            label={project.displayName}
-                            selected={selectedProjectId === project.id}
-                            onClick={() => onProjectSelect(project.id)}
-                          />
-                        </Tooltip>
-                      ) : (
-                        <>
-                          <Tab
-                            aria-controls={`project-panel-${project.id}`}
-                            id={`project-tab-${project.id}`}
-                            label={project.displayName}
-                            selected={selectedProjectId === project.id}
-                            disabled
-                          />
-                          <span className="absolute inset-0 flex items-center justify-center rounded opacity-50 pointer-events-none">
-                            <Spinner muted style={{width: 10, height: 10}} />
-                          </span>
-                        </>
-                      )}
-                    </span>
+                  {projects.map(project => {
+                    const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
+                    return isLoading ? (
+                      <span key={project.id} className="inline-flex h-[33px] w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                    ) : (
+                      <Tooltip
+                        key={project.id}
+                        content={<Text size={1} muted>{project.id}</Text>}
+                        placement="bottom"
+                      >
+                        <Tab
+                          aria-controls={`project-panel-${project.id}`}
+                          id={`project-tab-${project.id}`}
+                          label={project.displayName}
+                          selected={selectedProjectId === project.id}
+                          onClick={() => onProjectSelect(project.id)}
+                        />
+                      </Tooltip>
+                    )
+                  })}
                   ))}
                 </TabList>
                 {isCheckingAccess && projects.length === 0 && (
