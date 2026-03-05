@@ -30,7 +30,7 @@ function useLatestVersion() {
   const [latest, setLatest] = useState<string | null>(null)
   useEffect(() => {
     // Use GitHub API (not raw.githubusercontent.com which has aggressive CDN caching)
-    fetch(`https://api.github.com/repos/palmerama/schema-mapper/contents/package.json`, {
+    fetch(`https://api.github.com/repos/sanity-labs/schema-mapper/contents/package.json`, {
       headers: { 'Accept': 'application/vnd.github.v3.raw' },
     })
       .then(r => r.json())

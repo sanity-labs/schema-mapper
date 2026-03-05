@@ -1,7 +1,7 @@
 {
   "name": "schema-mapper",
   "private": true,
-  "version": "1.15.5",
+  "version": "1.16.0",
   "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",
@@ -46,6 +46,6 @@
   "description": "Visual Sanity org/schema explorer built with App SDK and React Flow",
   "repository": {
     "type": "git",
-    "url": "https://github.com/palmerama/schema-mapper.git"
+    "url": "https://github.com/sanity-labs/schema-mapper.git"
   }
 }

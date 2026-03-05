@@ -21,7 +21,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 ## Quick Start
 
 ```bash
-npx skills add palmerama/schema-mapper
+npx skills add sanity-labs/schema-mapper
 ```
 
 Then tell your AI agent: *"Set up Schema Mapper"*
@@ -29,7 +29,7 @@ Then tell your AI agent: *"Set up Schema Mapper"*
 Or manually:
 
 ```bash
-git clone --depth 1 https://github.com/palmerama/schema-mapper.git
+git clone --depth 1 https://github.com/sanity-labs/schema-mapper.git
 cd schema-mapper
 # Edit sanity.cli.ts and src/App.tsx with your project/org IDs
 pnpm install && npx sanity dev

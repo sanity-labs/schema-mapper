@@ -21,7 +21,7 @@ Follow these steps when a user says "install schema mapper" or "set up schema ma
 ### 2. Clone the repository
 
 ```bash
-git clone --depth 1 https://github.com/palmerama/schema-mapper.git <chosen-path>
+git clone --depth 1 https://github.com/sanity-labs/schema-mapper.git <chosen-path>
 rm -rf <chosen-path>/.git
 rm -rf <chosen-path>/scripts
 ```
@@ -44,7 +44,7 @@ npx sanity projects get <projectId>
 
 - Look for the org ID in the output
 - If that fails, ask the user for their organization ID
-- Org IDs look like `o02mZUBKf` (starts with `o`, alphanumeric)
+- Org IDs look like `oXxXxXxXx` (starts with `o`, alphanumeric)
 
 ### 5. Configure the app
 
@@ -81,7 +81,7 @@ Read and save the full contents of these files (they contain the user's project/
 ### 3. Download latest
 
 ```bash
-cd <path> && curl -sL https://github.com/palmerama/schema-mapper/archive/main.tar.gz | tar xz
+cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.tar.gz | tar xz
 ```
 
 ### 4. Overwrite source files
