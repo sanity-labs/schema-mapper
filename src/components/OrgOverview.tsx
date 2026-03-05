@@ -32,13 +32,15 @@ function VersionBadge() {
   const isUpToDate = !latest || latest === version
   const hasUpdate = latest && latest !== version
 
-  const tooltipContent = hasUpdate ? (
+  const tooltipContent = (
     <Box padding={2}>
       <Text size={1} muted>
-        v{latest} available — Ask your agent to "update schema mapper"
+        {hasUpdate
+          ? `v${latest} available — Ask your agent to "update schema mapper"`
+          : 'Up to date!'}
       </Text>
     </Box>
-  ) : null
+  )
 
   const badge = (
     <span>
@@ -55,8 +57,6 @@ function VersionBadge() {
       </Badge>
     </span>
   )
-
-  if (!tooltipContent) return badge
 
   return (
     <Tooltip
