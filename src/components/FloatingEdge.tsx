@@ -252,6 +252,61 @@ export default memo(function FloatingEdge({
     return null
   }
 
+  // Self-referencing edge: loop out from right side and back
+  if (source === target) {
+    const nodeX = sourceNode.internals.positionAbsolute.x
+    const nodeW = sourceNode.measured.width ?? 280
+    const nodeY = sourceNode.internals.positionAbsolute.y
+    const nodeH = sourceNode.measured.height ?? 100
+
+    // Exit from right side at handle Y position
+    const handleY = getHandleAwareSourcePoint(sourceNode, sourceNode, sourceHandleId).y
+    const rightX = nodeX + nodeW
+    const loopOffset = 40 // how far right the loop extends
+    const loopTopY = nodeY - 15 // loop comes back above the node
+
+    // Cubic bezier loop: exit right → curve up-right → curve back left → enter top-right
+    const entryX = nodeX + nodeW - 20 // enter near top-right corner
+    const entryY = nodeY
+
+    const selfPath = [
+      `M ${rightX} ${handleY}`,
+      `C ${rightX + loopOffset} ${handleY}, ${rightX + loopOffset} ${loopTopY}, ${entryX} ${entryY}`,
+    ].join(' ')
+
+    const selfLabelX = rightX + loopOffset - 5
+    const selfLabelY = (handleY + loopTopY) / 2
+
+    const edgeStyle = (data as any)?.edgeStyle as string | undefined
+    const baseDash = style?.strokeDasharray
+
+    return (
+      <>
+        <BaseEdge
+          id={id}
+          path={selfPath}
+          markerEnd={markerEnd}
+          style={style}
+        />
+        {label && (
+          <EdgeLabelRenderer>
+            <div
+              className="nodrag nopan text-[11px] font-normal text-slate-500 dark:text-slate-400 bg-slate-50/85 dark:bg-slate-800/85 px-1.5 py-0.5 rounded"
+              style={{
+                position: 'absolute',
+                transform: `translate(-50%, -50%) translate(${selfLabelX}px,${selfLabelY}px)`,
+                pointerEvents: 'all',
+                ...(labelStyle as React.CSSProperties),
+              }}
+            >
+              {label}
+            </div>
+          </EdgeLabelRenderer>
+        )}
+      </>
+    )
+  }
+
   // Source side: use handle-aware calculation so edges from different
   // reference fields fan out from their respective handle positions
   const sourceIntersection = getHandleAwareSourcePoint(
