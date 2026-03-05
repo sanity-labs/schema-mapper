@@ -173,28 +173,48 @@ export default memo(function FloatingEdge({
     ;[edgePath, labelX, labelY] = getBezierPath(pathParams)
   }
 
-  // Animate only when edge style changes (not on layout/position changes)
+  // Crossfade animation when edge style changes
   const prevStyleRef = useRef(edgeStyle)
-  const [animating, setAnimating] = useState(false)
+  const [fadingOutPath, setFadingOutPath] = useState<string | null>(null)
+  const prevPathRef = useRef(edgePath)
 
   useEffect(() => {
     if (prevStyleRef.current !== edgeStyle) {
+      // Capture the old path before it changes
+      setFadingOutPath(prevPathRef.current)
       prevStyleRef.current = edgeStyle
-      setAnimating(true)
-      const timer = setTimeout(() => setAnimating(false), 350)
+      const timer = setTimeout(() => setFadingOutPath(null), 300)
       return () => clearTimeout(timer)
     }
   }, [edgeStyle])
 
+  // Always track the latest path for next transition
+  useEffect(() => {
+    prevPathRef.current = edgePath
+  })
+
   return (
     <>
+      {/* Old path fading out */}
+      {fadingOutPath && (
+        <path
+          d={fadingOutPath}
+          fill="none"
+          style={{
+            ...style,
+            opacity: 0,
+            transition: 'opacity 0.3s ease-out',
+          }}
+          markerEnd={typeof markerEnd === 'string' ? markerEnd : undefined}
+        />
+      )}
       <BaseEdge
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
         style={{
           ...style,
-          ...(animating ? { transition: 'd 0.3s ease-in-out' } : {}),
+          ...(fadingOutPath ? { opacity: 0, animation: 'edgeFadeIn 0.3s ease-in forwards' } : {}),
         }}
       />
       {label && (
