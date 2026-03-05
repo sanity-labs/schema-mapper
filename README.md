@@ -2,8 +2,6 @@
 
 Visual schema explorer for Sanity organizations. Built with [Sanity App SDK](https://www.sanity.io/docs/app-sdk) and [React Flow](https://reactflow.dev/).
 
-![Schema Mapper](assets/screenshot.png)
-
 Discovers all projects and datasets in your org, renders document types as an interactive node graph with reference edges.
 
 ## Features
