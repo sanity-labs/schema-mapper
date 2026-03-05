@@ -336,8 +336,11 @@ function LiveOrgOverviewInner() {
 
       managementApiFetch<{name: string; aclMode: string}[]>(`/projects/${projectId}/datasets`, client)
         .then((rawDatasets) => {
+          // TEMP: screenshot filter — remove after
+          const SCREENSHOT_DATASETS = ['production', 'development']
           const datasets: DatasetInfo[] = rawDatasets
             .filter((d) => !d.name.endsWith('-comments'))
+            .filter((d) => SCREENSHOT_DATASETS.includes(d.name))
             .map((d) => ({
               name: d.name,
               aclMode: (d.aclMode as 'public' | 'private') || 'public',
@@ -411,7 +414,9 @@ function LiveOrgOverviewInner() {
     const accessible: ProjectInfo[] = []
     const locked: ProjectInfo[] = []
 
-    for (const p of projects || []) {
+    // TEMP: screenshot filter — remove after
+    const SCREENSHOT_PROJECTS = ['Sanity.io website', 'Autofoos 3.0', 'Swag Store']
+    for (const p of (projects || []).filter((p: any) => SCREENSHOT_PROJECTS.some(name => (p.displayName || p.id).toLowerCase() === name.toLowerCase()))) {
       const accessResult = state.accessResults.get(p.id)
       const hasAccess = accessResult?.hasAccess
       const isChecking = accessResult?.isChecking ?? true
