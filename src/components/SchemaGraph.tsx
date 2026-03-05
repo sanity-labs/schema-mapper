@@ -749,7 +749,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   const debouncedApplyLayout = useMemo(
     () => debounce(
       (n: SchemaNode_RF[], e: SchemaEdge[], l: LayoutType, s: number) => applyLayout(n, e, l, s, true),
-      100
+      25
     ),
     [applyLayout]
   )
