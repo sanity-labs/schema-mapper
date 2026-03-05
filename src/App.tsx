@@ -31,7 +31,7 @@ function NotInDashboard() {
     <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-lg mx-auto px-6 text-center">
       <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" />Schema Mapper</h1>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        This app runs inside the <strong>Sanity Dashboard</strong>. Open your dashboard at{' '}
+        This app runs inside the <a href="https://www.sanity.io/docs/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 font-semibold">Sanity Dashboard</a>. Open your dashboard at{' '}
         <a href="https://www.sanity.io/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">sanity.io/manage</a>{' '}
         and launch Schema Mapper from there.
       </p>
