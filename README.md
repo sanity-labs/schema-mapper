@@ -31,9 +31,10 @@ Or manually:
 ```bash
 git clone --depth 1 https://github.com/sanity-labs/schema-mapper.git
 cd schema-mapper
-# Edit sanity.cli.ts and src/App.tsx with your project/org IDs
 pnpm install && npx sanity dev
 ```
+
+You'll need to set a **project ID** in `sanity.cli.ts` and `src/App.tsx`. This can be any project in your org — the App SDK uses it for authentication only. Schema Mapper will discover all projects in your organization automatically.
 
 **Runs inside the Sanity dashboard**, not directly at localhost.
 
