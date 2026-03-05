@@ -131,8 +131,39 @@ function getOffsetStepPath(
     : 0
   const midX = baseMiddleX + offset
 
-  // Build path: horizontal from source → vertical at midX → horizontal to target
-  const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`
+  // Rounded corners using arc commands
+  const r = 8 // corner radius
+  const dy = ty - sy
+  const dirY = dy > 0 ? 1 : -1 // vertical direction
+  const dx = midX - sx
+  const dirX1 = dx > 0 ? 1 : -1 // first horizontal direction
+  const dx2 = tx - midX
+  const dirX2 = dx2 > 0 ? 1 : -1 // second horizontal direction
+
+  // Clamp radius to half the available space
+  const absVertical = Math.abs(dy)
+  const absH1 = Math.abs(dx)
+  const absH2 = Math.abs(dx2)
+  const cr = Math.min(r, absVertical / 2, absH1, absH2)
+
+  if (cr < 1) {
+    // Too tight for rounding — fall back to sharp corners
+    const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`
+    return [path, midX, (sy + ty) / 2]
+  }
+
+  // Path: horizontal → arc → vertical → arc → horizontal
+  // First corner: at (midX, sy) turning from horizontal to vertical
+  // Second corner: at (midX, ty) turning from vertical to horizontal
+  const path = [
+    `M ${sx} ${sy}`,
+    `L ${midX - dirX1 * cr} ${sy}`,
+    `Q ${midX} ${sy} ${midX} ${sy + dirY * cr}`,
+    `L ${midX} ${ty - dirY * cr}`,
+    `Q ${midX} ${ty} ${midX + dirX2 * cr} ${ty}`,
+    `L ${tx} ${ty}`,
+  ].join(' ')
+
   const labelX = midX
   const labelY = (sy + ty) / 2
 
