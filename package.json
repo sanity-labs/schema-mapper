@@ -1,7 +1,7 @@
 {
   "name": "schema-mapper",
   "private": true,
-  "version": "1.16.14",
+  "version": "1.16.15",
   "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",

@@ -586,7 +586,7 @@ function GraphControls({
           <input
             type="range"
             min="10"
-            max="300"
+            max="500"
             value={Math.round(spacing * 100)}
             onChange={(e) => onSpacingChange(Number(e.target.value) / 100)}
             className="w-20 h-1 accent-gray-700"
