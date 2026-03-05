@@ -123,38 +123,73 @@ function getOffsetStepPath(
   tx: number, ty: number, _tp: Position,
   edgeIndex: number, siblingCount: number,
 ): [string, number, number] {
-  // Calculate midpoint X with offset to fan out parallel edges
-  const baseMiddleX = (sx + tx) / 2
-  const spread = 20 // px between each sibling's vertical segment
+  const spread = 20
   const offset = siblingCount > 1
     ? (edgeIndex - (siblingCount - 1) / 2) * spread
     : 0
+  const r = 8 // corner radius
+
+  // Decide routing strategy based on relative position
+  // If target is mostly below/above → route H→V, enter top/bottom
+  // If target is mostly to the side → route H→V→H, enter left/right
+  const dx = tx - sx
+  const dy = ty - sy
+  const absDx = Math.abs(dx)
+  const absDy = Math.abs(dy)
+
+  // Use vertical entry when target is more below/above than to the side,
+  // OR when the horizontal distance is small (target nearly aligned vertically)
+  const useVerticalEntry = absDy > absDx * 0.8 || absDx < 40
+
+  if (useVerticalEntry) {
+    // Route: horizontal → vertical, enter target from top or bottom
+    const midY = (sy + ty) / 2 + offset
+    const dirX = dx > 0 ? 1 : -1
+    const dirY = dy > 0 ? 1 : -1
+
+    const absH = Math.abs(tx - sx)
+    const absV1 = Math.abs(midY - sy)
+    const absV2 = Math.abs(ty - midY)
+    const cr = Math.min(r, absH / 2, absV1, absV2)
+
+    if (cr < 1) {
+      const path = `M ${sx} ${sy} L ${sx} ${midY} L ${tx} ${midY} L ${tx} ${ty}`
+      return [path, (sx + tx) / 2, midY]
+    }
+
+    // V → H → V path with rounded corners
+    const path = [
+      `M ${sx} ${sy}`,
+      `L ${sx} ${midY - dirY * cr}`,
+      `Q ${sx} ${midY} ${sx + dirX * cr} ${midY}`,
+      `L ${tx - dirX * cr} ${midY}`,
+      `Q ${tx} ${midY} ${tx} ${midY + dirY * cr}`,
+      `L ${tx} ${ty}`,
+    ].join(' ')
+
+    return [path, (sx + tx) / 2, midY]
+  }
+
+  // Route: horizontal → vertical → horizontal, enter target from left/right
+  const baseMiddleX = (sx + tx) / 2
   const midX = baseMiddleX + offset
 
-  // Rounded corners using arc commands
-  const r = 8 // corner radius
-  const dy = ty - sy
-  const dirY = dy > 0 ? 1 : -1 // vertical direction
-  const dx = midX - sx
-  const dirX1 = dx > 0 ? 1 : -1 // first horizontal direction
+  const dirY = dy > 0 ? 1 : -1
+  const dxToMid = midX - sx
+  const dirX1 = dxToMid > 0 ? 1 : -1
   const dx2 = tx - midX
-  const dirX2 = dx2 > 0 ? 1 : -1 // second horizontal direction
+  const dirX2 = dx2 > 0 ? 1 : -1
 
-  // Clamp radius to half the available space
   const absVertical = Math.abs(dy)
-  const absH1 = Math.abs(dx)
+  const absH1 = Math.abs(dxToMid)
   const absH2 = Math.abs(dx2)
   const cr = Math.min(r, absVertical / 2, absH1, absH2)
 
   if (cr < 1) {
-    // Too tight for rounding — fall back to sharp corners
     const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`
     return [path, midX, (sy + ty) / 2]
   }
 
-  // Path: horizontal → arc → vertical → arc → horizontal
-  // First corner: at (midX, sy) turning from horizontal to vertical
-  // Second corner: at (midX, ty) turning from vertical to horizontal
   const path = [
     `M ${sx} ${sy}`,
     `L ${midX - dirX1 * cr} ${sy}`,
@@ -164,10 +199,7 @@ function getOffsetStepPath(
     `L ${tx} ${ty}`,
   ].join(' ')
 
-  const labelX = midX
-  const labelY = (sy + ty) / 2
-
-  return [path, labelX, labelY]
+  return [path, midX, (sy + ty) / 2]
 }
 
 // ---------------------------------------------------------------------------
@@ -221,24 +253,42 @@ export default memo(function FloatingEdge({
     const targetH = targetNode.measured.height ?? 100
     const targetCenterY = targetY + targetH / 2
 
-    // Compute where the midX would be (same logic as getOffsetStepPath)
-    const baseMiddleX = (sourceIntersection.x + targetIntersection.x) / 2
-    const spread = 20
-    const offset = siblingCount > 1
-      ? (edgeIndex - (siblingCount - 1) / 2) * spread
-      : 0
-    const midX = baseMiddleX + offset
+    // Compute routing strategy (must match getOffsetStepPath logic)
+    const rawDx = targetCenterX - sourceIntersection.x
+    const rawDy = targetCenterY - sourceIntersection.y
+    const absDx = Math.abs(rawDx)
+    const absDy = Math.abs(rawDy)
+    const useVerticalEntry = absDy > absDx * 0.8 || absDx < 40
 
-    // The step path approaches the target horizontally from midX.
-    // Enter from left if midX is to the left of target center, right otherwise.
-    if (midX < targetCenterX) {
-      targetPos = Position.Left
-      targetIntersection.x = targetX
-      targetIntersection.y = targetCenterY
+    if (useVerticalEntry) {
+      // V→H→V routing: enter from top or bottom
+      if (rawDy > 0) {
+        targetPos = Position.Top
+        targetIntersection.x = targetCenterX
+        targetIntersection.y = targetY
+      } else {
+        targetPos = Position.Bottom
+        targetIntersection.x = targetCenterX
+        targetIntersection.y = targetY + targetH
+      }
     } else {
-      targetPos = Position.Right
-      targetIntersection.x = targetX + targetW
-      targetIntersection.y = targetCenterY
+      // H→V→H routing: enter from left or right based on midX
+      const baseMiddleX = (sourceIntersection.x + targetIntersection.x) / 2
+      const spread = 20
+      const offset = siblingCount > 1
+        ? (edgeIndex - (siblingCount - 1) / 2) * spread
+        : 0
+      const midX = baseMiddleX + offset
+
+      if (midX < targetCenterX) {
+        targetPos = Position.Left
+        targetIntersection.x = targetX
+        targetIntersection.y = targetCenterY
+      } else {
+        targetPos = Position.Right
+        targetIntersection.x = targetX + targetW
+        targetIntersection.y = targetCenterY
+      }
     }
   }
 
