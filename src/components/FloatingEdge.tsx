@@ -204,7 +204,43 @@ export default memo(function FloatingEdge({
   const targetIntersection = getNodeIntersection(targetNode, sourceNode)
 
   const sourcePos = getEdgePosition(sourceNode, sourceIntersection)
-  const targetPos = getEdgePosition(targetNode, targetIntersection)
+  let targetPos = getEdgePosition(targetNode, targetIntersection)
+
+  // For step edges: override target entry side based on actual approach direction.
+  // The step path's vertical segment may be offset from center-to-center,
+  // so the target should be entered from the side the path is actually coming from.
+  const edgeStyle = (data as any)?.edgeStyle as string | undefined
+  const edgeIndex = (data as any)?.edgeIndex as number ?? 0
+  const siblingCount = (data as any)?.siblingCount as number ?? 1
+
+  if (edgeStyle === 'step') {
+    const targetX = targetNode.internals.positionAbsolute.x
+    const targetW = targetNode.measured.width ?? 280
+    const targetCenterX = targetX + targetW / 2
+    const targetY = targetNode.internals.positionAbsolute.y
+    const targetH = targetNode.measured.height ?? 100
+    const targetCenterY = targetY + targetH / 2
+
+    // Compute where the midX would be (same logic as getOffsetStepPath)
+    const baseMiddleX = (sourceIntersection.x + targetIntersection.x) / 2
+    const spread = 20
+    const offset = siblingCount > 1
+      ? (edgeIndex - (siblingCount - 1) / 2) * spread
+      : 0
+    const midX = baseMiddleX + offset
+
+    // The step path approaches the target horizontally from midX.
+    // Enter from left if midX is to the left of target center, right otherwise.
+    if (midX < targetCenterX) {
+      targetPos = Position.Left
+      targetIntersection.x = targetX
+      targetIntersection.y = targetCenterY
+    } else {
+      targetPos = Position.Right
+      targetIntersection.x = targetX + targetW
+      targetIntersection.y = targetCenterY
+    }
+  }
 
   const pathParams = {
     sourceX: sourceIntersection.x,
@@ -215,10 +251,7 @@ export default memo(function FloatingEdge({
     targetPosition: targetPos,
   }
 
-  // Pick path function based on edge style passed via data
-  const edgeStyle = (data as any)?.edgeStyle as string | undefined
-  const edgeIndex = (data as any)?.edgeIndex as number ?? 0
-  const siblingCount = (data as any)?.siblingCount as number ?? 1
+  // Pick path function based on edge style
   let edgePath: string
   let labelX: number
   let labelY: number
