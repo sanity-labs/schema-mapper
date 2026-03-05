@@ -226,27 +226,35 @@ function OrgOverview({
               <div className="flex items-start gap-2">
                 <TabList space={1}>
                   {projects.map(project => (
-                    <Tooltip
-                      key={project.id}
-                      content={<Text size={1} muted>{project.id}</Text>}
-                      placement="bottom"
-                    >
-                      <span className="relative inline-flex">
-                        <Tab
-                          aria-controls={`project-panel-${project.id}`}
-                          id={`project-tab-${project.id}`}
-                          label={project.displayName}
-                          selected={selectedProjectId === project.id}
-                          onClick={() => !project.isProjectLoading && onProjectSelect(project.id)}
-                        />
-                        {/* Overlay: during access check phase (all tabs) OR when this project's datasets are loading */}
-                        {(isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)) && (
-                          <span className="absolute inset-0 flex items-center justify-center rounded bg-black/10 dark:bg-white/10 pointer-events-none tab-loading-overlay">
-                            <Spinner muted style={{width: 14, height: 14}} />
+                    <span key={project.id} className="relative inline-flex">
+                      {!(isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)) ? (
+                        <Tooltip
+                          content={<Text size={1} muted>{project.id}</Text>}
+                          placement="bottom"
+                        >
+                          <Tab
+                            aria-controls={`project-panel-${project.id}`}
+                            id={`project-tab-${project.id}`}
+                            label={project.displayName}
+                            selected={selectedProjectId === project.id}
+                            onClick={() => onProjectSelect(project.id)}
+                          />
+                        </Tooltip>
+                      ) : (
+                        <>
+                          <Tab
+                            aria-controls={`project-panel-${project.id}`}
+                            id={`project-tab-${project.id}`}
+                            label={project.displayName}
+                            selected={selectedProjectId === project.id}
+                            disabled
+                          />
+                          <span className="absolute inset-0 flex items-center justify-center rounded opacity-50 pointer-events-none">
+                            <Spinner muted style={{width: 10, height: 10}} />
                           </span>
-                        )}
-                      </span>
-                    </Tooltip>
+                        </>
+                      )}
+                    </span>
                   ))}
                 </TabList>
                 {isCheckingAccess && projects.length === 0 && (

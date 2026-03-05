@@ -345,6 +345,16 @@ function LiveOrgOverviewInner() {
               types: [],
             }))
           dispatch({type: 'DATASETS_LOADED', projectId, datasets})
+          // Auto-select 'production' dataset if it exists
+          const production = datasets.find(d => d.name === 'production')
+          if (production) {
+            dispatch({type: 'SELECT_DATASET', datasetName: 'production'})
+            // Trigger schema loading for production
+            const key = `${projectId}::production`
+            if (!schemasRef.current.has(key) && !schemasLoadingRef.current.has(key)) {
+              dispatch({type: 'SCHEMA_LOADING', key})
+            }
+          }
         })
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
