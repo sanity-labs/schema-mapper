@@ -21,22 +21,25 @@ Discovers all projects and datasets in your org, renders document types as an in
 ## Quick Start
 
 ```bash
-npx skills add sanity-labs/schema-mapper
+git clone https://github.com/sanity-labs/schema-mapper.git
+cd schema-mapper
+pnpm install
 ```
 
-Then tell your AI agent: *"Set up Schema Mapper"*
+Then configure your IDs:
 
-Or manually:
+1. In `sanity.cli.ts` — set your **organization ID** and **project ID**
+2. In `src/App.tsx` — set the same **project ID**
+
+This can be any project in your org — the App SDK uses it for authentication only. Schema Mapper discovers all projects in your organization automatically.
 
 ```bash
-git clone --depth 1 https://github.com/sanity-labs/schema-mapper.git
-cd schema-mapper
-pnpm install && npx sanity dev
+npx sanity dev
 ```
 
-You'll need to set a **project ID** in `sanity.cli.ts` and `src/App.tsx`. This can be any project in your org — the App SDK uses it for authentication only. Schema Mapper will discover all projects in your organization automatically.
+**Runs inside the Sanity dashboard**, not directly at localhost. The CLI will give you a dashboard URL to open.
 
-**Runs inside the Sanity dashboard**, not directly at localhost.
+> **Using an AI agent?** Tell it: *"Set up Schema Mapper from https://github.com/sanity-labs/schema-mapper"* — the repo includes a [SKILL.md](SKILL.md) with step-by-step agent instructions.
 
 ## Updating
 
