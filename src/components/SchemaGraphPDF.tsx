@@ -508,7 +508,7 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
           {/* Stats row */}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
             <Text style={{ fontSize: 5.5, fontFamily: 'Helvetica', color: '#aaaaaa' }}>
-              {context.totalDocuments.toLocaleString()} {context.totalDocuments === 1 ? 'document' : 'documents'}  ·  {context.typeCount} {context.typeCount === 1 ? 'type' : 'types'}  ·  {context.schemaSource ? `${context.schemaSource} schema` : ''}  ·  {now}
+              {context.totalDocuments.toLocaleString()} {context.totalDocuments === 1 ? 'document' : 'documents'}  ·  {context.typeCount} {context.typeCount === 1 ? 'type' : 'types'}  ·  {context.schemaSource === 'deployed' ? 'deployed schema found' : context.schemaSource === 'inferred' ? 'schema inferred from documents' : ''}  ·  {now}
             </Text>
           </View>
         </View>

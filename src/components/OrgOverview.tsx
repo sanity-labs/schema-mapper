@@ -278,7 +278,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
                 >
-                  {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</> : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</>}
+                  {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema found</> : <><RiAlertFill className="inline-block mr-1 align-middle" />schema inferred from documents</>}
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
@@ -337,7 +337,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
               <div className="space-y-4">
                 <div className="rounded-md border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal dark:bg-blue-900/50 dark:text-blue-300"><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</Badge>
+                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal dark:bg-blue-900/50 dark:text-blue-300"><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema found</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Read from the schema that your Sanity Studio has deployed to the Content Lake. This is the most accurate source — it reflects the exact document types, fields, and references defined in your Studio configuration. Deployed schema is available when a Studio has been deployed using <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code> or via CI/CD.
@@ -346,7 +346,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
 
                 <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300"><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</Badge>
+                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300"><RiAlertFill className="inline-block mr-1 align-middle" />schema inferred from documents</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     When no deployed schema is available, Schema Mapper infers the schema by sampling documents in the dataset. This is a best-effort approach with some limitations:
