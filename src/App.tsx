@@ -3,7 +3,7 @@ import {SanityApp} from '@sanity/sdk-react'
 import {ThemeProvider, Spinner, usePrefersDark} from '@sanity/ui'
 import {buildTheme} from '@sanity/ui/theme'
 import {Suspense, useEffect} from 'react'
-import {HashRouter, Routes, Route, Navigate} from 'react-router-dom'
+import {HashRouter, Routes, Route} from 'react-router-dom'
 import {LiveOrgOverview} from './components/LiveOrgOverview'
 import './styles/globals.css'
 
@@ -25,35 +25,29 @@ function LoadingScreen() {
   )
 }
 
-function DarkModeProvider({ children }: { children: React.ReactNode }) {
-  // usePrefersDark() from @sanity/ui subscribes to prefers-color-scheme media query.
-  // We mirror it to a .dark class on the root so that:
-  // 1. sanity-theme.css .dark {} CSS variable overrides activate
-  // 2. useDarkMode() hook can detect it for runtime values (Background, MiniMap)
+export default function App() {
   const prefersDark = usePrefersDark()
+  const scheme = prefersDark ? 'dark' : 'light'
+
+  // Mirror to .dark class for CSS variables and useDarkMode() hook
   useEffect(() => {
     document.documentElement.classList.toggle('dark', prefersDark)
   }, [prefersDark])
-  return <>{children}</>
-}
 
-export default function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <DarkModeProvider>
-        <SanityApp config={config} fallback={<LoadingScreen />}>
-          <Suspense fallback={<LoadingScreen />}>
-            <HashRouter>
-              <Routes>
-                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
-                <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
-                <Route path="/:orgId" element={<LiveOrgOverview />} />
-                <Route path="/" element={<LiveOrgOverview />} />
-              </Routes>
-            </HashRouter>
-          </Suspense>
-        </SanityApp>
-      </DarkModeProvider>
+    <ThemeProvider theme={theme} scheme={scheme}>
+      <SanityApp config={config} fallback={<LoadingScreen />}>
+        <Suspense fallback={<LoadingScreen />}>
+          <HashRouter>
+            <Routes>
+              <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
+              <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
+              <Route path="/:orgId" element={<LiveOrgOverview />} />
+              <Route path="/" element={<LiveOrgOverview />} />
+            </Routes>
+          </HashRouter>
+        </Suspense>
+      </SanityApp>
     </ThemeProvider>
   )
 }

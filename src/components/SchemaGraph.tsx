@@ -815,7 +815,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
           animated: false,
         }}
       >
-        <Background gap={16} size={1} color={isDark ? '#334155' : '#e2e8f0'} />
+        <Background gap={16} size={1} color={isDark ? '#1e293b' : '#e2e8f0'} />
         <Controls showInteractive={false} />
         <MiniMap
           nodeStrokeWidth={3}
