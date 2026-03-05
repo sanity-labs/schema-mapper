@@ -1,4 +1,4 @@
-import React, {useEffect, useCallback, useRef, useReducer, useState, Suspense} from 'react'
+import React, {useEffect, useCallback, useRef, useReducer, useState, useMemo, Suspense} from 'react'
 import {useProjects, useDatasets, ResourceProvider, useDashboardOrganizationId, useClient} from '@sanity/sdk-react'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
@@ -303,6 +303,49 @@ function LiveOrgOverviewInner() {
     []
   )
 
+  // Count total expected dataset pairs vs completed
+  const totalExpectedPairs = (projects || []).reduce((sum: number, p: any) => {
+    const dsNames = state.datasets.get(p.id)
+    return sum + (dsNames ? dsNames.length : 1) // 1 = still waiting for dataset list
+  }, 0)
+  // Show UI as soon as any project has completed (per-project spinners handle the rest)
+  const hasAnyCompleted = state.completedPairs.size > 0 || state.failedProjects.size > 0
+  const isLoading = !hasAnyCompleted && state.completedPairs.size < totalExpectedPairs
+
+  // -----------------------------------------------------------------------
+  // Batch throttling: only discover BATCH_SIZE projects at a time
+  // -----------------------------------------------------------------------
+  const BATCH_SIZE = 3
+
+  const { activeSet, completedProjectIds } = useMemo(() => {
+    const projectIds = (projects || []).map((p: any) => p.id)
+    const completedOrFailed = new Set([...state.failedProjects])
+    const completed = new Set<string>()
+    // A project is "done" if all its datasets have completed
+    for (const pid of projectIds) {
+      const dsNames = state.datasets.get(pid)
+      if (dsNames && dsNames.every(ds => state.completedPairs.has(`${pid}::${ds}`))) {
+        completedOrFailed.add(pid)
+        if (!state.failedProjects.has(pid)) {
+          completed.add(pid)
+        }
+      }
+    }
+
+    // Build the active batch: first BATCH_SIZE projects that aren't completed/failed
+    const activeProjects = projectIds.filter(id => !completedOrFailed.has(id)).slice(0, BATCH_SIZE)
+    const set = new Set(activeProjects)
+
+    const completedCount = completed.size
+    const failedCount = state.failedProjects.size
+    const queuedCount = projectIds.length - completedCount - failedCount - set.size
+    console.log(
+      `[Schema Mapper] Batch: processing ${set.size}, completed ${completedCount}, failed ${failedCount}, queued ${queuedCount}`
+    )
+
+    return { activeSet: set, completedProjectIds: completed }
+  }, [projects, state.datasets, state.completedPairs, state.failedProjects])
+
   // Build ProjectInfo[] from reducer state (derived, not stored)
   const projectInfos: ProjectInfo[] = (projects || []).map((p: any) => {
     const dsNames = state.datasets.get(p.id) || []
@@ -327,11 +370,16 @@ function LiveOrgOverviewInner() {
       }
     })
 
+    // Determine per-project loading state
+    const isProjectDone = completedProjectIds.has(p.id) || state.failedProjects.has(p.id)
+    const isProjectLoading = !isProjectDone
+
     return {
       id: p.id,
       displayName: p.displayName || p.id,
       studioHost: p.studioHost || undefined,
       hasAccess: !state.failedProjects.has(p.id),
+      isProjectLoading,
       datasets,
     }
   })
@@ -344,29 +392,26 @@ function LiveOrgOverviewInner() {
     return a.displayName.localeCompare(b.displayName)
   })
 
-  // Count total expected dataset pairs vs completed
-  const totalExpectedPairs = (projects || []).reduce((sum: number, p: any) => {
-    const dsNames = state.datasets.get(p.id)
-    return sum + (dsNames ? dsNames.length : 1) // 1 = still waiting for dataset list
-  }, 0)
-  const isLoading = state.completedPairs.size < totalExpectedPairs
-
   return (
     <>
       {/* Hidden: discover datasets and schemas (renders no visible UI) */}
       <div style={{ display: 'none' }}>
-        {(projects || []).map((p: any) => (
-          <ErrorBoundary key={`ds-${p.id}`} fallback={null} onError={() => handleDatasetError(p.id, new Error('Dataset discovery failed'))}>
-            <Suspense fallback={null}>
-              <ProjectDatasetsWrapper
-                projectId={p.id}
-                onDatasets={handleDatasetsDiscovered}
-                onError={handleDatasetError}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        ))}
         {(projects || []).map((p: any) => {
+          if (!activeSet.has(p.id)) return null
+          return (
+            <ErrorBoundary key={`ds-${p.id}`} fallback={null} onError={() => handleDatasetError(p.id, new Error('Dataset discovery failed'))}>
+              <Suspense fallback={null}>
+                <ProjectDatasetsWrapper
+                  projectId={p.id}
+                  onDatasets={handleDatasetsDiscovered}
+                  onError={handleDatasetError}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          )
+        })}
+        {(projects || []).map((p: any) => {
+          if (!activeSet.has(p.id)) return null
           const dsNames = state.datasets.get(p.id)
           if (!dsNames) return null // Wait until real datasets are discovered
           return dsNames.map(dsName => (

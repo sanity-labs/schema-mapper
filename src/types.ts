@@ -29,5 +29,6 @@ export type ProjectInfo = {
   displayName: string
   studioHost?: string
   hasAccess?: boolean
+  isProjectLoading?: boolean
   datasets: DatasetInfo[]
 }
