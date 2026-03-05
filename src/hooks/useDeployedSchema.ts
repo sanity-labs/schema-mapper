@@ -319,7 +319,6 @@ function parseStudioSchema(
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
     const fields: DiscoveredField[] = filtered.map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
 
-    console.log(
       '[Schema Mapper] Studio parser:',
       docType.name,
       'raw fields:', rawFields.length,
@@ -347,11 +346,9 @@ function parseDeployedSchema(
   const isStudioFormat = sample && ('fields' in sample || !('attributes' in sample))
 
   if (isStudioFormat) {
-    console.log('[Schema Mapper] Detected Studio schema format')
     return parseStudioSchema(schema)
   }
 
-  console.log('[Schema Mapper] Detected GROQ type schema format')
 
   // GROQ type schema format
   const refMap = buildReferenceMap(schema as SchemaEntry[])
@@ -452,11 +449,9 @@ export function useDeployedSchema(): {
           }
         } else if (Array.isArray(raw)) {
           schemaData = raw
-          console.log('[Schema Mapper] Direct array, got', schemaData.length, 'entries')
         } else if (raw && typeof raw === 'object') {
           // Could be wrapped in another structure
           schemaData = raw.types || raw
-          console.log('[Schema Mapper] Object, extracted', Array.isArray(schemaData) ? schemaData.length : 'non-array')
         }
 
         if (!Array.isArray(schemaData) || schemaData.length === 0) {

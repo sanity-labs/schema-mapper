@@ -54,18 +54,10 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
-  // Debug: log dark mode state — visible in page title
-  useEffect(() => {
-    console.log('[Schema Mapper] Dark mode:', { isDark, scheme, mediaQuery: window.matchMedia('(prefers-color-scheme: dark)').matches })
-  }, [isDark, scheme])
-
   return (
     <ThemeProvider theme={theme} scheme={scheme}>
       <Card scheme={scheme} style={{minHeight: '100vh'}}>
-        {/* Debug banner — remove after dark mode is fixed */}
-        <div style={{position:'fixed',bottom:0,right:0,zIndex:9999,padding:'4px 8px',fontSize:'11px',background:'red',color:'white',borderRadius:'4px 0 0 0'}}>
-          scheme={scheme} | isDark={String(isDark)} | media={String(typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)}
-        </div>
+
         <SanityApp config={config} fallback={<LoadingScreen />}>
           <Suspense fallback={<LoadingScreen />}>
             <HashRouter>

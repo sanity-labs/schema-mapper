@@ -209,7 +209,6 @@ function ProjectDatasets({
   useEffect(() => {
     if (datasets && !reportedRef.current) {
       reportedRef.current = true
-      console.log('[useDatasets] Project', projectId, 'datasets:', datasets)
       const names = (datasets as any[]).map((d: any) => d.name || d).filter((n: string) => !n.endsWith('-comments'))
       onDatasets(projectId, names)
     }
@@ -261,7 +260,6 @@ function LiveOrgOverviewInner() {
   const [state, dispatch] = useReducer(reducer, initialState)
 
   const handleDatasetsDiscovered = useCallback((projectId: string, datasetNames: string[]) => {
-    console.log('[LiveOrgOverview] Datasets for', projectId, ':', datasetNames)
     dispatch({ type: 'DATASETS_DISCOVERED', projectId, datasets: datasetNames })
   }, [])
 
@@ -272,7 +270,6 @@ function LiveOrgOverviewInner() {
 
   const handleSchemaDiscovered = useCallback(
     (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => {
-      console.log('[Schema Mapper]', projectId, datasetName, '→', schemaSource, 
         'deployed:', deployedTypes?.length ?? 'null', 
         'inferred:', inferredTypes?.length ?? 'null')
       dispatch({
