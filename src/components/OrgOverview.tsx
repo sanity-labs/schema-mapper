@@ -72,6 +72,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
   const graphRef = useRef<HTMLDivElement>(null)
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
+  const [showAclDialog, setShowAclDialog] = useState(false)
 
   const lockedProjects = useMemo(() => projects.filter(p => p.hasAccess === false), [projects])
   const accessibleProjects = useMemo(() => projects.filter(p => p.hasAccess !== false), [projects])
@@ -261,10 +262,12 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
               <Badge
                 variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
                 className={
-                  selectedDataset.aclMode === 'public'
-                    ? 'bg-green-100 text-green-800 hover:bg-green-100 font-normal dark:bg-green-900/50 dark:text-green-300'
-                    : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300'
+                  (selectedDataset.aclMode === 'public'
+                    ? 'bg-green-100 text-green-800 hover:bg-green-200 font-normal dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
+                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
+                  + ' cursor-pointer select-none transition-colors'
                 }
+                onClick={() => setShowAclDialog(true)}
               >
                 {selectedDataset.aclMode}
               </Badge>
@@ -273,9 +276,9 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   variant="default"
                   className={
                     (effectiveSource === 'deployed'
-                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal dark:bg-blue-900/50 dark:text-blue-300'
-                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300')
-                    + ' cursor-pointer select-none'
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-normal dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
+                      : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
+                    + ' cursor-pointer select-none transition-colors'
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
                 >
@@ -359,6 +362,45 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   </ul>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     To get the most accurate schema, deploy your Studio with <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code>.
+                  </p>
+                </div>
+              </div>
+            </Stack>
+          </Box>
+        </Dialog>
+      )}
+
+      {/* ---- ACL Mode Info Dialog ---- */}
+      {showAclDialog && (
+        <Dialog
+          id="acl-info-dialog"
+          header="Dataset access mode"
+          onClose={() => setShowAclDialog(false)}
+          width={1}
+          animate
+        >
+          <Box padding={4} paddingTop={0}>
+            <Stack space={4}>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Every Sanity dataset has an access control mode that determines how unauthenticated requests are handled.
+              </p>
+
+              <div className="space-y-4">
+                <div className="rounded-md border px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100 font-normal dark:bg-green-900/50 dark:text-green-300">public</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Anyone can read data from this dataset without authentication. Write operations still require a token. This is the default for new datasets and is typical for content that powers public websites.
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300">private</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    All requests — including reads — require a valid authentication token. Use this for datasets containing sensitive or internal data that shouldn't be publicly accessible.
                   </p>
                 </div>
               </div>
