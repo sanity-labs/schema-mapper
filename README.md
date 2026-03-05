@@ -20,6 +20,18 @@ Discovers all projects and datasets in your org, renders document types as an in
 
 ## Quick Start
 
+Install the skill, then tell your AI agent to set it up:
+
+```bash
+npx skills add sanity-labs/schema-mapper
+```
+
+> *"Set up Schema Mapper"*
+
+The agent will clone the repo, ask you to choose a project, configure your IDs, and install dependencies.
+
+Or manually:
+
 ```bash
 git clone https://github.com/sanity-labs/schema-mapper.git
 cd schema-mapper
@@ -38,8 +50,6 @@ npx sanity dev
 ```
 
 **Runs inside the Sanity dashboard**, not directly at localhost. The CLI will give you a dashboard URL to open.
-
-> **Using an AI agent?** Tell it: *"Set up Schema Mapper from https://github.com/sanity-labs/schema-mapper"* — the repo includes a [SKILL.md](SKILL.md) with step-by-step agent instructions.
 
 ## Updating
 
