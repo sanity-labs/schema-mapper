@@ -32,34 +32,41 @@ function VersionBadge() {
   const isUpToDate = !latest || latest === version
   const hasUpdate = latest && latest !== version
 
+  const tooltipContent = hasUpdate ? (
+    <Box padding={2}>
+      <Text size={1} muted>
+        v{latest} available — Ask your agent to "update schema mapper"
+      </Text>
+    </Box>
+  ) : null
+
+  const badge = (
+    <span>
+      <Badge
+        variant="secondary"
+        className={
+          (hasUpdate
+            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700')
+          + ' cursor-default transition-colors font-normal'
+        }
+      >
+        v{version}{hasUpdate ? ` → v${latest}` : ''}
+      </Badge>
+    </span>
+  )
+
+  if (!tooltipContent) return badge
+
   return (
     <Tooltip
-      content={
-        <Box padding={2}>
-          <Text size={1} muted>
-            {isUpToDate
-              ? 'Up to date! Tell your agent "update schema mapper" to check for updates.'
-              : `v${latest} available — tell your agent "update schema mapper"`}
-          </Text>
-        </Box>
-      }
+      content={tooltipContent}
       placement="bottom"
     >
-      <span>
-        <Badge
-          variant="secondary"
-          className={
-            (hasUpdate
-              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700')
-            + ' cursor-default transition-colors font-normal'
-          }
-        >
-          v{version}{hasUpdate ? ` → v${latest}` : ''}
-        </Badge>
-      </span>
+      {badge}
     </Tooltip>
   )
+}
 }
 
 // ---------------------------------------------------------------------------
