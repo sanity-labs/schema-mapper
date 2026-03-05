@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "./sanity-theme.css";
 
-@custom-variant dark (&:where(.dark, .dark *), @media (prefers-color-scheme: dark));
+/* Tailwind v4 uses @media (prefers-color-scheme: dark) by default for dark: variants.
+   No @custom-variant needed — the system preference drives everything. */
 
 body {
   margin: 0;
