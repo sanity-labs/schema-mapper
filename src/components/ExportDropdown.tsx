@@ -141,45 +141,23 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
         const docCountText = badgeEl?.textContent?.trim() || '0'
         const documentCount = parseInt(docCountText.replace(/,/g, ''), 10) || 0
 
-        // Extract fields from field rows
+        // Extract fields from field rows (using data attributes)
         const fields: PDFNodeData['fields'] = []
-        const fieldRows = htmlEl.querySelectorAll(
-          '.flex.items-center.justify-between.gap-2.px-3',
-        )
+        const fieldRows = htmlEl.querySelectorAll('[data-field-name]')
         fieldRows.forEach((row) => {
-          const nameEl = row.querySelector('.font-mono') as HTMLElement | null
-          const badgeTextEl = row.querySelector(
-            '[class*="badge"]',
-          ) as HTMLElement | null
-          if (!nameEl) return
-
-          const name = nameEl.textContent?.trim() || ''
-          let typeText =
-            badgeTextEl?.textContent?.trim().toLowerCase() || 'unknown'
-
-          // Detect array types (ends with [])
-          const isArray = typeText.endsWith('[]')
-          if (isArray) typeText = typeText.slice(0, -2)
-
-          // Detect reference fields
-          const isRef =
-            row.classList.contains('bg-indigo-50/60') ||
-            nameEl.classList.contains('text-indigo-700')
-          const hasArrowIcon = row.querySelector('svg') !== null
-
-          // Determine if it's a reference or inline object
-          const isReference = isRef && hasArrowIcon && typeText === 'reference'
-          const isInlineObject = isRef && !isReference && typeText !== 'reference'
+          const el = row as HTMLElement
+          const name = el.dataset.fieldName || ''
+          const type = el.dataset.fieldType || 'unknown'
+          const isReference = el.dataset.fieldIsRef === 'true'
+          const isInlineObject = el.dataset.fieldIsInline === 'true'
+          const isArray = el.dataset.fieldIsArray === 'true'
+          const referenceTo = el.dataset.fieldRefTo || undefined
 
           fields.push({
             name,
-            type: isReference
-              ? 'reference'
-              : isInlineObject
-                ? 'object'
-                : typeText,
+            type: isReference ? 'reference' : isInlineObject ? 'object' : type,
             isReference,
-            referenceTo: isInlineObject ? typeText : undefined,
+            referenceTo,
             isArray,
             isInlineObject,
           })

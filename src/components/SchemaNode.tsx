@@ -83,6 +83,12 @@ function FieldRow({
         ${even ? 'bg-transparent' : 'bg-muted/40'}
         ${isRef ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}
       `}
+      data-field-name={field.name}
+      data-field-type={field.type}
+      data-field-is-ref={field.isReference ? 'true' : undefined}
+      data-field-is-inline={field.isInlineObject ? 'true' : undefined}
+      data-field-is-array={field.isArray ? 'true' : undefined}
+      data-field-ref-to={field.referenceTo || undefined}
     >
       {/* Field name */}
       <span
