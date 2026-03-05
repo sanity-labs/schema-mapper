@@ -87,9 +87,13 @@ Save the **complete lines** including any inline comments — the user may have 
 cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.tar.gz | tar xz
 ```
 
-### 4. Overwrite source files
+### 4. Overwrite ALL source files
 
-Copy everything from the extracted `schema-mapper-main/` directory into `<path>`, **EXCEPT `sanity.cli.ts` and `src/App.tsx`** — these contain the user's project and org IDs and MUST NOT be overwritten.
+Copy **everything** from the extracted `schema-mapper-main/` directory into `<path>`, including any new files that didn't exist before. The only exceptions are `sanity.cli.ts` and `src/App.tsx` — these contain the user's project and org IDs and MUST NOT be overwritten. Use `rsync` or `cp -r` to ensure new files are added and deleted files are removed:
+
+```bash
+rsync -a --exclude='sanity.cli.ts' --exclude='src/App.tsx' <path>/schema-mapper-main/ <path>/
+```
 
 ### 5. Restore config lines
 
