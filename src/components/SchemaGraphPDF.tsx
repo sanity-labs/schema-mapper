@@ -7,6 +7,7 @@ import {
   Rect,
   Path,
   G,
+  Circle,
   Polygon,
 } from '@react-pdf/renderer'
 
@@ -516,13 +517,33 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
                 borderRadius: 6,
                 paddingHorizontal: 5,
                 paddingVertical: 1.5,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 2,
               }}>
+                {/* Inline icon */}
+                <Svg viewBox="0 0 24 24" style={{ width: 6, height: 6 }}>
+                  {context.schemaSource === 'deployed' ? (
+                    /* Checkmark circle */
+                    <>
+                      <Circle cx={12} cy={12} r={10} fill={context.schemaSource === 'deployed' ? '#1e40af' : '#92400e'} />
+                      <Path d="M7 13l3 3 7-7" stroke="#ffffff" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                  ) : (
+                    /* Alert triangle */
+                    <>
+                      <Path d="M12 2L1 21h22L12 2z" fill="#92400e" />
+                      <Path d="M12 9v5" stroke="#ffffff" strokeWidth={2.5} strokeLinecap="round" />
+                      <Circle cx={12} cy={17.5} r={1.5} fill="#ffffff" />
+                    </>
+                  )}
+                </Svg>
                 <Text style={{
                   fontSize: 5,
                   fontFamily: 'Helvetica-Bold',
                   color: context.schemaSource === 'deployed' ? '#1e40af' : '#92400e',
                 }}>
-                  {context.schemaSource === 'deployed' ? '✓ deployed schema found' : '⚠ schema inferred from documents'}
+                  {context.schemaSource === 'deployed' ? 'deployed schema found' : 'schema inferred from documents'}
                 </Text>
               </View>
             )}
