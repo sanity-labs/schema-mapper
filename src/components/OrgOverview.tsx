@@ -325,6 +325,8 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
 
       {/* ---- Schema Info Dialog ---- */}
       {showSchemaInfoDialog && (
+        <>
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowSchemaInfoDialog(false)} />
         <Dialog
           id="schema-info-dialog"
           header="Schema sources"
@@ -369,10 +371,13 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             </Stack>
           </Box>
         </Dialog>
+        </>
       )}
 
       {/* ---- ACL Mode Info Dialog ---- */}
       {showAclDialog && (
+        <>
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowAclDialog(false)} />
         <Dialog
           id="acl-info-dialog"
           header="Dataset access mode"
@@ -408,10 +413,13 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             </Stack>
           </Box>
         </Dialog>
+        </>
       )}
 
       {/* ---- Locked Projects Dialog ---- */}
       {showLockedDialog && (
+        <>
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowLockedDialog(false)} />
         <Dialog
           id="locked-projects-dialog"
           header="Projects with no access"
@@ -438,6 +446,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             </Stack>
           </Box>
         </Dialog>
+        </>
       )}
     </div>
   )
