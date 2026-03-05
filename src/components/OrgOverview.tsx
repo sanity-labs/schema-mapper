@@ -327,7 +327,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
           width={1}
           animate
         >
-          <Box padding={4} paddingTop={0}>
+          <Box padding={4} style={{marginTop: '-20px'}}>
             <Stack space={4}>
               <h2 className="text-2xl font-normal tracking-tight">Schema sources</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -376,7 +376,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
           width={1}
           animate
         >
-          <Box padding={4} paddingTop={0}>
+          <Box padding={4} style={{marginTop: '-20px'}}>
             <Stack space={4}>
               <h2 className="text-2xl font-normal tracking-tight">Projects with no access</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
