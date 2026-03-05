@@ -75,8 +75,8 @@ const NODE_FONT_SIZE = 12
 const NODE_FIELD_FONT_SIZE = 10
 const NODE_BADGE_FONT_SIZE = 10
 const TYPE_BADGE_FONT_SIZE = 8
-const TYPE_BADGE_H = 14
-const TYPE_BADGE_R = 3
+const TYPE_BADGE_H = 15
+const TYPE_BADGE_R = 7.5 // fully rounded pill
 const FIELD_NAME_MAX_W = 140 // max width for field name before truncation
 
 // ---------------------------------------------------------------------------
@@ -246,8 +246,8 @@ function PDFNode({ node }: { node: PDFNodeData }) {
   const fieldH = fields.length > 0 ? (totalH - headerH) / fields.length : NODE_FIELD_H
 
   const docCountStr = documentCount.toLocaleString()
-  const badgeW = estimateTextWidth(docCountStr, NODE_BADGE_FONT_SIZE) + 10
-  const badgeH = 16
+  const badgeW = estimateTextWidth(docCountStr, NODE_BADGE_FONT_SIZE) + 14
+  const badgeH = 17
   const badgeX = x + width - badgeW - 8
   const badgeY = y + (headerH - badgeH) / 2
 
@@ -307,8 +307,8 @@ function PDFNode({ node }: { node: PDFNodeData }) {
         y={badgeY}
         width={badgeW}
         height={badgeH}
-        rx={3}
-        ry={3}
+        rx={badgeH / 2}
+        ry={badgeH / 2}
         fill="#ffffff"
         stroke="#e2e8f0"
         strokeWidth={0.5}
@@ -338,7 +338,7 @@ function PDFNode({ node }: { node: PDFNodeData }) {
         const typeLabel = field.isArray ? `${displayType}[]` : displayType
         const typeColor = getTypeColor(isInline ? 'object' : field.type)
 
-        const typeLabelW = estimateTextWidth(typeLabel, TYPE_BADGE_FONT_SIZE) + 8
+        const typeLabelW = estimateTextWidth(typeLabel, TYPE_BADGE_FONT_SIZE) + 14
         const typeBadgeX = x + width - typeLabelW - 8
         const typeBadgeY = fieldY + (fieldH - TYPE_BADGE_H) / 2
 
