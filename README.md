@@ -38,6 +38,20 @@ You'll need to set a **project ID** in `sanity.cli.ts` and `src/App.tsx`. This c
 
 **Runs inside the Sanity dashboard**, not directly at localhost.
 
+## Updating
+
+The version badge in the app will show a pulsing dot when an update is available. To update, tell your AI agent:
+
+> "Update Schema Mapper"
+
+Or manually:
+
+```bash
+cd <schema-mapper-path>
+git pull
+pnpm install
+```
+
 ## Permissions
 
 Org member + Project Viewer + dataset read access. No write access needed.
