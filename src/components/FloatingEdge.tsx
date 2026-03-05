@@ -124,82 +124,101 @@ function getOffsetStepPath(
   edgeIndex: number, siblingCount: number,
 ): [string, number, number] {
   const spread = 20
-  const offset = siblingCount > 1
+  const siblingOffset = siblingCount > 1
     ? (edgeIndex - (siblingCount - 1) / 2) * spread
     : 0
   const r = 8 // corner radius
+  const minStub = 30 // minimum horizontal distance from source box before turning
 
-  // Decide routing strategy based on relative position
-  // If target is mostly below/above → route H→V, enter top/bottom
-  // If target is mostly to the side → route H→V→H, enter left/right
   const dx = tx - sx
   const dy = ty - sy
   const absDx = Math.abs(dx)
   const absDy = Math.abs(dy)
+  const dirX = dx > 0 ? 1 : -1
+  const dirY = dy > 0 ? 1 : -1
 
-  // Use vertical entry when target is more below/above than to the side,
-  // OR when the horizontal distance is small (target nearly aligned vertically)
-  const useVerticalEntry = absDy > absDx * 0.8 || absDx < 40
+  // Decide routing: mostly vertical → 4-segment (H→V→H→V), mostly horizontal → 3-segment (H→V→H)
+  const useVerticalEntry = absDy > absDx * 0.8 || absDx < 60
 
   if (useVerticalEntry) {
-    // Route: horizontal → vertical, enter target from top or bottom
-    const midY = (sy + ty) / 2 + offset
-    const dirX = dx > 0 ? 1 : -1
-    const dirY = dy > 0 ? 1 : -1
+    // 4-segment: H stub → V down → H across → V to target
+    const stubX = sx + dirX * (minStub + Math.abs(siblingOffset))
+    const midY = (sy + ty) / 2 + siblingOffset
 
-    const absH = Math.abs(tx - sx)
-    const absV1 = Math.abs(midY - sy)
-    const absV2 = Math.abs(ty - midY)
-    const cr = Math.min(r, absH / 2, absV1, absV2)
+    const segments = [
+      { x: sx, y: sy },       // start
+      { x: stubX, y: sy },    // horizontal stub
+      { x: stubX, y: midY },  // vertical to mid
+      { x: tx, y: midY },     // horizontal to target X
+      { x: tx, y: ty },       // vertical to target
+    ]
+
+    const path = buildRoundedPath(segments, r)
+    return [path, (stubX + tx) / 2, midY]
+  }
+
+  // 3-segment: H → V → H
+  const baseMiddleX = (sx + tx) / 2
+  // Ensure minimum stub distance from source
+  const minMidX = sx + dirX * minStub
+  let midX = baseMiddleX + siblingOffset
+  if (dirX > 0 && midX < minMidX) midX = minMidX + Math.abs(siblingOffset)
+  if (dirX < 0 && midX > minMidX) midX = minMidX - Math.abs(siblingOffset)
+
+  const segments = [
+    { x: sx, y: sy },
+    { x: midX, y: sy },
+    { x: midX, y: ty },
+    { x: tx, y: ty },
+  ]
+
+  const path = buildRoundedPath(segments, r)
+  return [path, midX, (sy + ty) / 2]
+}
+
+// Build an SVG path through waypoints with rounded corners at each turn
+function buildRoundedPath(points: { x: number; y: number }[], maxRadius: number): string {
+  if (points.length < 2) return ''
+  if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`
+
+  const parts: string[] = [`M ${points[0].x} ${points[0].y}`]
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const next = points[i + 1]
+
+    // Distances to prev and next points along the segments
+    const dPrev = Math.max(Math.abs(curr.x - prev.x), Math.abs(curr.y - prev.y))
+    const dNext = Math.max(Math.abs(next.x - curr.x), Math.abs(next.y - curr.y))
+    const cr = Math.min(maxRadius, dPrev / 2, dNext / 2)
 
     if (cr < 1) {
-      const path = `M ${sx} ${sy} L ${sx} ${midY} L ${tx} ${midY} L ${tx} ${ty}`
-      return [path, (sx + tx) / 2, midY]
+      parts.push(`L ${curr.x} ${curr.y}`)
+      continue
     }
 
-    // V → H → V path with rounded corners
-    const path = [
-      `M ${sx} ${sy}`,
-      `L ${sx} ${midY - dirY * cr}`,
-      `Q ${sx} ${midY} ${sx + dirX * cr} ${midY}`,
-      `L ${tx - dirX * cr} ${midY}`,
-      `Q ${tx} ${midY} ${tx} ${midY + dirY * cr}`,
-      `L ${tx} ${ty}`,
-    ].join(' ')
+    // Direction vectors
+    const fromX = curr.x === prev.x ? 0 : (curr.x > prev.x ? 1 : -1)
+    const fromY = curr.y === prev.y ? 0 : (curr.y > prev.y ? 1 : -1)
+    const toX = next.x === curr.x ? 0 : (next.x > curr.x ? 1 : -1)
+    const toY = next.y === curr.y ? 0 : (next.y > curr.y ? 1 : -1)
 
-    return [path, (sx + tx) / 2, midY]
+    // Point just before the corner
+    const beforeX = curr.x - fromX * cr
+    const beforeY = curr.y - fromY * cr
+    // Point just after the corner
+    const afterX = curr.x + toX * cr
+    const afterY = curr.y + toY * cr
+
+    parts.push(`L ${beforeX} ${beforeY}`)
+    parts.push(`Q ${curr.x} ${curr.y} ${afterX} ${afterY}`)
   }
 
-  // Route: horizontal → vertical → horizontal, enter target from left/right
-  const baseMiddleX = (sx + tx) / 2
-  const midX = baseMiddleX + offset
+  const last = points[points.length - 1]
+  parts.push(`L ${last.x} ${last.y}`)
 
-  const dirY = dy > 0 ? 1 : -1
-  const dxToMid = midX - sx
-  const dirX1 = dxToMid > 0 ? 1 : -1
-  const dx2 = tx - midX
-  const dirX2 = dx2 > 0 ? 1 : -1
-
-  const absVertical = Math.abs(dy)
-  const absH1 = Math.abs(dxToMid)
-  const absH2 = Math.abs(dx2)
-  const cr = Math.min(r, absVertical / 2, absH1, absH2)
-
-  if (cr < 1) {
-    const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`
-    return [path, midX, (sy + ty) / 2]
-  }
-
-  const path = [
-    `M ${sx} ${sy}`,
-    `L ${midX - dirX1 * cr} ${sy}`,
-    `Q ${midX} ${sy} ${midX} ${sy + dirY * cr}`,
-    `L ${midX} ${ty - dirY * cr}`,
-    `Q ${midX} ${ty} ${midX + dirX2 * cr} ${ty}`,
-    `L ${tx} ${ty}`,
-  ].join(' ')
-
-  return [path, midX, (sy + ty) / 2]
+  return parts.join(' ')
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +277,7 @@ export default memo(function FloatingEdge({
     const rawDy = targetCenterY - sourceIntersection.y
     const absDx = Math.abs(rawDx)
     const absDy = Math.abs(rawDy)
-    const useVerticalEntry = absDy > absDx * 0.8 || absDx < 40
+    const useVerticalEntry = absDy > absDx * 0.8 || absDx < 60
 
     if (useVerticalEntry) {
       // V→H→V routing: enter from top or bottom
