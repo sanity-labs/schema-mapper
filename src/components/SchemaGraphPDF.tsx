@@ -453,7 +453,7 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
   metaParts.push(`project: ${context.projectId}`)
   metaParts.push(`${context.datasetName} (${context.aclMode})`)
   metaParts.push(
-    `${context.totalDocuments.toLocaleString()} docs · ${context.typeCount} types`,
+    `${context.totalDocuments.toLocaleString()} ${context.totalDocuments === 1 ? 'doc' : 'docs'} · ${context.typeCount} ${context.typeCount === 1 ? 'type' : 'types'}`,
   )
   if (context.schemaSource) metaParts.push(`${context.schemaSource} schema`)
   metaParts.push(now)
