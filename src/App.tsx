@@ -54,9 +54,10 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
-  // Debug: log dark mode state
+  // Debug: log dark mode state — visible in page title
   useEffect(() => {
     console.log('[Schema Mapper] Dark mode:', { isDark, scheme, mediaQuery: window.matchMedia('(prefers-color-scheme: dark)').matches })
+    document.title = `Schema Mapper [${scheme}]`
   }, [isDark, scheme])
 
   return (
