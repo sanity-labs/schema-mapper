@@ -11,7 +11,25 @@ Visual Sanity org/schema explorer. A Sanity App SDK app using React Flow. Shows 
 
 Follow these steps when a user says "install schema mapper" or "set up schema mapper".
 
-### 1. Choose install location
+### 1. Check for Studio in root
+
+Before choosing an install location, check if the user's project root contains a Sanity Studio (`sanity.cli.ts` and `sanity.config.ts` in the root directory).
+
+If a Studio is in the root:
+
+> ⚠️ **Schema Mapper is a separate Sanity App SDK app — it can't run inside a Studio project.** The Sanity CLI can only detect one app per directory, so having both a Studio and an App SDK app in the same root won't work (the CLI will try to run the Studio instead of Schema Mapper).
+>
+> The fix is simple: move your Studio into a `/studio` subfolder and put Schema Mapper in `/apps/schema-mapper` alongside it. This makes **zero difference** to how your Studio works — you can still run it with `cd studio && npx sanity dev` and deploy with `cd studio && npx sanity deploy`. Everything stays exactly the same, it's just in a subfolder.
+
+Offer to do this for the user:
+1. Create a `studio/` folder
+2. Move all Studio files into it (sanity.cli.ts, sanity.config.ts, schemas/, src/, etc.)
+3. Create `apps/schema-mapper` for Schema Mapper
+4. If there's a `pnpm-workspace.yaml` or similar, leave it in the root — don't add `packages:` entries, each app runs independently
+
+If the user declines, warn them that Schema Mapper probably won't work from the same root as the Studio.
+
+### 2. Choose install location
 
 - Check if an `apps/` directory exists in the current project
 - If yes: suggest `apps/schema-mapper` as the default location
