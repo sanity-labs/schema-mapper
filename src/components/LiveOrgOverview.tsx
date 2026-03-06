@@ -339,6 +339,7 @@ function LiveOrgOverviewInner() {
       const proj = (projects || []).find((p: any) => p.id === projectId)
       const cachedDatasets = datasetsRef.current.get(projectId)
       trackEvent('project_viewed', {
+        org_id: orgId,
         project_id: projectId,
         project_name: proj?.displayName || projectId,
         dataset_count: cachedDatasets?.length ?? 0,
@@ -396,6 +397,7 @@ function LiveOrgOverviewInner() {
       const ds = cachedDatasets.find((d: DatasetInfo) => d.name === datasetName)
       const schemaKey = `${state.selectedProjectId}::${datasetName}`
       trackEvent('dataset_viewed', {
+        org_id: orgId,
         project_id: state.selectedProjectId,
         project_name: proj?.displayName || state.selectedProjectId,
         dataset_name: datasetName,
@@ -445,6 +447,7 @@ function LiveOrgOverviewInner() {
         return sum + t.fields.filter((f) => f.type === 'reference' || f.isReference).length
       }, 0)
       trackEvent('schema_mapped', {
+        org_id: orgId,
         project_id: projectId,
         dataset_name: datasetName,
         type_count: types.length,
@@ -453,7 +456,7 @@ function LiveOrgOverviewInner() {
         reference_count: referenceCount,
       })
     },
-    [],
+    [orgId],
   )
 
   const handleSchemaError = useCallback((key: string, error: string) => {
