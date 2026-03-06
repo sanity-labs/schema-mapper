@@ -12,16 +12,10 @@ export function initAnalytics() {
   try {
     posthog.init(POSTHOG_KEY, {
       api_host: POSTHOG_HOST,
-      autocapture: false, // We'll track specific events only
-      capture_pageview: false, // We handle this manually
+      autocapture: false,
+      capture_pageview: false,
       capture_pageleave: false,
       persistence: 'localStorage',
-      loaded: (ph) => {
-        // Don't track in dev mode
-        if (window.location.hostname === 'localhost') {
-          ph.opt_out_capturing()
-        }
-      },
     })
     initialized = true
   } catch (e) {
