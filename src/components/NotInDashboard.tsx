@@ -21,7 +21,7 @@ export function NotInDashboard({ organizationId }: NotInDashboardProps) {
         rel="noopener noreferrer"
         className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-black text-white text-sm font-medium hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors"
       >
-        Open Dashboard →
+        Open in your Dashboard →
       </a>
       <p className="text-xs text-muted-foreground/60">
         The dashboard provides authentication and organization context that Schema Mapper needs to discover your projects and schemas.
