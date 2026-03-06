@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import { GoDownload } from 'react-icons/go'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
+import {trackEvent} from '../lib/analytics'
 
 export interface ExportContext {
   projectName: string
@@ -44,6 +45,12 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   }, [graphRef])
 
   const handlePNG = useCallback(async () => {
+    trackEvent('export_triggered', {
+      format: 'png',
+      project_name: context.projectName,
+      dataset_name: context.datasetName,
+      type_count: context.typeCount,
+    })
     const el = getGraphElement()
     if (!el) return
     setExporting('png')
@@ -72,6 +79,12 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   }, [getGraphElement, context])
 
   const handleSVG = useCallback(async () => {
+    trackEvent('export_triggered', {
+      format: 'svg',
+      project_name: context.projectName,
+      dataset_name: context.datasetName,
+      type_count: context.typeCount,
+    })
     const el = getGraphElement()
     if (!el) return
     setExporting('svg')
@@ -98,6 +111,12 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   }, [getGraphElement, context])
 
   const handlePDF = useCallback(async () => {
+    trackEvent('export_triggered', {
+      format: 'pdf',
+      project_name: context.projectName,
+      dataset_name: context.datasetName,
+      type_count: context.typeCount,
+    })
     const el = getGraphElement()
     if (!el) return
     setExporting('pdf')

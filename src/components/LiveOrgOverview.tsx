@@ -17,6 +17,7 @@ import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
 import type {ProjectInfo, DatasetInfo, DiscoveredType} from '../types'
+import {identifyOrg, trackEvent} from '../lib/analytics'
 
 // ---------------------------------------------------------------------------
 // Management API helper — uses fetch() directly to avoid client's project-scoped host
@@ -278,6 +279,13 @@ function LiveOrgOverviewInner() {
       })
   }, [orgId, client])
 
+  // Identify org for analytics
+  useEffect(() => {
+    if (orgId && orgName) {
+      identifyOrg(orgId, orgName)
+    }
+  }, [orgId, orgName])
+
   const [state, dispatch] = useReducer(reducer, initialState)
 
   // Track which project IDs we've started access checks for (to avoid re-triggering)
@@ -327,6 +335,15 @@ function LiveOrgOverviewInner() {
     (projectId: string) => {
       dispatch({type: 'SELECT_PROJECT', projectId})
 
+      // Track project view
+      const proj = (projects || []).find((p: any) => p.id === projectId)
+      const cachedDatasets = datasetsRef.current.get(projectId)
+      trackEvent('project_viewed', {
+        project_id: projectId,
+        project_name: proj?.displayName || projectId,
+        dataset_count: cachedDatasets?.length ?? 0,
+      })
+
       // Don't re-fetch if already cached or currently loading
       if (datasetsRef.current.has(projectId) || datasetsLoadingRef.current.has(projectId)) {
         return
@@ -357,7 +374,7 @@ function LiveOrgOverviewInner() {
           dispatch({type: 'ERROR', key: projectId, error: err.message || 'Failed to fetch datasets'})
         })
     },
-    [client],
+    [client, projects],
   )
 
   // -----------------------------------------------------------------------
@@ -372,6 +389,21 @@ function LiveOrgOverviewInner() {
       // selectedProjectId comes from the reducer, but we need the latest value
       // The dispatch of SELECT_DATASET will update it, but we need the current one for the schema key
       if (!state.selectedProjectId) return
+
+      // Track dataset view with whatever data we have now
+      const proj = (projects || []).find((p: any) => p.id === state.selectedProjectId)
+      const cachedDatasets = datasetsRef.current.get(state.selectedProjectId) || []
+      const ds = cachedDatasets.find((d: DatasetInfo) => d.name === datasetName)
+      const schemaKey = `${state.selectedProjectId}::${datasetName}`
+      trackEvent('dataset_viewed', {
+        project_id: state.selectedProjectId,
+        project_name: proj?.displayName || state.selectedProjectId,
+        dataset_name: datasetName,
+        type_count: ds?.types?.length ?? 0,
+        document_count: ds?.totalDocuments ?? 0,
+        schema_source: ds?.schemaSource ?? null,
+      })
+
       const key = `${state.selectedProjectId}::${datasetName}`
 
       // Mark as loading if not already cached
@@ -379,7 +411,7 @@ function LiveOrgOverviewInner() {
         dispatch({type: 'SCHEMA_LOADING', key})
       }
     },
-    [state.selectedProjectId],
+    [state.selectedProjectId, projects],
   )
 
   // Auto-select 'production' dataset when datasets become available for the selected project
@@ -405,6 +437,21 @@ function LiveOrgOverviewInner() {
   const handleSchemaDiscovered = useCallback(
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred') => {
       dispatch({type: 'SCHEMA_LOADED', key, types, source})
+
+      // Track schema discovery completion
+      const [projectId, datasetName] = key.split('::')
+      const totalDocuments = types.reduce((sum, t) => sum + t.documentCount, 0)
+      const referenceCount = types.reduce((sum, t) => {
+        return sum + t.fields.filter((f) => f.type === 'reference' || f.isReference).length
+      }, 0)
+      trackEvent('schema_mapped', {
+        project_id: projectId,
+        dataset_name: datasetName,
+        type_count: types.length,
+        document_count: totalDocuments,
+        schema_source: source,
+        reference_count: referenceCount,
+      })
     },
     [],
   )
@@ -502,6 +549,20 @@ function LiveOrgOverviewInner() {
   }, [state.selectedProjectId, state.datasets, state.schemas, state.schemaSource])
 
   const isCheckingAccess = state.phase === 'checking_access'
+
+  // Track app_loaded once when access checking completes
+  const appLoadedTrackedRef = useRef(false)
+  useEffect(() => {
+    if (!isCheckingAccess && !appLoadedTrackedRef.current && orgId) {
+      appLoadedTrackedRef.current = true
+      trackEvent('app_loaded', {
+        org_id: orgId,
+        org_name: orgName,
+        project_count: accessibleProjects.length,
+        locked_project_count: lockedProjects.length,
+      })
+    }
+  }, [isCheckingAccess, orgId, orgName, accessibleProjects.length, lockedProjects.length])
 
   // Determine if we need to render schema discovery for the active selection
   const needsSchemaDiscovery =
