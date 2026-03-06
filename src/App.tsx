@@ -7,6 +7,9 @@ import {HashRouter, Routes, Route} from 'react-router-dom'
 import {LiveOrgOverview} from './components/LiveOrgOverview'
 import {NotInDashboard} from './components/NotInDashboard'
 import './styles/globals.css'
+import {initAnalytics} from './lib/analytics'
+
+initAnalytics()
 
 const theme = buildTheme()
 

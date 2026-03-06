@@ -1,7 +1,7 @@
 {
   "name": "schema-mapper",
   "private": true,
-  "version": "1.18.8",
+  "version": "1.19.3",
   "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",
@@ -28,6 +28,7 @@
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.575.0",
+    "posthog-js": "^1.359.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.0.0",
