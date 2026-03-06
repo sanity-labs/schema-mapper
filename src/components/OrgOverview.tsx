@@ -425,7 +425,7 @@ function OrgOverview({
                     <li>Document counts are exact, but the schema structure is approximate</li>
                   </ul>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    To get the most accurate schema, deploy your Studio with <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code>.
+                    To get the most accurate schema, deploy your schema with <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity schema deploy</code>. This deploys just the schema to your dataset without redeploying your Studio. Alternatively, <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code> deploys both Studio and schema together. Requires Sanity v3.88.0+.
                   </p>
                 </div>
               </div>

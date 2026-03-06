@@ -29,14 +29,30 @@ Offer to do this for the user:
 
 If the user declines, warn them that Schema Mapper probably won't work from the same root as the Studio.
 
-### 2. Choose install location
+### 2. Check Studio version
+
+Check the user's installed Sanity version:
+
+```bash
+npx sanity --version
+```
+
+Or check `package.json` for the `sanity` dependency version.
+
+Flag any issues:
+
+- **Below v3.88.0**: Deployed schema is not available. Schema Mapper will still work but will use **inferred schema** (sampling documents to guess the schema). Recommend upgrading to get accurate deployed schema support. The user can deploy their schema without redeploying their Studio by running `npx sanity schema deploy`.
+- **Below v2.28.0**: Dashboard may not work at all. Schema Mapper requires the Sanity Dashboard to run. Strongly recommend upgrading.
+- **v3.88.0+**: Full support — deployed schema and Dashboard both work.
+
+### 3. Choose install location
 
 - Check if an `apps/` directory exists in the current project
 - If yes: suggest `apps/schema-mapper` as the default location
 - If no: ask the user where they want to install it
 - Confirm the path with the user before proceeding
 
-### 2. Clone the repository
+### 4. Clone the repository
 
 ```bash
 git clone --depth 1 https://github.com/sanity-labs/schema-mapper.git <chosen-path>
@@ -44,7 +60,7 @@ rm -rf <chosen-path>/.git
 rm -rf <chosen-path>/scripts
 ```
 
-### 3. Choose Sanity project
+### 5. Choose Sanity project
 
 ```bash
 npx sanity projects list
@@ -54,7 +70,7 @@ npx sanity projects list
 - Ask the user to choose which project to use
 - If the Sanity CLI isn't available or the command fails, ask the user for their project ID manually
 
-### 4. Get organization ID
+### 6. Get organization ID
 
 ```bash
 npx sanity projects get <projectId>
@@ -64,13 +80,13 @@ npx sanity projects get <projectId>
 - If that fails, ask the user for their organization ID
 - Org IDs look like `oXxXxXxXx` (starts with `o`, alphanumeric)
 
-### 5. Configure the app
+### 7. Configure the app
 
 In `<path>/sanity.cli.ts`: replace `YOUR_PROJECT_ID` with the chosen project ID, replace `YOUR_ORG_ID` with the org ID.
 
 In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID, and replace `YOUR_ORG_ID` with the org ID.
 
-### 6. Install dependencies
+### 8. Install dependencies
 
 - Check for `pnpm-lock.yaml` → use `pnpm install`
 - Check for `yarn.lock` → use `yarn install`
@@ -78,7 +94,7 @@ In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID, a
 
 Run the install command inside the app directory.
 
-### 7. Done
+### 9. Done
 
 Tell the user: "Schema Mapper is installed. Run `npx sanity dev` from `<path>` to start. Then open your Sanity dashboard in the browser — the app runs inside the dashboard as a local app, not directly at localhost."
 
