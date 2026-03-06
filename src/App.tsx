@@ -27,14 +27,26 @@ function LoadingScreen() {
 }
 
 function NotInDashboard() {
+  // Try to construct a direct dashboard link using the configured project ID
+  const projectId = config[0]?.projectId
+  const dashboardUrl = projectId && projectId !== 'YOUR_PROJECT_ID'
+    ? `https://www.sanity.io/manage/project/${projectId}`
+    : 'https://www.sanity.io/manage'
+
   return (
     <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-lg mx-auto px-6 text-center">
       <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" />Schema Mapper</h1>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        This app runs inside the <a href="https://www.sanity.io/docs/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 font-semibold">Sanity Dashboard</a>. Open your dashboard at{' '}
-        <a href="https://www.sanity.io/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">sanity.io/manage</a>{' '}
-        and launch Schema Mapper from there.
+        This app runs inside the <a href="https://www.sanity.io/docs/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 font-semibold">Sanity Dashboard</a>.
       </p>
+      <a
+        href={dashboardUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-black text-white text-sm font-medium hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors"
+      >
+        Open Dashboard →
+      </a>
       <p className="text-xs text-muted-foreground/60">
         The dashboard provides authentication and organization context that Schema Mapper needs to discover your projects and schemas.
       </p>
