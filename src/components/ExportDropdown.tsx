@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import { GrDownload } from 'react-icons/gr'
+import { GoStarFill } from 'react-icons/go'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 import {trackEvent} from '../lib/analytics'
 
@@ -321,9 +322,9 @@ export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdo
               <div className="px-2 py-1.5">
                 <button
                   onClick={() => { setOpen(false) }}
-                  className="w-full text-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                 >
-                  Send to Sanity →
+                  <GoStarFill /> Send to Sanity →
                 </button>
               </div>
             </>
