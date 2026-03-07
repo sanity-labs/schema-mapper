@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import { GrDownload } from 'react-icons/gr'
 import { GoStarFill } from 'react-icons/go'
+import { version as appVersion } from '../../package.json'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 import type { DiscoveredType } from './types'
 import {trackEvent} from '../lib/analytics'
@@ -336,6 +337,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
 
       const payload = {
         version: 1,
+        appVersion,
         exportedAt: new Date().toISOString(),
         org: context.orgId ? { id: context.orgId, name: context.orgName, isEnterprise: !!isEnterprise } : undefined,
         project: { id: context.projectId, name: context.projectName },
