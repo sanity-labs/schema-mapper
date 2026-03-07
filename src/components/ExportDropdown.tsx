@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import { GrDownload } from 'react-icons/gr'
 import { GoStarFill } from 'react-icons/go'
+import { SendToSanityDialog } from './SendToSanityDialog'
 import { version as appVersion } from '../../package.json'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 
@@ -31,6 +32,7 @@ interface ExportDropdownProps {
 export function ExportDropdown({ graphRef, context, types, isEnterprise }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
+  const [showSendDialog, setShowSendDialog] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -377,7 +379,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     }
   }, [types, context, graphRef])
 
-  const handleSendToSanity = useCallback(async () => {
+  const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
     trackEvent('export_triggered', {
       format: 'send_to_sanity',
       project_id: context.projectId,
@@ -385,7 +387,6 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
       dataset_name: context.datasetName,
       type_count: context.typeCount,
     })
-    setExporting('send')
     try {
       // Gather display settings
       const displaySettings: Record<string, unknown> = {}
@@ -432,14 +433,12 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        console.error('Send to Sanity failed:', data)
-        return
+        return { success: false, error: data.error || 'Upload failed', status: res.status }
       }
+
+      return { success: true }
     } catch (err) {
-      console.error('Send to Sanity error:', err)
-    } finally {
-      setExporting(null)
-      setOpen(false)
+      return { success: false, error: 'Network error — please check your connection and try again.' }
     }
   }, [types, context, appVersion])
 
@@ -489,11 +488,10 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
               <div className="my-1 border-t border-gray-100" />
               <div className="px-2 py-1.5">
                 <button
-                  onClick={handleSendToSanity}
-                  disabled={!!exporting}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
+                  onClick={() => { setOpen(false); setShowSendDialog(true) }}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                 >
-                  <GoStarFill /> {exporting === 'send' ? 'Sending…' : 'Send to Sanity →'}
+                  <GoStarFill /> Send to Sanity →
                 </button>
               </div>
             </>
@@ -501,5 +499,18 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         </div>
       )}
     </div>
+    <SendToSanityDialog
+      open={showSendDialog}
+      onClose={() => setShowSendDialog(false)}
+      onSend={handleSendToSanity}
+      context={{
+        orgName: context.orgName,
+        projectName: context.projectName,
+        datasetName: context.datasetName,
+        typeCount: context.typeCount,
+        totalDocuments: context.totalDocuments,
+        schemaSource: context.schemaSource,
+      }}
+    />
   )
 }
