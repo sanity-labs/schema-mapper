@@ -349,6 +349,7 @@ function OrgOverview({
                   <span className="flex-1" />
                   <ExportDropdown
                     graphRef={graphRef}
+                    isEnterprise={isEnterprise}
                     context={{
                       projectName: selectedProject.displayName,
                       projectId: selectedProject.id,

@@ -19,9 +19,10 @@ export interface ExportContext {
 interface ExportDropdownProps {
   graphRef: React.RefObject<HTMLDivElement | null>
   context: ExportContext
+  isEnterprise?: boolean
 }
 
-export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
+export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -314,6 +315,17 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
           >
             {exporting === 'svg' ? 'Exporting…' : 'SVG'}
           </button>
+          {isEnterprise && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                onClick={() => { setOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-sm mx-0 transition-colors"
+              >
+                Send to Sanity →
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
