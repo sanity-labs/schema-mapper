@@ -381,7 +381,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
 
   const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
     trackEvent('export_triggered', {
-      format: 'send_to_sanity',
+      format: 'schema_sent_to_sanity',
       project_id: context.projectId,
       project_name: context.projectName,
       dataset_name: context.datasetName,
