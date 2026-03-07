@@ -292,7 +292,7 @@ export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdo
         Export
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-md py-1 min-w-[120px] border border-gray-200">
+        <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-md py-1 min-w-[160px] border border-gray-200">
           <button
             onClick={handlePDF}
             disabled={!!exporting}
@@ -318,12 +318,14 @@ export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdo
           {isEnterprise && (
             <>
               <div className="my-1 border-t border-gray-100" />
-              <button
-                onClick={() => { setOpen(false) }}
-                className="w-full text-left px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-sm mx-0 transition-colors"
-              >
-                Send to Sanity →
-              </button>
+              <div className="px-2 py-1.5">
+                <button
+                  onClick={() => { setOpen(false) }}
+                  className="w-full text-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                >
+                  Send to Sanity →
+                </button>
+              </div>
             </>
           )}
         </div>
