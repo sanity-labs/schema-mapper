@@ -88,6 +88,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         onClickOutside={handleClickOutside}
         open={open}
         width={1}
+        animate
       >
       <Box padding={4}>
         {state === 'success' ? (
