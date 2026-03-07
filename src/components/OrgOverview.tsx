@@ -399,7 +399,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="schema-info-dialog"
-          header="Schema sources"
+          header={<span className="text-lg font-normal">Schema sources</span>}
           onClose={() => setShowSchemaInfoDialog(false)}
           onClickOutside={() => setShowSchemaInfoDialog(false)}
           width={1}
@@ -452,7 +452,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="acl-info-dialog"
-          header="Dataset access mode"
+          header={<span className="text-lg font-normal">Dataset access mode</span>}
           onClose={() => setShowAclDialog(false)}
           onClickOutside={() => setShowAclDialog(false)}
           width={1}
@@ -496,7 +496,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="locked-projects-dialog"
-          header="Projects with no access"
+          header={<span className="text-lg font-normal">Projects with no access</span>}
           onClose={() => setShowLockedDialog(false)}
           onClickOutside={() => setShowLockedDialog(false)}
           width={1}
