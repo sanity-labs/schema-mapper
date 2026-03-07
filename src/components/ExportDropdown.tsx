@@ -443,6 +443,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
   }, [types, context, appVersion])
 
   return (
+    <>
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
@@ -499,7 +500,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         </div>
       )}
     </div>
-    <SendToSanityDialog
+    {showSendDialog && <SendToSanityDialog
       open={showSendDialog}
       onClose={() => setShowSendDialog(false)}
       onSend={handleSendToSanity}
@@ -511,6 +512,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         totalDocuments: context.totalDocuments,
         schemaSource: context.schemaSource,
       }}
-    />
+    />}
+    </>
   )
 }
