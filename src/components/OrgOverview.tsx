@@ -350,6 +350,7 @@ function OrgOverview({
                   <ExportDropdown
                     graphRef={graphRef}
                     isEnterprise={isEnterprise}
+                    types={effectiveTypes}
                     context={{
                       projectName: selectedProject.displayName,
                       projectId: selectedProject.id,

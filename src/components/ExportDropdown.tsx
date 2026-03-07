@@ -3,6 +3,7 @@ import { toPng, toSvg } from 'html-to-image'
 import { GrDownload } from 'react-icons/gr'
 import { GoStarFill } from 'react-icons/go'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
+import type { DiscoveredType } from './types'
 import {trackEvent} from '../lib/analytics'
 
 export interface ExportContext {
@@ -20,10 +21,11 @@ export interface ExportContext {
 interface ExportDropdownProps {
   graphRef: React.RefObject<HTMLDivElement | null>
   context: ExportContext
+  types?: DiscoveredType[]
   isEnterprise?: boolean
 }
 
-export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdownProps) {
+export function ExportDropdown({ graphRef, context, types, isEnterprise }: ExportDropdownProps) {
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -283,6 +285,94 @@ export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdo
     }
   }, [getGraphElement, context])
 
+  const handleJSON = useCallback(async () => {
+    trackEvent('export_triggered', {
+      format: 'json',
+      project_id: context.projectId,
+      project_name: context.projectName,
+      dataset_name: context.datasetName,
+      type_count: context.typeCount,
+    })
+    setExporting('json')
+    try {
+      // Gather display settings from localStorage
+      const displaySettings: Record<string, unknown> = {}
+      try {
+        const layout = localStorage.getItem('schema-mapper:layoutType')
+        if (layout) displaySettings.layout = layout
+        const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
+        if (edgeStyle) displaySettings.edgeStyle = edgeStyle
+        const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
+        if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
+      } catch {}
+
+      // Grab node positions from DOM (same approach as PDF export)
+      const graphState: { nodes: any[], viewport?: any } = { nodes: [] }
+      const flowEl = graphRef.current?.querySelector('.react-flow')
+      if (flowEl) {
+        const viewport = flowEl.querySelector('.react-flow__viewport')
+        if (viewport) {
+          const transform = viewport.getAttribute('style') || ''
+          const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/)
+          if (match) {
+            graphState.viewport = { x: parseFloat(match[1]), y: parseFloat(match[2]), zoom: parseFloat(match[3]) }
+          }
+        }
+        flowEl.querySelectorAll('.react-flow__node').forEach((node: Element) => {
+          const id = node.getAttribute('data-id')
+          const el = node as HTMLElement
+          const transform = el.style.transform || ''
+          const match = transform.match(/translate\(([^p]+)px,\s*([^p]+)px\)/)
+          if (id && match) {
+            graphState.nodes.push({
+              id,
+              position: { x: parseFloat(match[1]), y: parseFloat(match[2]) },
+              width: el.offsetWidth,
+              height: el.offsetHeight,
+            })
+          }
+        })
+      }
+
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        org: context.orgId ? { id: context.orgId, name: context.orgName } : undefined,
+        project: { id: context.projectId, name: context.projectName },
+        dataset: {
+          name: context.datasetName,
+          aclMode: context.aclMode,
+          totalDocuments: context.totalDocuments,
+          schemaSource: context.schemaSource,
+        },
+        types: (types || []).map(t => ({
+          name: t.name,
+          documentCount: t.documentCount,
+          fields: t.fields.map(f => ({
+            name: f.name,
+            type: f.type,
+            ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
+            ...(f.isArray ? { isArray: true } : {}),
+            ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
+          })),
+        })),
+        displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+        graphState: graphState.nodes.length > 0 ? graphState : undefined,
+      }
+      const json = JSON.stringify(payload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `schema-${context.projectName}-${context.datasetName}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(null)
+      setOpen(false)
+    }
+  }, [types, context, graphRef])
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -315,6 +405,14 @@ export function ExportDropdown({ graphRef, context, isEnterprise }: ExportDropdo
             className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {exporting === 'svg' ? 'Exporting…' : 'SVG'}
+          </button>
+          <div className="my-1 border-t border-gray-100" />
+          <button
+            onClick={handleJSON}
+            disabled={!!exporting}
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {exporting === 'json' ? 'Exporting…' : 'JSON'}
           </button>
           {isEnterprise && (
             <>
