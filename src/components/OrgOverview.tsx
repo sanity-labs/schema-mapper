@@ -393,7 +393,7 @@ function OrgOverview({
       {/* ---- Schema Info Dialog ---- */}
       {showSchemaInfoDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowSchemaInfoDialog(false)} />
+        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowSchemaInfoDialog(false)} />
         <Dialog
           id="schema-info-dialog"
           header="Schema sources"
@@ -444,7 +444,7 @@ function OrgOverview({
       {/* ---- ACL Mode Info Dialog ---- */}
       {showAclDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowAclDialog(false)} />
+        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowAclDialog(false)} />
         <Dialog
           id="acl-info-dialog"
           header="Dataset access mode"
@@ -486,7 +486,7 @@ function OrgOverview({
       {/* ---- Locked Projects Dialog ---- */}
       {showLockedDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowLockedDialog(false)} />
+        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowLockedDialog(false)} />
         <Dialog
           id="locked-projects-dialog"
           header="Projects with no access"

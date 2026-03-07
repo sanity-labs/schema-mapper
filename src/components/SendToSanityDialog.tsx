@@ -74,16 +74,25 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         ? 'Inferred from content'
         : 'Unknown'
 
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    // Only close if clicking the backdrop itself, not the dialog card
+    if (e.target === e.currentTarget && state !== 'sending') {
+      onClose()
+    }
+  }, [onClose, state])
+
   return (
-    <>
-      <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={state === 'sending' ? undefined : onClose} />
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-[2px] bg-black/20"
+      onClick={handleBackdropClick}
+    >
       <Dialog
         id="send-to-sanity-dialog"
         header="Share your schema with Sanity"
         onClose={onClose}
         open={open}
         width={1}
-        zOffset={100}
+        zOffset={201}
       >
       <Box padding={4}>
         {state === 'success' ? (
@@ -221,6 +230,6 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         )}
       </Box>
     </Dialog>
-    </>
+    </div>
   )
 }
