@@ -90,7 +90,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         width={1}
         animate
       >
-      <Box padding={4} paddingTop={0} marginTop={-2}>
+      <Box padding={4} paddingTop={0}>
         {state === 'success' ? (
           <Stack space={4}>
             <Flex align="center" gap={3} justify="center" padding={5}>
