@@ -163,28 +163,7 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
 
-  // Click outside to close dialogs
-  useEffect(() => {
-    const anyOpen = showLockedDialog || showSchemaInfoDialog || showAclDialog
-    if (!anyOpen) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      const dialogEl = document.querySelector('[data-ui="Dialog"]')
-      const cardEl = dialogEl?.querySelector('[data-ui="DialogCard"]') || dialogEl?.querySelector('[data-ui="Card"]')
-      if (dialogEl && cardEl && !cardEl.contains(target)) {
-        setShowLockedDialog(false)
-        setShowSchemaInfoDialog(false)
-        setShowAclDialog(false)
-      }
-    }
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handler)
-    }, 100)
-    return () => {
-      clearTimeout(timer)
-      document.removeEventListener('mousedown', handler)
-    }
-  }, [showLockedDialog, showSchemaInfoDialog, showAclDialog])
+
 
   // ---- Derived state ----
   const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null
@@ -421,6 +400,7 @@ function OrgOverview({
           id="schema-info-dialog"
           header="Schema sources"
           onClose={() => setShowSchemaInfoDialog(false)}
+          onClickOutside={() => setShowSchemaInfoDialog(false)}
           width={1}
           animate
         >
@@ -472,6 +452,7 @@ function OrgOverview({
           id="acl-info-dialog"
           header="Dataset access mode"
           onClose={() => setShowAclDialog(false)}
+          onClickOutside={() => setShowAclDialog(false)}
           width={1}
           animate
         >
@@ -514,6 +495,7 @@ function OrgOverview({
           id="locked-projects-dialog"
           header="Projects with no access"
           onClose={() => setShowLockedDialog(false)}
+          onClickOutside={() => setShowLockedDialog(false)}
           width={1}
           animate
         >

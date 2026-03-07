@@ -74,28 +74,9 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         ? 'Inferred from content'
         : 'Unknown'
 
-  // Close on click outside the dialog card
-  useEffect(() => {
-    if (!open || state === 'sending') return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      // Sanity UI Dialog renders a [data-ui="Dialog"] with a card inside
-      // If click is on the dialog overlay (not the card), close
-      const dialogEl = document.querySelector('[data-ui="Dialog"]')
-      const cardEl = dialogEl?.querySelector('[data-ui="DialogCard"]') || dialogEl?.querySelector('[data-ui="Card"]')
-      if (dialogEl && cardEl && !cardEl.contains(target)) {
-        onClose()
-      }
-    }
-    // Use timeout to avoid closing immediately from the button click that opened it
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handler)
-    }, 100)
-    return () => {
-      clearTimeout(timer)
-      document.removeEventListener('mousedown', handler)
-    }
-  }, [open, state, onClose])
+  const handleClickOutside = useCallback(() => {
+    if (state !== 'sending') onClose()
+  }, [state, onClose])
 
   return (
     <>
@@ -103,6 +84,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         id="send-to-sanity-dialog"
         header="Share your schema with Sanity"
         onClose={onClose}
+        onClickOutside={handleClickOutside}
         open={open}
         width={1}
       >

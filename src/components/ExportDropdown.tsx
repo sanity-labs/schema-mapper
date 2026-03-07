@@ -447,46 +447,46 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md hover:bg-gray-100 transition-colors"
       >
         <GrDownload />
         Export
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-md py-1 min-w-[160px] border border-gray-200">
+        <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 rounded-md py-1 min-w-[160px] border border-gray-200 dark:border-gray-700">
           <button
             onClick={handlePDF}
             disabled={!!exporting}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {exporting === 'pdf' ? 'Exporting…' : 'PDF (vector)'}
           </button>
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
           <button
             onClick={handlePNG}
             disabled={!!exporting}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {exporting === 'png' ? 'Exporting…' : 'PNG'}
           </button>
           <button
             onClick={handleSVG}
             disabled={!!exporting}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {exporting === 'svg' ? 'Exporting…' : 'SVG'}
           </button>
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
           <button
             onClick={handleJSON}
             disabled={!!exporting}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             {exporting === 'json' ? 'Exporting…' : 'JSON'}
           </button>
           {isEnterprise && (
             <>
-              <div className="my-1 border-t border-gray-100" />
+              <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
               <div className="px-2 py-1.5">
                 <button
                   onClick={() => { setOpen(false); setShowSendDialog(true) }}
