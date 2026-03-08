@@ -399,6 +399,26 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
       } catch {}
 
+      // Extract node positions from the graph
+      const nodePositions: Record<string, { x: number; y: number }> = {}
+      try {
+        const graphEl = graphRef.current
+        if (graphEl) {
+          const nodeEls = graphEl.querySelectorAll('.react-flow__node')
+          nodeEls.forEach((el: Element) => {
+            const htmlEl = el as HTMLElement
+            const nodeId = htmlEl.getAttribute('data-id')
+            if (nodeId) {
+              const transform = htmlEl.style.transform
+              const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+              if (match) {
+                nodePositions[nodeId] = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+              }
+            }
+          })
+        }
+      } catch {}
+
       const payload = {
         version: 1,
         appVersion,
@@ -423,6 +443,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
           })),
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+        nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
       }
 
       const res = await fetch(`${WORKER_URL}/submit`, {
