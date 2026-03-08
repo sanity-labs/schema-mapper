@@ -176,6 +176,11 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
               document content is shared.</strong> Please ensure you're comfortable sharing this information.
             </Text>
 
+            {/* Layout tip */}
+            <Text size={0} muted>
+              💡 Your current graph layout and line style will be included. If you've arranged the boxes to highlight specific relationships, we'll see it exactly as you've laid it out.
+            </Text>
+
             {/* Error state */}
             {state === 'error' && (
               <Flex
