@@ -108,7 +108,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
             {/* Explanation */}
             <Text size={1} muted>
               Sharing your schema map helps your Sanity team understand your content architecture and
-              provide better support and guidance.
+              provide better support and guidance. If you've arranged the boxes to highlight specific relationships, they'll see it exactly as you've laid it out.
             </Text>
 
             {/* What will be sent summary */}
@@ -176,10 +176,6 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
               document content is shared.</strong> Please ensure you're comfortable sharing this information.
             </Text>
 
-            {/* Layout tip */}
-            <Text size={0} muted>
-              💡 Your current graph layout and line style will be included. If you've arranged the boxes to highlight specific relationships, we'll see it exactly as you've laid it out.
-            </Text>
 
             {/* Error state */}
             {state === 'error' && (
