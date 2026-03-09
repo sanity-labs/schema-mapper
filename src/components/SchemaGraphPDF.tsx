@@ -397,8 +397,45 @@ function PDFNode({ node }: { node: PDFNodeData }) {
 // PDF Edge component
 // ---------------------------------------------------------------------------
 
+const LABEL_FONT_SIZE = 7
+const LABEL_PAD_H = 4
+const LABEL_PAD_V = 2
+
+/** Estimate midpoint of an SVG path by parsing M and the first curve/line command */
+function getPathMidpoint(d: string): { x: number; y: number } | null {
+  // Extract all numbers from the path
+  const nums = d.match(/-?\d+\.?\d*/g)?.map(Number)
+  if (!nums || nums.length < 4) return null
+
+  // Start point (M x y)
+  const sx = nums[0]
+  const sy = nums[1]
+
+  // For bezier (C): control points + end, midpoint ≈ point at t=0.5
+  if (d.includes('C') || d.includes('c')) {
+    if (nums.length >= 8) {
+      // Cubic bezier: M sx sy C cx1 cy1 cx2 cy2 ex ey
+      const cx1 = nums[2], cy1 = nums[3]
+      const cx2 = nums[4], cy2 = nums[5]
+      const ex = nums[6], ey = nums[7]
+      const t = 0.5
+      const mt = 1 - t
+      const x = mt*mt*mt*sx + 3*mt*mt*t*cx1 + 3*mt*t*t*cx2 + t*t*t*ex
+      const y = mt*mt*mt*sy + 3*mt*mt*t*cy1 + 3*mt*t*t*cy2 + t*t*t*ey
+      return { x, y }
+    }
+  }
+
+  // For step/straight (L): find the midpoint of the overall path
+  // Use average of first and last point
+  const ex = nums[nums.length - 2]
+  const ey = nums[nums.length - 1]
+  return { x: (sx + ex) / 2, y: (sy + ey) / 2 }
+}
+
 function PDFEdge({ edge }: { edge: PDFEdgeData }) {
   const arrowPoints = getArrowPoints(edge.path, 8)
+  const labelMid = edge.label ? getPathMidpoint(edge.path) : null
 
   return (
     <G>
@@ -412,6 +449,33 @@ function PDFEdge({ edge }: { edge: PDFEdgeData }) {
       {arrowPoints && (
         <Polygon points={arrowPoints} fill={edge.color} stroke="none" />
       )}
+      {edge.label && labelMid && (() => {
+        const labelW = estimateTextWidth(edge.label, LABEL_FONT_SIZE) + LABEL_PAD_H * 2
+        const labelH = LABEL_FONT_SIZE + LABEL_PAD_V * 2
+        return (
+          <G>
+            <Rect
+              x={labelMid.x - labelW / 2}
+              y={labelMid.y - labelH / 2}
+              width={labelW}
+              height={labelH}
+              rx={3}
+              fill="#f8fafc"
+              stroke="#e2e8f0"
+              strokeWidth={0.5}
+            />
+            <Text
+              x={labelMid.x}
+              y={labelMid.y + LABEL_FONT_SIZE * 0.35}
+              fill="#64748b"
+              fontSize={LABEL_FONT_SIZE}
+              textAnchor="middle"
+            >
+              {edge.label}
+            </Text>
+          </G>
+        )
+      })()}
     </G>
   )
 }

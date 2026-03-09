@@ -54,6 +54,77 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     return graphRef.current.querySelector('.react-flow') as HTMLElement | null
   }, [graphRef])
 
+  // Temporarily fit the viewport to show all nodes, run a capture function, then restore
+  const captureFullGraph = useCallback(async <T,>(captureFn: (el: HTMLElement) => Promise<T>): Promise<T | null> => {
+    const el = getGraphElement()
+    if (!el) return null
+
+    const viewport = el.querySelector('.react-flow__viewport') as HTMLElement | null
+    if (!viewport) return captureFn(el)
+
+    // Save current transform
+    const originalTransform = viewport.style.transform
+
+    // Calculate bounds of all nodes
+    const nodeEls = el.querySelectorAll('.react-flow__node')
+    if (nodeEls.length === 0) return captureFn(el)
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    nodeEls.forEach((node) => {
+      const htmlNode = node as HTMLElement
+      const transform = htmlNode.style.transform
+      const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+      if (match) {
+        const x = parseFloat(match[1])
+        const y = parseFloat(match[2])
+        const w = htmlNode.offsetWidth
+        const h = htmlNode.offsetHeight
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x + w)
+        maxY = Math.max(maxY, y + h)
+      }
+    })
+
+    if (!isFinite(minX)) return captureFn(el)
+
+    const graphWidth = maxX - minX
+    const graphHeight = maxY - minY
+    const containerWidth = el.clientWidth
+    const containerHeight = el.clientHeight
+    const padding = 40
+
+    // Calculate scale to fit
+    const scaleX = containerWidth / (graphWidth + padding * 2)
+    const scaleY = containerHeight / (graphHeight + padding * 2)
+    const scale = Math.min(scaleX, scaleY, 1) // don't zoom in past 1x
+
+    // Calculate translation to center
+    const translateX = (containerWidth - graphWidth * scale) / 2 - minX * scale
+    const translateY = (containerHeight - graphHeight * scale) / 2 - minY * scale
+
+    // Apply fitted transform
+    viewport.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
+
+    // Wait for repaint
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    try {
+      return await captureFn(el)
+    } finally {
+      // Restore original viewport
+      viewport.style.transform = originalTransform
+    }
+  }, [getGraphElement])
+
+  const exportFilter = (node: Element) => {
+    const cls = (node as HTMLElement).className?.toString?.() || ''
+    if (cls.includes('react-flow__controls')) return false
+    if (cls.includes('react-flow__minimap')) return false
+    if (cls.includes('react-flow__background')) return false
+    return true
+  }
+
   const handlePNG = useCallback(async () => {
     trackEvent('export_triggered', {
       format: 'png',
@@ -62,32 +133,28 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
       dataset_name: context.datasetName,
       type_count: context.typeCount,
     })
-    const el = getGraphElement()
-    if (!el) return
     setExporting('png')
     try {
-      const dataUrl = await toPng(el, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-        filter: (node) => {
-          // Hide controls/minimap from export
-          const cls = node.className?.toString?.() || ''
-          if (cls.includes('react-flow__controls')) return false
-          if (cls.includes('react-flow__minimap')) return false
-          return true
-        },
-      })
-      const link = document.createElement('a')
-      link.download = `schema-${context.projectName}-${context.datasetName}.png`
-      link.href = dataUrl
-      link.click()
+      const dataUrl = await captureFullGraph((el) =>
+        toPng(el, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          filter: exportFilter,
+        })
+      )
+      if (dataUrl) {
+        const link = document.createElement('a')
+        link.download = `schema-${context.projectName}-${context.datasetName}.png`
+        link.href = dataUrl
+        link.click()
+      }
     } catch (err) {
       console.error('PNG export failed:', err)
     } finally {
       setExporting(null)
       setOpen(false)
     }
-  }, [getGraphElement, context])
+  }, [captureFullGraph, context])
 
   const handleSVG = useCallback(async () => {
     trackEvent('export_triggered', {
@@ -97,23 +164,20 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
       dataset_name: context.datasetName,
       type_count: context.typeCount,
     })
-    const el = getGraphElement()
-    if (!el) return
     setExporting('svg')
     try {
-      const dataUrl = await toSvg(el, {
-        backgroundColor: '#ffffff',
-        filter: (node) => {
-          const cls = node.className?.toString?.() || ''
-          if (cls.includes('react-flow__controls')) return false
-          if (cls.includes('react-flow__minimap')) return false
-          return true
-        },
-      })
-      const link = document.createElement('a')
-      link.download = `schema-${context.projectName}-${context.datasetName}.svg`
-      link.href = dataUrl
-      link.click()
+      const dataUrl = await captureFullGraph((el) =>
+        toSvg(el, {
+          backgroundColor: '#ffffff',
+          filter: exportFilter,
+        })
+      )
+      if (dataUrl) {
+        const link = document.createElement('a')
+        link.download = `schema-${context.projectName}-${context.datasetName}.svg`
+        link.href = dataUrl
+        link.click()
+      }
     } catch (err) {
       console.error('SVG export failed:', err)
     } finally {
