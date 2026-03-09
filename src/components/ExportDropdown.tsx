@@ -312,39 +312,31 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
       } catch {}
 
-      // Grab node positions from DOM (same approach as PDF export)
-      const graphState: { nodes: any[], viewport?: any } = { nodes: [] }
-      const flowEl = graphRef.current?.querySelector('.react-flow')
-      if (flowEl) {
-        const viewport = flowEl.querySelector('.react-flow__viewport')
-        if (viewport) {
-          const transform = viewport.getAttribute('style') || ''
-          const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/)
-          if (match) {
-            graphState.viewport = { x: parseFloat(match[1]), y: parseFloat(match[2]), zoom: parseFloat(match[3]) }
-          }
+      // Extract node positions from the graph (same format as Send to Sanity)
+      const nodePositions: Record<string, { x: number; y: number }> = {}
+      try {
+        const graphEl = graphRef.current
+        if (graphEl) {
+          const nodeEls = graphEl.querySelectorAll('.react-flow__node')
+          nodeEls.forEach((el: Element) => {
+            const htmlEl = el as HTMLElement
+            const nodeId = htmlEl.getAttribute('data-id')
+            if (nodeId) {
+              const transform = htmlEl.style.transform
+              const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+              if (match) {
+                nodePositions[nodeId] = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+              }
+            }
+          })
         }
-        flowEl.querySelectorAll('.react-flow__node').forEach((node: Element) => {
-          const id = node.getAttribute('data-id')
-          const el = node as HTMLElement
-          const transform = el.style.transform || ''
-          const match = transform.match(/translate\(([^p]+)px,\s*([^p]+)px\)/)
-          if (id && match) {
-            graphState.nodes.push({
-              id,
-              position: { x: parseFloat(match[1]), y: parseFloat(match[2]) },
-              width: el.offsetWidth,
-              height: el.offsetHeight,
-            })
-          }
-        })
-      }
+      } catch {}
 
       const payload = {
         version: 1,
         appVersion,
         exportedAt: new Date().toISOString(),
-        org: context.orgId ? { id: context.orgId, name: context.orgName, isEnterprise: !!isEnterprise } : undefined,
+        org: context.orgId ? { id: context.orgId, name: context.orgName, isEnterprise: true } : undefined,
         project: { id: context.projectId, name: context.projectName },
         dataset: {
           name: context.datasetName,
@@ -365,7 +357,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
           })),
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
-        graphState: graphState.nodes.length > 0 ? graphState : undefined,
+        nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
       }
       const json = JSON.stringify(payload, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
