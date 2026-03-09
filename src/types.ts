@@ -1,19 +1,5 @@
-export type DiscoveredField = {
-  name: string
-  title?: string
-  type: 'string' | 'number' | 'boolean' | 'text' | 'url' | 'datetime' | 'image' | 'reference' | 'array' | 'object' | 'block' | 'slug' | 'unknown'
-  isReference?: boolean
-  referenceTo?: string
-  isArray?: boolean
-  isInlineObject?: boolean
-}
-
-export type DiscoveredType = {
-  name: string
-  title?: string
-  documentCount: number
-  fields: DiscoveredField[]
-}
+export type { DiscoveredField, DiscoveredType } from '@sanity-labs/schema-mapper-core'
+import type { DiscoveredType } from '@sanity-labs/schema-mapper-core'
 
 export type DeployedSchemaEntry = {
   id: string           // _id from API
@@ -42,4 +28,3 @@ export type ProjectInfo = {
   isProjectLoading?: boolean
   datasets: DatasetInfo[]
 }
-

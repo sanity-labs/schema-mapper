@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@sanity-labs/schema-mapper-core';
 import type { ProjectInfo } from './types';
 
 // --- Component ---

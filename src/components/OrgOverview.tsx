@@ -5,11 +5,12 @@ import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Badge, SchemaGraph, ExportDropdown } from '@sanity-labs/schema-mapper-core'
+import type { ExportContext, ExportMenuItem } from '@sanity-labs/schema-mapper-core'
 import { Skeleton } from '@/components/ui/skeleton'
-import { SchemaGraph } from './SchemaGraph'
-import { ExportDropdown } from './ExportDropdown'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
+import { SendToSanityDialog } from './SendToSanityDialog'
+import { trackEvent } from '../lib/analytics'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
@@ -169,6 +170,7 @@ function OrgOverview({
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
+  const [showSendDialog, setShowSendDialog] = useState(false)
 
 
 
@@ -195,6 +197,116 @@ function OrgOverview({
   const selectedWorkspaceName = showSchemaRow && selectedSchemaId
     ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
     : undefined
+
+  // ---- Send to Sanity handler (enterprise only) ----
+  const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
+    trackEvent('export_triggered', {
+      format: 'schema_sent_to_sanity',
+      project_id: selectedProject?.id,
+      project_name: selectedProject?.displayName,
+      dataset_name: selectedDatasetName,
+      type_count: effectiveTypes?.length ?? 0,
+    })
+    try {
+      // Gather display settings
+      const displaySettings: Record<string, unknown> = {}
+      try {
+        const layout = localStorage.getItem('schema-mapper:layoutType')
+        if (layout) displaySettings.layout = layout
+        const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
+        if (edgeStyle) displaySettings.edgeStyle = edgeStyle
+        const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
+        if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
+      } catch {}
+
+      // Extract node positions from the graph
+      const nodePositions: Record<string, { x: number; y: number }> = {}
+      try {
+        const graphEl = graphRef.current
+        if (graphEl) {
+          const nodeEls = graphEl.querySelectorAll('.react-flow__node')
+          nodeEls.forEach((el: Element) => {
+            const htmlEl = el as HTMLElement
+            const nodeId = htmlEl.getAttribute('data-id')
+            if (nodeId) {
+              const transform = htmlEl.style.transform
+              const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+              if (match) {
+                nodePositions[nodeId] = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+              }
+            }
+          })
+        }
+      } catch {}
+
+      const exportCtx = {
+        projectName: selectedProject?.displayName ?? '',
+        projectId: selectedProject?.id ?? '',
+        datasetName: selectedDatasetName ?? '',
+        aclMode: selectedDataset?.aclMode ?? '',
+        totalDocuments: selectedDataset?.totalDocuments ?? 0,
+        schemaSource: effectiveSource,
+        orgId: orgId,
+        orgName: orgName,
+        workspaceName: selectedWorkspaceName,
+      }
+
+      const payload = {
+        version: 1,
+        appVersion: version,
+        exportedAt: new Date().toISOString(),
+        org: exportCtx.orgId ? { id: exportCtx.orgId, name: exportCtx.orgName, isEnterprise: true } : undefined,
+        project: { id: exportCtx.projectId, name: exportCtx.projectName },
+        dataset: {
+          name: exportCtx.datasetName,
+          aclMode: exportCtx.aclMode,
+          totalDocuments: exportCtx.totalDocuments,
+          schemaSource: exportCtx.schemaSource,
+        },
+        workspace: exportCtx.workspaceName && exportCtx.workspaceName !== 'default' ? exportCtx.workspaceName : undefined,
+        types: (effectiveTypes || []).map(t => ({
+          name: t.name,
+          ...(t.title ? { title: t.title } : {}),
+          documentCount: t.documentCount,
+          fields: t.fields.map(f => ({
+            name: f.name,
+            ...(f.title ? { title: f.title } : {}),
+            type: f.type,
+            ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
+            ...(f.isArray ? { isArray: true } : {}),
+            ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
+          })),
+        })),
+        displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+        nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
+      }
+
+      const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'
+      const res = await fetch(`${WORKER_URL}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        return { success: false, error: data.error || 'Upload failed', status: res.status }
+      }
+
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: 'Network error — please check your connection and try again.' }
+    }
+  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef])
+
+  // ---- Export menu items (enterprise Send to Sanity) ----
+  const exportMenuItems: ExportMenuItem[] | undefined = isEnterprise ? [{
+    key: 'send-to-sanity',
+    label: <><GoStarFill /> Send to Sanity →</>,
+    onClick: () => setShowSendDialog(true),
+    className: 'w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors',
+    dividerBefore: true,
+  }] : undefined
 
   return (
     <div className="flex flex-col h-screen px-6">
@@ -383,7 +495,14 @@ function OrgOverview({
                   <span className="flex-1" />
                   <ExportDropdown
                     graphRef={graphRef}
-                    isEnterprise={isEnterprise}
+                    extraMenuItems={exportMenuItems}
+                    onExport={(format) => trackEvent('export_triggered', {
+                      format,
+                      project_id: selectedProject.id,
+                      project_name: selectedProject.displayName,
+                      dataset_name: selectedDataset.name,
+                      type_count: effectiveTypes.length,
+                    })}
                     types={effectiveTypes}
                     context={{
                       projectName: selectedProject.displayName,
@@ -555,6 +674,24 @@ function OrgOverview({
           </Box>
         </Dialog>
         </>
+      )}
+
+      {/* ---- Send to Sanity Dialog (enterprise) ---- */}
+      {showSendDialog && selectedProject && selectedDataset && (
+        <SendToSanityDialog
+          open={showSendDialog}
+          onClose={() => setShowSendDialog(false)}
+          onSend={handleSendToSanity}
+          context={{
+            orgName: orgName,
+            projectName: selectedProject.displayName,
+            datasetName: selectedDataset.name,
+            typeCount: effectiveTypes.length,
+            totalDocuments: selectedDataset.totalDocuments,
+            schemaSource: effectiveSource,
+            workspaceName: selectedWorkspaceName,
+          }}
+        />
       )}
     </div>
   )

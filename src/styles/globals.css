@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../node_modules/@sanity-labs/schema-mapper-core/src/**/*.tsx";
 @import "./sanity-theme.css";
 
 /* Tailwind v4 uses @media (prefers-color-scheme: dark) by default for dark: variants.

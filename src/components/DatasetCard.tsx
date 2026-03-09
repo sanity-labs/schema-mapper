@@ -5,9 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@sanity-labs/schema-mapper-core';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SchemaGraph } from './SchemaGraph';
+import { SchemaGraph } from '@sanity-labs/schema-mapper-core';
 import type { DatasetInfo } from './types';
 
 // --- Helpers ---
