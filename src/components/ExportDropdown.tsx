@@ -180,10 +180,15 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         })
       )
       if (dataUrl) {
+        // Decode data URL to clean SVG XML for proper file download
+        const svgXml = decodeURIComponent(dataUrl.split(',')[1] || '')
+        const blob = new Blob([svgXml], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.download = `schema-${context.projectName}-${context.datasetName}.svg`
-        link.href = dataUrl
+        link.href = url
         link.click()
+        URL.revokeObjectURL(url)
       }
     } catch (err) {
       console.error('SVG export failed:', err)
