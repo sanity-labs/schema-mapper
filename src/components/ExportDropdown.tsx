@@ -179,63 +179,12 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     })
     setExporting('svg')
     try {
-      // For SVG, fit the graph tightly instead of using container dimensions
-      const el = getGraphElement()
-      const viewport = el?.querySelector('.react-flow__viewport') as HTMLElement | null
-      let dataUrl: string | null = null
-
-      if (el && viewport) {
-        const originalTransform = viewport.style.transform
-        const origWidth = el.style.width
-        const origHeight = el.style.height
-        const origOverflow = el.style.overflow
-
-        // Calculate graph bounds
-        const nodeEls = el.querySelectorAll('.react-flow__node')
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-        nodeEls.forEach((node) => {
-          const htmlNode = node as HTMLElement
-          const transform = htmlNode.style.transform
-          const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
-          if (match) {
-            const x = parseFloat(match[1])
-            const y = parseFloat(match[2])
-            minX = Math.min(minX, x)
-            minY = Math.min(minY, y)
-            maxX = Math.max(maxX, x + htmlNode.offsetWidth)
-            maxY = Math.max(maxY, y + htmlNode.offsetHeight)
-          }
+      const dataUrl = await captureFullGraph((el) =>
+        toSvg(el, {
+          backgroundColor: '#ffffff',
+          filter: exportFilter,
         })
-
-        if (isFinite(minX)) {
-          const padding = 100
-          const svgW = Math.ceil(maxX - minX + padding * 2)
-          const svgH = Math.ceil(maxY - minY + padding * 2)
-
-          // Translate so graph starts at (padding, padding)
-          viewport.style.transform = `translate(${-minX + padding}px, ${-minY + padding}px) scale(1)`
-          el.style.width = svgW + 'px'
-          el.style.height = svgH + 'px'
-          el.style.overflow = 'hidden'
-
-          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
-
-          try {
-            dataUrl = await toSvg(el, {
-              backgroundColor: '#ffffff',
-              filter: exportFilter,
-              width: svgW,
-              height: svgH,
-            })
-          } finally {
-            viewport.style.transform = originalTransform
-            el.style.width = origWidth
-            el.style.height = origHeight
-            el.style.overflow = origOverflow
-          }
-        }
-      }
-
+      )
       if (dataUrl) {
         const link = document.createElement('a')
         link.download = `schema-${context.projectName}-${context.datasetName}.svg`
