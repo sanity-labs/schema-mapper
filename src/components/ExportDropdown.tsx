@@ -172,6 +172,8 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         toSvg(el, {
           backgroundColor: '#ffffff',
           filter: exportFilter,
+          width: el.clientWidth,
+          height: el.clientHeight,
         })
       )
       if (dataUrl) {
