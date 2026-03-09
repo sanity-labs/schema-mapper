@@ -106,14 +106,25 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     // Apply fitted transform
     viewport.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
 
+    // Force explicit dimensions so toSvg captures at the right size
+    const origWidth = el.style.width
+    const origHeight = el.style.height
+    const origOverflow = el.style.overflow
+    el.style.width = containerWidth + 'px'
+    el.style.height = containerHeight + 'px'
+    el.style.overflow = 'hidden'
+
     // Wait for repaint
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
     try {
       return await captureFn(el)
     } finally {
-      // Restore original viewport
+      // Restore original viewport and dimensions
       viewport.style.transform = originalTransform
+      el.style.width = origWidth
+      el.style.height = origHeight
+      el.style.overflow = origOverflow
     }
   }, [getGraphElement])
 

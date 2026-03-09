@@ -459,7 +459,8 @@ function PDFEdge({ edge }: { edge: PDFEdgeData }) {
               y={labelMid.y - labelH / 2}
               width={labelW}
               height={labelH}
-              rx={7}
+              rx={labelH / 2}
+              ry={labelH / 2}
               fill="#f8fafc"
               stroke="#e2e8f0"
               strokeWidth={0.5}
