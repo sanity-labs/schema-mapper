@@ -11,23 +11,44 @@ Visual Sanity org/schema explorer. A Sanity App SDK app using React Flow. Shows 
 
 Follow these steps when a user says "install schema mapper" or "set up schema mapper".
 
-### 1. Check for Studio in root
+### 1. Detect project structure
 
-Before choosing an install location, check if the user's project root contains a Sanity Studio (`sanity.cli.ts` and `sanity.config.ts` in the root directory).
+Scan the user's project root to understand their setup. Check for these patterns and **always tell the user what you found and what you recommend** before making any changes:
 
-If a Studio is in the root:
+#### Studio in root
+Look for `sanity.cli.ts` and `sanity.config.ts` in the root directory.
+
+If found:
 
 > ⚠️ **Schema Mapper is a separate Sanity App SDK app — it can't run inside a Studio project.** The Sanity CLI can only detect one app per directory, so having both a Studio and an App SDK app in the same root won't work (the CLI will try to run the Studio instead of Schema Mapper).
 >
 > The fix is simple: move your Studio into a `/studio` subfolder and put Schema Mapper in `/apps/schema-mapper` alongside it. This makes **zero difference** to how your Studio works — you can still run it with `cd studio && npx sanity dev` and deploy with `cd studio && npx sanity deploy`. Everything stays exactly the same, it's just in a subfolder.
 
-Offer to do this for the user:
+**Ask the user** if they'd like you to restructure:
 1. Create a `studio/` folder
 2. Move all Studio files into it (sanity.cli.ts, sanity.config.ts, schemas/, src/, etc.)
 3. Create `apps/schema-mapper` for Schema Mapper
 4. If there's a `pnpm-workspace.yaml` or similar, leave it in the root — don't add `packages:` entries, each app runs independently
 
 If the user declines, warn them that Schema Mapper probably won't work from the same root as the Studio.
+
+#### Monorepo detection
+Check for these workspace patterns:
+- **`packages/` directory** — common monorepo convention. Suggest installing at `packages/schema-mapper` or `apps/schema-mapper` (create `apps/` if it doesn't exist). Tell the user: "I see you have a `packages/` directory — looks like a monorepo. I'd suggest putting Schema Mapper in `apps/schema-mapper` to keep it separate from your packages. OK?"
+- **Turborepo** (`turbo.json` in root) — suggest `apps/schema-mapper`. Tell the user: "This looks like a Turborepo project. I'll put Schema Mapper in `apps/schema-mapper` which is the standard Turborepo convention for applications."
+- **Nx** (`nx.json` in root) — suggest `apps/schema-mapper`. Tell the user: "This looks like an Nx workspace. I'll put Schema Mapper in `apps/schema-mapper` which follows Nx conventions."
+- **pnpm workspaces** (`pnpm-workspace.yaml` with `packages:` entries) — check what directories are listed and suggest a location that fits. Don't add Schema Mapper to the workspace packages list — it runs independently.
+
+#### Existing apps/ directory
+If `apps/` exists, suggest `apps/schema-mapper`. Tell the user: "You already have an `apps/` directory — I'll install Schema Mapper at `apps/schema-mapper`."
+
+#### Flat project (no monorepo signals)
+If none of the above patterns are found (just `src/`, `package.json`, etc.), suggest `./schema-mapper` as a sibling directory or ask the user where they'd like it. Tell the user: "I don't see a monorepo setup here. Where would you like me to install Schema Mapper? I can put it in `./schema-mapper` next to your project, or somewhere else."
+
+#### Multiple Sanity projects
+If you find multiple `sanity.cli.ts` files in subdirectories, note this to the user: "I see multiple Sanity projects in your repo. Schema Mapper will map your entire org regardless of which project it's configured with — you just need to pick one project for the SDK auth context."
+
+**Always confirm the chosen path with the user before proceeding.**
 
 ### 2. Check Studio version
 
@@ -44,12 +65,11 @@ Flag any issues:
 - **Below v4.9.0**: Deployed schema is not available (live manifests require v4.9.0+). Schema Mapper will still work but will use **inferred schema** (sampling documents to guess the schema). Recommend upgrading to get accurate deployed schema support. The user can deploy their schema without redeploying their Studio by running `npx sanity schema deploy`.
 - **v4.9.0+**: Full support — deployed schema via live manifests and Dashboard both work. Recommend `@latest` for best experience.
 
-### 3. Choose install location
+### 3. Confirm install location
 
-- Check if an `apps/` directory exists in the current project
-- If yes: suggest `apps/schema-mapper` as the default location
-- If no: ask the user where they want to install it
-- Confirm the path with the user before proceeding
+By this point you should have a suggested path from step 1. If not (e.g. the user skipped detection), ask them directly. **Always confirm before proceeding:**
+
+"I'll install Schema Mapper at `<path>`. Sound good?"
 
 ### 4. Clone the repository
 
