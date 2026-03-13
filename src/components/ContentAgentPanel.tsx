@@ -154,6 +154,10 @@ export function ContentAgentPanel({
           messages: [{ role: 'user', content: trimmed }],
           application: {
             key: `${projectId}.${datasetName}`,
+            resource: {
+              id: `${projectId}.${datasetName}`,
+              type: 'studio',
+            },
           },
           config: {
             capabilities: { read: true, write: false },
