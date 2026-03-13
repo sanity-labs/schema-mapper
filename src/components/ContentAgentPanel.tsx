@@ -67,10 +67,9 @@ export function ContentAgentPanel({
   onToggle,
 }: ContentAgentPanelProps) {
   const token = useAuthToken()
-  const dashboardOrgId = useDashboardOrganizationId()
   
-  // Prefer dashboard org ID (always correct for the current session), fall back to prop
-  const orgId = dashboardOrgId || propOrgId || null
+  // Sanity org ID for Content Agent API
+  const orgId = 'oSyH1iET5'
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
