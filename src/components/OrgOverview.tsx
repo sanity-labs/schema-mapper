@@ -12,6 +12,7 @@ import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+import { ContentAgentPanel } from './ContentAgentPanel'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -178,7 +179,21 @@ function OrgOverview({
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
 
-
+  // Agent panel state (right side)
+  const [agentPanelOpen, setAgentPanelOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem('schema-mapper:agent-panel-open')
+      if (stored === null) return false
+      return stored === 'true'
+    } catch { return false }
+  })
+  const toggleAgentPanel = useCallback(() => {
+    setAgentPanelOpen(prev => {
+      const next = !prev
+      try { localStorage.setItem('schema-mapper:agent-panel-open', String(next)) } catch {}
+      return next
+    })
+  }, [])
 
   // ---- Derived state ----
   const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null
@@ -532,24 +547,35 @@ function OrgOverview({
             </div>
           )}
 
-          {/* ---- Schema Graph Area ---- */}
-          <div ref={graphRef} className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden">
-            {!selectedDatasetName ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Select a project and dataset to view the schema graph</p>
-              </div>
-            ) : isSchemasLoading ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3">
-                <Spinner muted />
-                <p className="text-sm text-muted-foreground">Loading schema…</p>
-              </div>
-            ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>No types found in this dataset</p>
-              </div>
-            )}
+          {/* ---- Graph + Agent Panel Row ---- */}
+          <div className="flex flex-1 min-h-[500px] mb-[30px] gap-0">
+            <div ref={graphRef} className="flex-1 min-h-0 border rounded-lg overflow-hidden">
+              {!selectedDatasetName ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <p>Select a project and dataset to view the schema graph</p>
+                </div>
+              ) : isSchemasLoading ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <Spinner muted />
+                  <p className="text-sm text-muted-foreground">Loading schema…</p>
+                </div>
+              ) : effectiveTypes.length > 0 ? (
+                <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <p>No types found in this dataset</p>
+                </div>
+              )}
+            </div>
+
+            {/* ---- Content Agent Panel ---- */}
+            <ContentAgentPanel
+              orgId={orgId ?? null}
+              projectId={selectedProjectId}
+              datasetName={selectedDatasetName}
+              isOpen={agentPanelOpen}
+              onToggle={toggleAgentPanel}
+            />
           </div>
         </>
       )}
