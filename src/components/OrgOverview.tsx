@@ -6,7 +6,7 @@ import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
-import type { ExportContext, ExportMenuItem } from '@sanity-labs/schema-mapper-core'
+import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
@@ -176,6 +176,7 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
+  const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
 
 
 
@@ -520,7 +521,11 @@ function OrgOverview({
                       orgId: orgId,
                       orgName: orgName,
                       workspaceName: selectedWorkspaceName,
+                      focusedType: graphState.focusedType,
+                      focusDepth: graphState.focusDepth,
+                      totalTypeCount: effectiveTypes.length,
                     }}
+                    disabled={graphState.isSearching}
                   />
                 </>
               )}
@@ -539,7 +544,7 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} />
+              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>
