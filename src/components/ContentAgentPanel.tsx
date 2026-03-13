@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useAuthToken } from '@sanity/sdk-react'
+import { useAuthToken, useDashboardOrganizationId } from '@sanity/sdk-react'
 import { VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
 import { Send, MessageSquare, Bot } from 'lucide-react'
 
@@ -8,7 +8,7 @@ import { Send, MessageSquare, Bot } from 'lucide-react'
 // ---------------------------------------------------------------------------
 
 interface ContentAgentPanelProps {
-  orgId: string | null
+  orgId?: string | null
   projectId: string | null
   datasetName: string | null
   isOpen: boolean
@@ -60,13 +60,17 @@ function parseSSELine(line: string): { type: 'text'; value: string } | { type: '
 // ---------------------------------------------------------------------------
 
 export function ContentAgentPanel({
-  orgId,
+  orgId: propOrgId,
   projectId,
   datasetName,
   isOpen,
   onToggle,
 }: ContentAgentPanelProps) {
   const token = useAuthToken()
+  const dashboardOrgId = useDashboardOrganizationId()
+  
+  // Prefer dashboard org ID (always correct for the current session), fall back to prop
+  const orgId = dashboardOrgId || propOrgId || null
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
