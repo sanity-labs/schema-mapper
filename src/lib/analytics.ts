@@ -9,8 +9,7 @@ let currentOrgId: string | null = null
 let excluded = false
 
 // Internal orgs excluded from analytics
-const EXCLUDED_ORGS = new Set([
-  'o02mZUBKf',  // Sanity (Adam's dev org)
+const EXCLUDED_ORGS = new Set<string>([
 ])
 
 export function initAnalytics() {
