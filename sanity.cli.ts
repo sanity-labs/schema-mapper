@@ -26,6 +26,10 @@ export default defineCliConfig({
       },
       server: {
         ...viteConfig.server,
+        hmr: {
+          ...((viteConfig.server as any)?.hmr || {}),
+          overlay: false,
+        },
         headers: {
           'Access-Control-Allow-Private-Network': 'true',
           'Access-Control-Allow-Origin': '*',

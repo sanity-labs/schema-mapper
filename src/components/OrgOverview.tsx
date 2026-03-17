@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoStarFill } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -178,6 +178,67 @@ function OrgOverview({
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
 
+  // Collapsible nav — collapses to breadcrumb when mouse enters graph area
+  // Only enabled when nav content exceeds ~2 rows of tabs
+  const [navCollapsed, setNavCollapsed] = useState(false)
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [fitViewTrigger, setFitViewTrigger] = useState(0)
+  const navRef = useRef<HTMLDivElement>(null)
+  const navContentRef = useRef<HTMLDivElement>(null)
+  const [navNaturalHeight, setNavNaturalHeight] = useState(0)
+
+  // Measure nav content height to decide if collapse is worthwhile
+  // Only measure when nav is expanded — collapsed height is meaningless
+  const navCollapsedRef = useRef(false)
+  navCollapsedRef.current = navCollapsed
+  useEffect(() => {
+    const el = navContentRef.current
+    if (!el) return
+    let raf: number | null = null
+    const observer = new ResizeObserver((entries) => {
+      if (navCollapsedRef.current) return // Don't measure during collapse
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        if (navCollapsedRef.current) return // Double-check after rAF
+        for (const entry of entries) {
+          setNavNaturalHeight(entry.contentRect.height)
+        }
+      })
+    })
+    observer.observe(el)
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  }, [])
+
+  // Only enable collapse when nav is taller than ~2 rows (~80px)
+  const collapseEnabled = navNaturalHeight > 80
+
+  // Auto-expand if window resize makes nav small enough to not need collapsing
+  useEffect(() => {
+    if (!collapseEnabled && navCollapsed) {
+      setNavCollapsed(false)
+    }
+  }, [collapseEnabled, navCollapsed])
+
+  // Trigger fitView after nav transition completes
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const handler = () => setFitViewTrigger(c => c + 1)
+    el.addEventListener('transitionend', handler)
+    return () => el.removeEventListener('transitionend', handler)
+  }, [])
+  const handleGraphMouseEnter = useCallback(() => {
+    if (!collapseEnabled || !selectedProjectId) return
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+    collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
+  }, [collapseEnabled, selectedProjectId])
+  const handleGraphMouseLeave = useCallback(() => {
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+  }, [])
+
 
 
   // ---- Derived state ----
@@ -285,6 +346,7 @@ function OrgOverview({
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
+        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 1 } : undefined,
       }
 
       const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'
@@ -355,8 +417,43 @@ function OrgOverview({
         <EmptyState />
       ) : (
         <>
-          {/* ---- Navigation Grid ---- */}
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
+          {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
+          <div
+            ref={navRef}
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ maxHeight: navCollapsed && collapseEnabled ? 36 : 500 }}
+          >
+          {navCollapsed ? (
+            /* ---- Collapsed Breadcrumb ---- */
+            <div
+              className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
+              onMouseEnter={() => {
+                if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+                collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
+              }}
+              onClick={() => setNavCollapsed(false)}
+            >
+              {selectedProject && (
+                <>
+                  <span className="font-normal text-foreground">{selectedProject.displayName}</span>
+                  {selectedDatasetName && (
+                    <>
+                      <GoChevronRight className="text-muted-foreground text-xs" />
+                      <span className="font-normal text-green-700 dark:text-green-400">{selectedDatasetName}</span>
+                    </>
+                  )}
+                  {selectedWorkspaceName && selectedWorkspaceName !== 'Default' && (
+                    <>
+                      <GoChevronRight className="text-muted-foreground text-xs" />
+                      <span className="font-normal">{selectedWorkspaceName}</span>
+                    </>
+                  )}
+                </>
+              )}
+              {!selectedProject && <span>Select a project…</span>}
+            </div>
+          ) : (
+          <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
             <>
               <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
@@ -459,10 +556,17 @@ function OrgOverview({
               </>
             )}
           </div>
+          )}
+          </div>
 
           {/* ---- Dataset Info Line ---- */}
           {selectedDataset && !isSchemasLoading && (
-            <div className="flex items-center gap-2 mt-3 py-2 text-sm">
+            <div
+              className="flex items-center gap-2 mt-3 py-2 text-sm"
+              onMouseEnter={() => {
+                if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+              }}
+            >
               <GoDatabase className="text-base" />
               <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
               <Badge
@@ -533,7 +637,12 @@ function OrgOverview({
           )}
 
           {/* ---- Schema Graph Area ---- */}
-          <div ref={graphRef} className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden">
+          <div
+            ref={graphRef}
+            className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden"
+            onMouseEnter={handleGraphMouseEnter}
+            onMouseLeave={handleGraphMouseLeave}
+          >
             {!selectedDatasetName ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Select a project and dataset to view the schema graph</p>
@@ -544,7 +653,7 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} />
+              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} fitViewTrigger={fitViewTrigger} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>

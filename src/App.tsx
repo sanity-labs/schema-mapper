@@ -11,6 +11,16 @@ import {initAnalytics} from './lib/analytics'
 
 initAnalytics()
 
+// Suppress ResizeObserver loop errors — these fire with error=null and crash Vite's overlay
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    if (event.message?.includes?.('ResizeObserver') || event.error === null) {
+      event.preventDefault()
+      return
+    }
+  })
+}
+
 const theme = buildTheme()
 
 const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
