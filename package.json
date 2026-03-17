@@ -16,7 +16,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^1.1.0",
     "@react-pdf/renderer": "^4.3.2",
-    "@sanity-labs/schema-mapper-core": "github:sanity-labs/schema-mapper-core#84a340e7dc6528cfb259d0da9a17846358852250",
+    "@sanity-labs/schema-mapper-core": "github:sanity-labs/schema-mapper-core#f34262c0f33c1a7836877a918d928f4bd2010853",
     "@sanity/icons": "^3.7.4",
     "@sanity/sdk": "^2.5.0",
     "@sanity/sdk-react": "^2.5.0",
