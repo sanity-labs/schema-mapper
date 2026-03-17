@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoStarFill } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -395,13 +395,13 @@ function OrgOverview({
                   <span className="font-normal text-foreground">{selectedProject.displayName}</span>
                   {selectedDatasetName && (
                     <>
-                      <span className="text-muted-foreground">›</span>
+                      <GoChevronRight className="text-muted-foreground text-xs" />
                       <span className="font-normal text-green-700 dark:text-green-400">{selectedDatasetName}</span>
                     </>
                   )}
                   {selectedWorkspaceName && selectedWorkspaceName !== 'Default' && (
                     <>
-                      <span className="text-muted-foreground">›</span>
+                      <GoChevronRight className="text-muted-foreground text-xs" />
                       <span className="font-normal">{selectedWorkspaceName}</span>
                     </>
                   )}
@@ -532,7 +532,7 @@ function OrgOverview({
           </div>
 
           {/* ---- Dataset Info Line ---- */}
-          {selectedDataset && !isSchemasLoading && !navCollapsed && (
+          {selectedDataset && !isSchemasLoading && (
             <div className="flex items-center gap-2 mt-3 py-2 text-sm">
               <GoDatabase className="text-base" />
               <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
