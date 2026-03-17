@@ -11,6 +11,36 @@ import {initAnalytics} from './lib/analytics'
 
 initAnalytics()
 
+// DEBUG: Catch the null error before Vite's overlay crashes on it
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    console.warn('[Schema Mapper DEBUG] Uncaught error event:', {
+      message: event.message,
+      error: event.error,
+      errorType: typeof event.error,
+      errorIsNull: event.error === null,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+    })
+    if (event.error && typeof event.error === 'object') {
+      console.warn('[Schema Mapper DEBUG] Error keys:', Object.keys(event.error))
+      console.warn('[Schema Mapper DEBUG] Error constructor:', event.error?.constructor?.name)
+    }
+  })
+  window.addEventListener('unhandledrejection', (event) => {
+    console.warn('[Schema Mapper DEBUG] Unhandled rejection:', {
+      reason: event.reason,
+      reasonType: typeof event.reason,
+      reasonIsNull: event.reason === null,
+      reasonMessage: event.reason?.message,
+    })
+    if (event.reason && typeof event.reason === 'object') {
+      console.warn('[Schema Mapper DEBUG] Rejection keys:', Object.keys(event.reason))
+    }
+  })
+}
+
 const theme = buildTheme()
 
 const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
