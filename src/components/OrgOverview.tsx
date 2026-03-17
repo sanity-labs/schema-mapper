@@ -183,12 +183,11 @@ function OrgOverview({
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleGraphMouseEnter = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
-    collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 150)
+    collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
   }, [])
   const handleGraphMouseLeave = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
-    collapseTimerRef.current = null
-    setNavCollapsed(false)
+    collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
   }, [])
 
 
@@ -370,7 +369,7 @@ function OrgOverview({
         <>
           {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
           <div
-            className="overflow-hidden transition-all duration-200 ease-in-out"
+            className="overflow-hidden transition-all duration-300 ease-in-out"
             style={{ maxHeight: navCollapsed ? 36 : 300 }}
           >
           {navCollapsed ? (
