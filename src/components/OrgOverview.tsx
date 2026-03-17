@@ -231,10 +231,10 @@ function OrgOverview({
     return () => el.removeEventListener('transitionend', handler)
   }, [])
   const handleGraphMouseEnter = useCallback(() => {
-    if (!collapseEnabled) return
+    if (!collapseEnabled || !selectedProjectId) return
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
-  }, [collapseEnabled])
+  }, [collapseEnabled, selectedProjectId])
   const handleGraphMouseLeave = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
   }, [])
