@@ -365,7 +365,7 @@ function OrgOverview({
     } catch (err) {
       return { success: false, error: 'Network error — please check your connection and try again.' }
     }
-  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef])
+  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState])
 
   // ---- Export menu items (enterprise Send to Sanity) ----
   const exportMenuItems: ExportMenuItem[] | undefined = isEnterprise ? [{
