@@ -11,33 +11,20 @@ import {initAnalytics} from './lib/analytics'
 
 initAnalytics()
 
-// DEBUG: Catch the null error before Vite's overlay crashes on it
+// DEBUG: Catch errors at every level
 if (typeof window !== 'undefined') {
+  // Capture phase — fires before any other handler
   window.addEventListener('error', (event) => {
-    console.warn('[Schema Mapper DEBUG] Uncaught error event:', {
-      message: event.message,
-      error: event.error,
-      errorType: typeof event.error,
-      errorIsNull: event.error === null,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-    })
-    if (event.error && typeof event.error === 'object') {
-      console.warn('[Schema Mapper DEBUG] Error keys:', Object.keys(event.error))
-      console.warn('[Schema Mapper DEBUG] Error constructor:', event.error?.constructor?.name)
-    }
+    console.log('🔴 [DEBUG] window error (capture):', event.message, event.error, event.filename, event.lineno)
+  }, true)
+  window.addEventListener('error', (event) => {
+    console.log('🔴 [DEBUG] window error (bubble):', event.message, event.error)
   })
   window.addEventListener('unhandledrejection', (event) => {
-    console.warn('[Schema Mapper DEBUG] Unhandled rejection:', {
-      reason: event.reason,
-      reasonType: typeof event.reason,
-      reasonIsNull: event.reason === null,
-      reasonMessage: event.reason?.message,
-    })
-    if (event.reason && typeof event.reason === 'object') {
-      console.warn('[Schema Mapper DEBUG] Rejection keys:', Object.keys(event.reason))
-    }
+    console.log('🔴 [DEBUG] unhandled rejection:', event.reason)
+  }, true)
+  window.addEventListener('unhandledrejection', (event) => {
+    console.log('🔴 [DEBUG] unhandled rejection (bubble):', event.reason)
   })
 }
 
