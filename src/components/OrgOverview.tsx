@@ -203,6 +203,13 @@ function OrgOverview({
   // Only enable collapse when nav is taller than ~2 rows (~80px)
   const collapseEnabled = navNaturalHeight > 80
 
+  // Auto-expand if window resize makes nav small enough to not need collapsing
+  useEffect(() => {
+    if (!collapseEnabled && navCollapsed) {
+      setNavCollapsed(false)
+    }
+  }, [collapseEnabled, navCollapsed])
+
   // Trigger fitView after nav transition completes
   useEffect(() => {
     const el = navRef.current
