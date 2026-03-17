@@ -178,6 +178,19 @@ function OrgOverview({
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
 
+  // Collapsible nav — collapses to breadcrumb when mouse enters graph area
+  const [navCollapsed, setNavCollapsed] = useState(false)
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleGraphMouseEnter = useCallback(() => {
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+    collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 150)
+  }, [])
+  const handleGraphMouseLeave = useCallback(() => {
+    if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+    collapseTimerRef.current = null
+    setNavCollapsed(false)
+  }, [])
+
 
 
   // ---- Derived state ----
@@ -355,7 +368,52 @@ function OrgOverview({
         <EmptyState />
       ) : (
         <>
-          {/* ---- Navigation Grid ---- */}
+          {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
+          <div
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ maxHeight: navCollapsed ? 36 : 300 }}
+          >
+          {navCollapsed ? (
+            /* ---- Collapsed Breadcrumb ---- */
+            <div
+              className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
+              onClick={() => setNavCollapsed(false)}
+            >
+              {selectedProject && (
+                <>
+                  <span className="font-normal text-foreground">{selectedProject.displayName}</span>
+                  {selectedDatasetName && (
+                    <>
+                      <span className="text-muted-foreground">›</span>
+                      <span className="font-normal text-green-700 dark:text-green-400">{selectedDatasetName}</span>
+                    </>
+                  )}
+                  {selectedWorkspaceName && selectedWorkspaceName !== 'Default' && (
+                    <>
+                      <span className="text-muted-foreground">›</span>
+                      <span className="font-normal">{selectedWorkspaceName}</span>
+                    </>
+                  )}
+                  {effectiveSource && (
+                    <>
+                      <span className="text-muted-foreground">·</span>
+                      <Badge
+                        variant="default"
+                        className={
+                          (effectiveSource === 'deployed'
+                            ? 'bg-blue-100 text-blue-800 font-normal dark:bg-blue-900/50 dark:text-blue-300'
+                            : 'bg-amber-100 text-amber-800 font-normal dark:bg-amber-900/50 dark:text-amber-300')
+                        }
+                      >
+                        {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed</> : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred</>}
+                      </Badge>
+                    </>
+                  )}
+                </>
+              )}
+              {!selectedProject && <span>Select a project…</span>}
+            </div>
+          ) : (
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
             <>
@@ -459,9 +517,11 @@ function OrgOverview({
               </>
             )}
           </div>
+          )}
+          </div>
 
           {/* ---- Dataset Info Line ---- */}
-          {selectedDataset && !isSchemasLoading && (
+          {selectedDataset && !isSchemasLoading && !navCollapsed && (
             <div className="flex items-center gap-2 mt-3 py-2 text-sm">
               <GoDatabase className="text-base" />
               <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
@@ -533,7 +593,12 @@ function OrgOverview({
           )}
 
           {/* ---- Schema Graph Area ---- */}
-          <div ref={graphRef} className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden">
+          <div
+            ref={graphRef}
+            className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden"
+            onMouseEnter={handleGraphMouseEnter}
+            onMouseLeave={handleGraphMouseLeave}
+          >
             {!selectedDatasetName ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Select a project and dataset to view the schema graph</p>
