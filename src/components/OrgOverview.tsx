@@ -235,9 +235,13 @@ function OrgOverview({
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
   }, [collapseEnabled])
-  const handleGraphMouseLeave = useCallback(() => {
+  const handleGraphMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
-    collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
+    // Only expand nav when mouse exits from the top edge (toward the nav)
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (e.clientY <= rect.top + 2) {
+      collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
+    }
   }, [])
 
 
