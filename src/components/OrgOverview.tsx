@@ -179,10 +179,29 @@ function OrgOverview({
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
 
   // Collapsible nav — collapses to breadcrumb when mouse enters graph area
+  // Only enabled when nav content exceeds ~2 rows of tabs
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const navRef = useRef<HTMLDivElement>(null)
+  const navContentRef = useRef<HTMLDivElement>(null)
+  const [navNaturalHeight, setNavNaturalHeight] = useState(0)
+
+  // Measure nav content height to decide if collapse is worthwhile
+  useEffect(() => {
+    const el = navContentRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setNavNaturalHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  // Only enable collapse when nav is taller than ~2 rows (~80px)
+  const collapseEnabled = navNaturalHeight > 80
 
   // Trigger fitView after nav transition completes
   useEffect(() => {
@@ -193,9 +212,10 @@ function OrgOverview({
     return () => el.removeEventListener('transitionend', handler)
   }, [])
   const handleGraphMouseEnter = useCallback(() => {
+    if (!collapseEnabled) return
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
-  }, [])
+  }, [collapseEnabled])
   const handleGraphMouseLeave = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
@@ -382,7 +402,7 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: navCollapsed ? 36 : 300 }}
+            style={{ maxHeight: navCollapsed && collapseEnabled ? 36 : 500 }}
           >
           {navCollapsed ? (
             /* ---- Collapsed Breadcrumb ---- */
@@ -425,7 +445,7 @@ function OrgOverview({
               {!selectedProject && <span>Select a project…</span>}
             </div>
           ) : (
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
+          <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
             <>
               <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
