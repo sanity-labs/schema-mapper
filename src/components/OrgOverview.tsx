@@ -259,14 +259,18 @@ function OrgOverview({
     setNavigationStack(stack)
     setPendingRestoreViewport(entry.viewport ?? null)
 
+    // Use '__clear__' sentinel when no focus to restore — tells core to exit any active focus
+    const restoreTypeName = entry.focusedType || '__clear__'
+    const restoreDepth = entry.focusDepth ?? 0
+
     if (entry.projectId !== selectedProjectId) {
       onProjectSelect(entry.projectId)
-      setPendingNavTarget({ datasetName: entry.datasetName, typeName: entry.focusedType, focusDepth: entry.focusDepth, waitingForDatasets: true })
+      setPendingNavTarget({ datasetName: entry.datasetName, typeName: restoreTypeName, focusDepth: restoreDepth, waitingForDatasets: true })
     } else if (entry.datasetName !== selectedDatasetName) {
       onDatasetSelect(entry.datasetName)
-      setPendingNavTarget({ typeName: entry.focusedType, focusDepth: entry.focusDepth })
+      setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
     } else {
-      setPendingNavTarget({ typeName: entry.focusedType, focusDepth: entry.focusDepth })
+      setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
     }
   }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect])
 
