@@ -206,16 +206,19 @@ function OrgOverview({
   } | null>(null)
   const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
 
-  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string) => {
+  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string, sourceTypeName?: string) => {
     // Save current view to stack
     if (selectedProjectId && selectedDatasetName) {
       const proj = projects.find(p => p.id === selectedProjectId)
+      // When navigating from search (no focus), save the source type for 0-hop focus on return
+      const savedFocusType = graphStateRef.current.focusedType || sourceTypeName
+      const savedFocusDepth = graphStateRef.current.focusedType ? (graphStateRef.current.focusDepth ?? 0) : 0
       setNavigationStack(prev => [...prev, {
         projectId: selectedProjectId,
         datasetName: selectedDatasetName,
         schemaId: selectedSchemaId ?? undefined,
-        focusedType: graphStateRef.current.focusedType,
-        focusDepth: graphStateRef.current.focusDepth,
+        focusedType: savedFocusType,
+        focusDepth: savedFocusDepth,
         projectName: (proj as any)?.displayName || selectedProjectId,
         datasetLabel: selectedDatasetName,
         viewport: viewportRef.current,
