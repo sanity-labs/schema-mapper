@@ -17,7 +17,16 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
 
   // Reference detection
   if (typeof value === 'object' && value !== null && '_ref' in value) {
-    return {name: key, type: 'reference', isReference: true}
+    const hasCrossDataset = '_dataset' in value
+    return {
+      name: key,
+      type: 'reference',
+      isReference: true,
+      ...(hasCrossDataset ? {
+        isCrossDatasetReference: true,
+        crossDatasetName: (value as any)._dataset,
+      } : {}),
+    }
   }
 
   // Array detection
@@ -25,7 +34,17 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
     const firstItem = value[0]
     // Array of references
     if (firstItem && typeof firstItem === 'object' && '_ref' in firstItem) {
-      return {name: key, type: 'reference', isReference: true, isArray: true}
+      const hasCrossDataset = '_dataset' in firstItem
+      return {
+        name: key,
+        type: 'reference',
+        isReference: true,
+        isArray: true,
+        ...(hasCrossDataset ? {
+          isCrossDatasetReference: true,
+          crossDatasetName: (firstItem as any)._dataset,
+        } : {}),
+      }
     }
     // Array of blocks (portable text)
     if (firstItem && typeof firstItem === 'object' && '_type' in firstItem && (firstItem as any)._type === 'block') {
@@ -77,7 +96,7 @@ async function resolveReferenceTargets(
 
   for (const type of types) {
     for (const field of type.fields) {
-      if (field.isReference) {
+      if (field.isReference && !field.isCrossDatasetReference) {
         refFields.push({
           typeName: type.name,
           fieldName: field.name,

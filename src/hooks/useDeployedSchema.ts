@@ -254,13 +254,37 @@ function mapStudioField(
         isReference: true,
         referenceTo: field.to?.[0]?.type,
       }
+    case 'crossDatasetReference':
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'reference',
+        isReference: true,
+        isCrossDatasetReference: true,
+        crossDatasetName: field.dataset || undefined,
+        referenceTo: field.to?.[0]?.type,
+      }
     case 'array': {
       const ofTypes = field.of || []
       const hasReferences = ofTypes.some((o: any) => o.type === 'reference')
+      const hasCrossDatasetReferences = ofTypes.some((o: any) => o.type === 'crossDatasetReference')
       const hasBlocks = ofTypes.some(
         (o: any) => o.type === 'block' || o.type === 'portableText',
       )
 
+      if (hasCrossDatasetReferences) {
+        const refItem = ofTypes.find((o: any) => o.type === 'crossDatasetReference')
+        return {
+          name,
+          title: field.title || undefined,
+          type: 'reference',
+          isReference: true,
+          isArray: true,
+          isCrossDatasetReference: true,
+          crossDatasetName: refItem?.dataset || undefined,
+          referenceTo: refItem?.to?.[0]?.type,
+        }
+      }
       if (hasReferences) {
         const refItem = ofTypes.find((o: any) => o.type === 'reference')
         const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
