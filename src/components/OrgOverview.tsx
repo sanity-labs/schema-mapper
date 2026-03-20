@@ -190,6 +190,7 @@ function OrgOverview({
     focusDepth?: 1 | 2
     projectName?: string
     datasetLabel?: string
+    viewport?: { x: number; y: number; zoom: number }
   }
   const [navigationStack, setNavigationStack] = useState<NavigationEntry[]>([])
   // Pending navigation — tracks the full target so we can chain: project switch → dataset select → schema load → focus
@@ -198,6 +199,7 @@ function OrgOverview({
     typeName?: string
     waitingForDatasets?: boolean
   } | null>(null)
+  const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
 
   const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string) => {
     // Save current view to stack
@@ -211,6 +213,7 @@ function OrgOverview({
         focusDepth: graphStateRef.current.focusDepth,
         projectName: (proj as any)?.displayName || selectedProjectId,
         datasetLabel: selectedDatasetName,
+        viewport: graphStateRef.current.viewport,
       }])
     }
 
@@ -244,6 +247,7 @@ function OrgOverview({
     const entry = stack.pop()
     if (!entry) return
     setNavigationStack(stack)
+    setPendingRestoreViewport(entry.viewport ?? null)
 
     if (entry.projectId !== selectedProjectId) {
       onProjectSelect(entry.projectId)
@@ -270,7 +274,10 @@ function OrgOverview({
   // When schema finishes loading after navigation, clear pending after a delay (focus handled by SchemaGraph)
   useEffect(() => {
     if (!pendingNavTarget?.typeName || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
-    const timer = setTimeout(() => setPendingNavTarget(null), 800)
+    const timer = setTimeout(() => {
+      setPendingNavTarget(null)
+      setPendingRestoreViewport(null)
+    }, 800)
     return () => clearTimeout(timer)
   }, [pendingNavTarget, isSchemasLoading, types])
 
@@ -777,6 +784,7 @@ function OrgOverview({
                 fitViewTrigger={fitViewTrigger}
                 onCrossDatasetNavigate={handleCrossDatasetNavigate}
                 pendingFocusType={pendingNavTarget?.typeName}
+                restoreViewport={pendingRestoreViewport}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
