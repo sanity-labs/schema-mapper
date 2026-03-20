@@ -262,6 +262,7 @@ function mapStudioField(
         isReference: true,
         isCrossDatasetReference: true,
         crossDatasetName: field.dataset || undefined,
+        crossDatasetTooltip: `Cross-dataset reference to ${field.to?.[0]?.type || 'unknown'} in ${field.dataset || 'unknown dataset'}`,
         referenceTo: field.to?.[0]?.type,
       }
     case 'globalDocumentReference':
@@ -272,6 +273,7 @@ function mapStudioField(
         isReference: true,
         isCrossDatasetReference: true,
         crossDatasetName: field.resourceId || field.resourceType || 'external',
+        crossDatasetTooltip: `Global reference to ${field.to?.[0]?.type || 'unknown'} in ${field.resourceId || field.resourceType || 'external resource'}`,
         referenceTo: field.to?.[0]?.type,
       }
     case 'array': {
@@ -284,6 +286,8 @@ function mapStudioField(
 
       if (hasCrossDatasetReferences) {
         const refItem = ofTypes.find((o: any) => o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference')
+        const isGlobal = refItem?.type === 'globalDocumentReference'
+        const targetName = refItem?.dataset || refItem?.resourceId || refItem?.resourceType || 'external'
         return {
           name,
           title: field.title || undefined,
@@ -291,7 +295,10 @@ function mapStudioField(
           isReference: true,
           isArray: true,
           isCrossDatasetReference: true,
-          crossDatasetName: refItem?.dataset || refItem?.resourceId || refItem?.resourceType || 'external',
+          crossDatasetName: targetName,
+          crossDatasetTooltip: isGlobal
+            ? `Global reference to ${refItem?.to?.[0]?.type || 'unknown'} in ${targetName}`
+            : `Cross-dataset reference to ${refItem?.to?.[0]?.type || 'unknown'} in ${targetName}`,
           referenceTo: refItem?.to?.[0]?.type,
         }
       }

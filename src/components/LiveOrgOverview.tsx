@@ -488,7 +488,32 @@ function LiveOrgOverviewInner() {
 
   const handleSchemaDiscovered = useCallback(
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[]) => {
-      dispatch({type: 'SCHEMA_LOADED', key, types, source, deployedSchemas})
+      // Resolve cross-dataset/global reference project IDs to display names
+      const projectNameMap = new Map(projects.map((p: any) => [p.id, (p as any).displayName || p.id]))
+      const resolvedTypes = types.map(t => ({
+        ...t,
+        fields: t.fields.map(f => {
+          if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
+          // resourceId format: "projectId.dataset" — resolve projectId to name
+          const parts = f.crossDatasetName.split('.')
+          if (parts.length === 2) {
+            const projName = projectNameMap.get(parts[0]) || parts[0]
+            const projId = parts[0]
+            return {
+              ...f,
+              crossDatasetName: `${projName} / ${parts[1]}`,
+              crossDatasetTooltip: `Global reference to ${f.referenceTo || 'unknown'} in ${projName} (${projId})`,
+            }
+          }
+          // crossDatasetReference — dataset name only, add project context
+          if (f.crossDatasetTooltip) return f
+          return {
+            ...f,
+            crossDatasetTooltip: `Cross-dataset reference to ${f.referenceTo || 'unknown'} in ${f.crossDatasetName}`,
+          }
+        }),
+      }))
+      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas})
 
       // Track schema discovery completion
       const [projectId, datasetName] = key.split('::')
@@ -508,7 +533,7 @@ function LiveOrgOverviewInner() {
         workspace_names: deployedSchemas.length > 1 ? deployedSchemas.map(s => s.name).join(', ') : undefined,
       })
     },
-    [orgId],
+    [orgId, projects],
   )
 
   const handleSchemaError = useCallback((key: string, error: string) => {
