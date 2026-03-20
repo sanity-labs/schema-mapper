@@ -502,14 +502,14 @@ function LiveOrgOverviewInner() {
             return {
               ...f,
               crossDatasetName: `${projName} / ${parts[1]}`,
-              crossDatasetTooltip: `Global reference to ${f.referenceTo || 'unknown'} in ${projName} (${projId})`,
+              crossDatasetTooltip: `Global reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
             }
           }
           // crossDatasetReference — dataset name only, add project context
           if (f.crossDatasetTooltip) return f
           return {
             ...f,
-            crossDatasetTooltip: `Cross-dataset reference to ${f.referenceTo || 'unknown'} in ${f.crossDatasetName}`,
+            crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${f.crossDatasetName}</strong>`,
           }
         }),
       }))

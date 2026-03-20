@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -177,6 +177,99 @@ function OrgOverview({
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
+
+  // ---- Cross-dataset navigation ----
+  // Saves the current view so we can return to it after following a cross-dataset link
+  interface NavigationEntry {
+    projectId: string
+    datasetName: string
+    schemaId?: string
+    focusedType?: string
+    focusDepth?: 1 | 2
+    projectName?: string
+    datasetLabel?: string
+  }
+  const [navigationStack, setNavigationStack] = useState<NavigationEntry[]>([])
+  // Pending navigation — tracks the full target so we can chain: project switch → dataset select → schema load → focus
+  const [pendingNavTarget, setPendingNavTarget] = useState<{
+    datasetName?: string
+    typeName?: string
+    waitingForDatasets?: boolean
+  } | null>(null)
+
+  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string) => {
+    // Save current view to stack
+    if (selectedProjectId && selectedDatasetName) {
+      setNavigationStack(prev => [...prev, {
+        projectId: selectedProjectId,
+        datasetName: selectedDatasetName,
+        schemaId: selectedSchemaId ?? undefined,
+        focusedType: graphState.focusedType,
+        focusDepth: graphState.focusDepth,
+        projectName: selectedProject?.displayName || selectedProjectId,
+        datasetLabel: selectedDatasetName,
+      }])
+    }
+
+    // Parse target — could be "ProjectName / dataset" (resolved) or just "dataset"
+    const slashIdx = targetDatasetName.indexOf(' / ')
+    if (slashIdx !== -1) {
+      // Global ref — need to find the project by display name
+      const projDisplay = targetDatasetName.slice(0, slashIdx)
+      const dsName = targetDatasetName.slice(slashIdx + 3)
+      const targetProject = projects.find(p =>
+        (p as any).displayName === projDisplay || p.id === projDisplay
+      )
+      if (targetProject && targetProject.id !== selectedProjectId) {
+        // Different project — switch project, wait for datasets to load, then select dataset
+        onProjectSelect(targetProject.id)
+        setPendingNavTarget({ datasetName: dsName, typeName: targetTypeName, waitingForDatasets: true })
+      } else {
+        // Same project — just switch dataset
+        onDatasetSelect(dsName)
+        setPendingNavTarget({ typeName: targetTypeName })
+      }
+    } else {
+      // Cross-dataset ref — same project, different dataset
+      onDatasetSelect(targetDatasetName)
+      setPendingNavTarget({ typeName: targetTypeName })
+    }
+  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, graphState, selectedProject, projects, onProjectSelect, onDatasetSelect])
+
+  const handleNavigateBack = useCallback(() => {
+    const stack = [...navigationStack]
+    const entry = stack.pop()
+    if (!entry) return
+    setNavigationStack(stack)
+
+    if (entry.projectId !== selectedProjectId) {
+      onProjectSelect(entry.projectId)
+      setPendingNavTarget({ datasetName: entry.datasetName, typeName: entry.focusedType, waitingForDatasets: true })
+    } else if (entry.datasetName !== selectedDatasetName) {
+      onDatasetSelect(entry.datasetName)
+      setPendingNavTarget({ typeName: entry.focusedType })
+    } else {
+      // Same project + dataset — just restore focus
+      setPendingNavTarget({ typeName: entry.focusedType })
+    }
+  }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect])
+
+  // When datasets load after a cross-project navigation, select the target dataset
+  useEffect(() => {
+    if (!pendingNavTarget?.waitingForDatasets || datasets.length === 0 || !pendingNavTarget.datasetName) return
+    const targetDs = datasets.find(d => d.name === pendingNavTarget.datasetName)
+    if (targetDs) {
+      onDatasetSelect(pendingNavTarget.datasetName)
+      setPendingNavTarget(prev => prev ? { ...prev, waitingForDatasets: false } : null)
+    }
+  }, [datasets, pendingNavTarget, onDatasetSelect])
+
+  // When schema finishes loading after navigation, clear pending after a delay (focus handled by SchemaGraph)
+  useEffect(() => {
+    if (!pendingNavTarget?.typeName || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
+    const timer = setTimeout(() => setPendingNavTarget(null), 800)
+    return () => clearTimeout(timer)
+  }, [pendingNavTarget, isSchemasLoading, types])
 
   // Collapsible nav — collapses to breadcrumb when mouse enters graph area
   // Only enabled when nav content exceeds ~2 rows of tabs
@@ -637,6 +730,28 @@ function OrgOverview({
           )}
 
           {/* ---- Schema Graph Area ---- */}
+          {/* Cross-dataset navigation bar */}
+          {navigationStack.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+              <button
+                onClick={handleNavigateBack}
+                className="flex items-center gap-1.5 text-sm text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
+              >
+                <GoArrowLeft className="w-4 h-4" />
+                <span>Back to</span>
+                <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
+                <GoChevronRight className="w-3 h-3 opacity-50" />
+                <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
+                {navigationStack[navigationStack.length - 1].focusedType && (
+                  <>
+                    <GoChevronRight className="w-3 h-3 opacity-50" />
+                    <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
           <div
             ref={graphRef}
             className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden"
@@ -653,7 +768,13 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} fitViewTrigger={fitViewTrigger} />
+              <SchemaGraph
+                types={effectiveTypes}
+                onStateChange={setGraphState}
+                fitViewTrigger={fitViewTrigger}
+                onCrossDatasetNavigate={handleCrossDatasetNavigate}
+                pendingFocusType={pendingNavTarget?.typeName}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>

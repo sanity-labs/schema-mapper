@@ -262,7 +262,7 @@ function mapStudioField(
         isReference: true,
         isCrossDatasetReference: true,
         crossDatasetName: field.dataset || undefined,
-        crossDatasetTooltip: `Cross-dataset reference to ${field.to?.[0]?.type || 'unknown'} in ${field.dataset || 'unknown dataset'}`,
+        crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${field.dataset || 'unknown dataset'}</strong>`,
         referenceTo: field.to?.[0]?.type,
       }
     case 'globalDocumentReference':
@@ -273,7 +273,7 @@ function mapStudioField(
         isReference: true,
         isCrossDatasetReference: true,
         crossDatasetName: field.resourceId || field.resourceType || 'external',
-        crossDatasetTooltip: `Global reference to ${field.to?.[0]?.type || 'unknown'} in ${field.resourceId || field.resourceType || 'external resource'}`,
+        crossDatasetTooltip: `Global reference to <strong style="color:#7c3aed">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${field.resourceId || field.resourceType || 'external resource'}</strong>`,
         referenceTo: field.to?.[0]?.type,
       }
     case 'array': {
@@ -297,8 +297,8 @@ function mapStudioField(
           isCrossDatasetReference: true,
           crossDatasetName: targetName,
           crossDatasetTooltip: isGlobal
-            ? `Global reference to ${refItem?.to?.[0]?.type || 'unknown'} in ${targetName}`
-            : `Cross-dataset reference to ${refItem?.to?.[0]?.type || 'unknown'} in ${targetName}`,
+            ? `Global reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
+            : `Cross-dataset reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`,
           referenceTo: refItem?.to?.[0]?.type,
         }
       }
