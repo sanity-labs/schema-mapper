@@ -187,7 +187,7 @@ function OrgOverview({
     datasetName: string
     schemaId?: string
     focusedType?: string
-    focusDepth?: 1 | 2
+    focusDepth?: 0 | 1 | 2
     projectName?: string
     datasetLabel?: string
     viewport?: { x: number; y: number; zoom: number }
@@ -197,6 +197,7 @@ function OrgOverview({
   const [pendingNavTarget, setPendingNavTarget] = useState<{
     datasetName?: string
     typeName?: string
+    focusDepth?: 0 | 1 | 2
     waitingForDatasets?: boolean
   } | null>(null)
   const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
@@ -251,13 +252,12 @@ function OrgOverview({
 
     if (entry.projectId !== selectedProjectId) {
       onProjectSelect(entry.projectId)
-      setPendingNavTarget({ datasetName: entry.datasetName, typeName: entry.focusedType, waitingForDatasets: true })
+      setPendingNavTarget({ datasetName: entry.datasetName, typeName: entry.focusedType, focusDepth: entry.focusDepth, waitingForDatasets: true })
     } else if (entry.datasetName !== selectedDatasetName) {
       onDatasetSelect(entry.datasetName)
-      setPendingNavTarget({ typeName: entry.focusedType })
+      setPendingNavTarget({ typeName: entry.focusedType, focusDepth: entry.focusDepth })
     } else {
-      // Same project + dataset — just restore focus
-      setPendingNavTarget({ typeName: entry.focusedType })
+      setPendingNavTarget({ typeName: entry.focusedType, focusDepth: entry.focusDepth })
     }
   }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect])
 
@@ -449,7 +449,7 @@ function OrgOverview({
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
-        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 1 } : undefined,
+        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
       }
 
       const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'
@@ -784,6 +784,7 @@ function OrgOverview({
                 fitViewTrigger={fitViewTrigger}
                 onCrossDatasetNavigate={handleCrossDatasetNavigate}
                 pendingFocusType={pendingNavTarget?.typeName}
+                pendingFocusDepth={pendingNavTarget?.focusDepth}
                 restoreViewport={pendingRestoreViewport}
               />
             ) : (
