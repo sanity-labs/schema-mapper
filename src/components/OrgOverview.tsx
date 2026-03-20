@@ -211,8 +211,10 @@ function OrgOverview({
     if (selectedProjectId && selectedDatasetName) {
       const proj = projects.find(p => p.id === selectedProjectId)
       // When navigating from search (no focus), save the source type for 0-hop focus on return
-      const savedFocusType = graphStateRef.current.focusedType || sourceTypeName
-      const savedFocusDepth = graphStateRef.current.focusedType ? (graphStateRef.current.focusDepth ?? 0) : 0
+      // When in full graph (no focus, no search), save undefined so back restores full graph
+      const isSearching = graphStateRef.current.isSearching
+      const savedFocusType = graphStateRef.current.focusedType || (isSearching ? sourceTypeName : undefined)
+      const savedFocusDepth = graphStateRef.current.focusedType ? (graphStateRef.current.focusDepth ?? 0) : (isSearching ? 0 : undefined)
       setNavigationStack(prev => [...prev, {
         projectId: selectedProjectId,
         datasetName: selectedDatasetName,
@@ -280,7 +282,9 @@ function OrgOverview({
 
   // When schema finishes loading after navigation, clear pending after a delay (focus handled by SchemaGraph)
   useEffect(() => {
-    if (!pendingNavTarget?.typeName || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
+    if (!pendingNavTarget || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
+    // Types are loaded — clear nav target after viewport restore settles
+    // (pendingFocusType may be undefined for full-graph restore, that's fine)
     const timer = setTimeout(() => {
       setPendingNavTarget(null)
       setPendingRestoreViewport(null)
