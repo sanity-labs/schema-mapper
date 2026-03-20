@@ -200,13 +200,14 @@ function OrgOverview({
   const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string) => {
     // Save current view to stack
     if (selectedProjectId && selectedDatasetName) {
+      const proj = projects.find(p => p.id === selectedProjectId)
       setNavigationStack(prev => [...prev, {
         projectId: selectedProjectId,
         datasetName: selectedDatasetName,
         schemaId: selectedSchemaId ?? undefined,
         focusedType: graphState.focusedType,
         focusDepth: graphState.focusDepth,
-        projectName: selectedProject?.displayName || selectedProjectId,
+        projectName: (proj as any)?.displayName || selectedProjectId,
         datasetLabel: selectedDatasetName,
       }])
     }
@@ -234,7 +235,7 @@ function OrgOverview({
       onDatasetSelect(targetDatasetName)
       setPendingNavTarget({ typeName: targetTypeName })
     }
-  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, graphState, selectedProject, projects, onProjectSelect, onDatasetSelect])
+  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, graphState, projects, onProjectSelect, onDatasetSelect])
 
   const handleNavigateBack = useCallback(() => {
     const stack = [...navigationStack]
