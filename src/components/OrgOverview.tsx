@@ -197,6 +197,7 @@ function OrgOverview({
     viewport?: { x: number; y: number; zoom: number }
   }
   const [navigationStack, setNavigationStack] = useState<NavigationEntry[]>([])
+  const [isGlobalNav, setIsGlobalNav] = useState(false)
   // Pending navigation — tracks the full target so we can chain: project switch → dataset select → schema load → focus
   const [pendingNavTarget, setPendingNavTarget] = useState<{
     datasetName?: string
@@ -228,6 +229,8 @@ function OrgOverview({
     }
 
     // Parse target — could be "ProjectName / dataset" (resolved) or just "dataset"
+    const isGlobal = targetDatasetName.indexOf(' / ') !== -1
+    setIsGlobalNav(isGlobal)
     const slashIdx = targetDatasetName.indexOf(' / ')
     if (slashIdx !== -1) {
       // Global ref — need to find the project by display name
@@ -257,6 +260,7 @@ function OrgOverview({
     const entry = stack.pop()
     if (!entry) return
     setNavigationStack(stack)
+    setIsGlobalNav(false)
     setPendingRestoreViewport(entry.viewport ?? null)
 
     // Use '__clear__' sentinel when no focus to restore — tells core to exit any active focus
@@ -567,7 +571,7 @@ function OrgOverview({
               {navigationStack.length > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
+                  className={"flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-colors mr-1 " + (isGlobalNav ? "bg-purple-50 dark:bg-purple-950/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100" : "bg-teal-50 dark:bg-teal-950/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100")}
                 >
                   <GoArrowLeft className="w-3.5 h-3.5" />
                   <span>Back to</span>
@@ -789,7 +793,7 @@ function OrgOverview({
           {/* Cross-dataset navigation bar */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? " border-2 border-dashed border-purple-300 dark:border-purple-700" : " border")}
+            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? (" border-2 border-dashed " + (isGlobalNav ? "border-purple-300 dark:border-purple-700" : "border-teal-300 dark:border-teal-700")) : " border")}
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >

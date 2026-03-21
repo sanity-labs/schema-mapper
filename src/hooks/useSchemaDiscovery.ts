@@ -24,6 +24,7 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
       isReference: true,
       ...(hasCrossDataset ? {
         isCrossDatasetReference: true,
+        isGlobalReference: '_projectRef' in value || undefined,
         crossDatasetName: (value as any)._dataset || (value as any)._projectRef || 'external',
       } : {}),
     }
@@ -42,6 +43,7 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
         isArray: true,
         ...(hasCrossDataset ? {
           isCrossDatasetReference: true,
+          isGlobalReference: '_projectRef' in firstItem || undefined,
           crossDatasetName: (firstItem as any)._dataset || (firstItem as any)._projectRef || 'external',
         } : {}),
       }
