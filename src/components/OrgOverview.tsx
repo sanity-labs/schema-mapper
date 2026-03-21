@@ -758,7 +758,7 @@ function OrgOverview({
           {/* Cross-dataset navigation bar */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? " border-2 border-purple-300 dark:border-purple-700" : " border mb-[30px]")}
+            className={"flex-1 min-h-[500px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? " border-2 border-dashed border-purple-300 dark:border-purple-700" : " border mb-[30px]")}
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
