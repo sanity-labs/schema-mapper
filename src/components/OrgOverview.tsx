@@ -567,7 +567,7 @@ function OrgOverview({
               {navigationStack.length > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border-2 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
                 >
                   <GoArrowLeft className="w-3.5 h-3.5" />
                   <span>Back to</span>
