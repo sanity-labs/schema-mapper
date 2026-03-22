@@ -210,7 +210,7 @@ function OrgOverview({
   } | null>(null)
   const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
 
-  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string, sourceTypeName?: string) => {
+  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string, sourceTypeName?: string, projectId?: string) => {
     // Save current view to stack
     if (selectedProjectId && selectedDatasetName) {
       const proj = projects.find(p => p.id === selectedProjectId)
