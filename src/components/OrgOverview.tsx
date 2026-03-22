@@ -536,6 +536,7 @@ function OrgOverview({
                         ...(lf.isCrossDatasetReference ? {
                           isCrossDatasetReference: true,
                           crossDatasetName: lf.crossDatasetName,
+                          crossDatasetProjectId: lf.crossDatasetProjectId,
                           referenceTo: lf.referenceTo,
                           ...(lf.isGlobalReference ? { isGlobalReference: true } : {}),
                           ...(lf.crossDatasetTooltip ? { crossDatasetTooltip: lf.crossDatasetTooltip } : {}),
@@ -589,6 +590,7 @@ function OrgOverview({
             ...(f.isCrossDatasetReference ? {
               isCrossDatasetReference: true,
               crossDatasetName: f.crossDatasetName,
+              crossDatasetProjectId: f.crossDatasetProjectId,
               referenceTo: f.referenceTo,
               ...(f.isGlobalReference ? { isGlobalReference: true } : {}),
               ...(f.crossDatasetTooltip ? { crossDatasetTooltip: f.crossDatasetTooltip } : {}),
