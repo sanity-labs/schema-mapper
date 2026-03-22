@@ -108,6 +108,8 @@ interface OrgOverviewProps {
   deployedSchemas?: DeployedSchemaEntry[]
   selectedSchemaId?: string | null
   onSchemaSelect?: (schemaId: string) => void
+  // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
+  schemasCache?: Map<string, DiscoveredType[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,7 @@ function OrgOverview({
   deployedSchemas,
   selectedSchemaId,
   onSchemaSelect,
+  schemasCache,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -425,7 +428,7 @@ function OrgOverview({
               projectName: targetProjectName,
               datasetName: targetDatasetName,
               isGlobal,
-              included: schemasRef.current.has(key) && (schemasRef.current.get(key)?.length ?? 0) > 0,
+              included: !!schemasCache?.has(key) && (schemasCache?.get(key)?.length ?? 0) > 0,
             })
           }
         }
@@ -499,9 +502,9 @@ function OrgOverview({
                 targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
               }
               const cacheKey = `${targetProjectId}::${targetDatasetName}`
-              if (!seen.has(cacheKey) && schemasRef.current.has(cacheKey)) {
+              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey)) {
                 seen.add(cacheKey)
-                const cachedTypes = schemasRef.current.get(cacheKey) || []
+                const cachedTypes = schemasCache?.get(cacheKey) || []
                 if (cachedTypes.length > 0) {
                   linkedSchemas.push({
                     project: { id: targetProjectId, name: targetProjectName },

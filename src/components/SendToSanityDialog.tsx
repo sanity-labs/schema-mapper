@@ -112,79 +112,16 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
           </Stack>
         ) : (
           <Stack space={4}>
-            {/* Explanation */}
+            {/* What gets shared */}
             <Text size={1} muted>
-              Sharing your schema map helps your Sanity team understand your content architecture and
-              provide better support and guidance. If you've arranged the boxes to highlight specific relationships, they'll see it exactly as you've laid it out.
+              This shares your schema structure — type definitions, field names, document counts, and project details — so your Sanity team can understand your content architecture. If you've arranged the boxes to highlight specific relationships, they'll see it exactly as you've laid it out.
             </Text>
 
-            {/* What will be sent summary */}
-            <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-900">
-              <Stack space={3}>
-                <Text size={1} weight="medium" muted>
-                  What will be shared:
-                </Text>
-                {context.orgName && (
-                  <Flex gap={2} align="center">
-                    <Text size={1} muted>
-                      Organization:
-                    </Text>
-                    <Text size={1} weight="medium">
-                      {context.orgName}
-                    </Text>
-                  </Flex>
-                )}
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Project:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.projectName}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Dataset:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.datasetName}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Schema types:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.typeCount}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Total documents:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.totalDocuments.toLocaleString()}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Schema source:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {schemaSourceLabel}
-                  </Text>
-                </Flex>
-                {context.workspaceName && context.workspaceName !== 'default' && (
-                  <Flex gap={2} align="center">
-                    <Text size={1} muted>
-                      Workspace:
-                    </Text>
-                    <Text size={1} weight="medium">
-                      {context.workspaceName}
-                    </Text>
-                  </Flex>
-                )}
-              </Stack>
+            {/* Hero: no content data */}
+            <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 border border-blue-200 dark:border-blue-800">
+              <Text size={1} weight="medium" className="text-blue-800 dark:text-blue-300">
+                No document content is shared — only schema structure and metadata.
+              </Text>
             </div>
 
             {/* Linked schemas status */}
@@ -233,8 +170,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
 
             {/* Privacy note */}
             <Text size={0} muted>
-              This sends your schema structure, document counts, and project details to Sanity. <strong className="font-semibold text-foreground">No
-              document content is shared.</strong> Please ensure you're comfortable sharing this information.
+              Please ensure you're comfortable sharing this information.
             </Text>
 
 
