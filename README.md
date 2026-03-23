@@ -13,6 +13,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 - **4 layouts** — Dagre, ELK Layered, Force, Clustered — with per-layout spacing control
 - **3 edge styles** — Bezier, Step (rounded corners, sibling offset), Straight — animated transitions
 - **Focus Mode** — Click any type to isolate its connections (1-hop) or expand to 2-hop. Orphaned references show clickable lozenges to navigate deeper. Back button retraces your path.
+- **Cross-dataset references** — Clickable lozenges for cross-dataset and global document references. Navigate to linked schemas across projects and datasets with full back-navigation.
 - **Search** — Live filter by type or field name
 - **Export** — Vector PDF (react-pdf), PNG (3x resolution), SVG — PDF includes structured metadata header with org, project, dataset info. PDF shows focus context when focused.
 - **Multi-project** — Browse all org projects/datasets via tabs, locked projects shown separately
