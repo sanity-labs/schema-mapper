@@ -218,6 +218,7 @@ function OrgOverview({
   // Pending navigation — tracks the full target so we can chain: project switch → dataset select → schema load → focus
   const [pendingNavTarget, setPendingNavTarget] = useState<{
     datasetName?: string
+    schemaId?: string
     typeName?: string
     focusDepth?: 0 | 1 | 2
     waitingForDatasets?: boolean
@@ -286,14 +287,16 @@ function OrgOverview({
 
     if (entry.projectId !== selectedProjectId) {
       onProjectSelect(entry.projectId)
-      setPendingNavTarget({ datasetName: entry.datasetName, typeName: restoreTypeName, focusDepth: restoreDepth, waitingForDatasets: true })
+      setPendingNavTarget({ datasetName: entry.datasetName, schemaId: entry.schemaId, typeName: restoreTypeName, focusDepth: restoreDepth, waitingForDatasets: true })
     } else if (entry.datasetName !== selectedDatasetName) {
       onDatasetSelect(entry.datasetName)
-      setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
+      setPendingNavTarget({ schemaId: entry.schemaId, typeName: restoreTypeName, focusDepth: restoreDepth })
     } else {
+      // Same project + dataset — restore schema immediately if needed
+      if (entry.schemaId && onSchemaSelect) onSchemaSelect(entry.schemaId)
       setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
     }
-  }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect])
+  }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect, onSchemaSelect])
 
   // When datasets load after a cross-project navigation, select the target dataset
   useEffect(() => {
@@ -305,9 +308,11 @@ function OrgOverview({
     }
   }, [datasets, pendingNavTarget, onDatasetSelect])
 
-  // When schema finishes loading after navigation, clear pending after a delay (focus handled by SchemaGraph)
+  // When schema finishes loading after navigation, restore schema selection + clear pending
   useEffect(() => {
     if (!pendingNavTarget || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
+    // Restore schema/workspace selection if saved (overrides auto-select default)
+    if (pendingNavTarget.schemaId && onSchemaSelect) onSchemaSelect(pendingNavTarget.schemaId)
     // Types are loaded — clear nav target after viewport restore settles
     // (pendingFocusType may be undefined for full-graph restore, that's fine)
     const timer = setTimeout(() => {
@@ -315,7 +320,7 @@ function OrgOverview({
       setPendingRestoreViewport(null)
     }, 800)
     return () => clearTimeout(timer)
-  }, [pendingNavTarget, isSchemasLoading, types])
+  }, [pendingNavTarget, isSchemasLoading, types, onSchemaSelect])
 
   // Collapsible nav — collapses to breadcrumb when mouse enters graph area
   // Only enabled when nav content exceeds ~2 rows of tabs
