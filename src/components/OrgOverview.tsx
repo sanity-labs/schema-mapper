@@ -246,29 +246,36 @@ function OrgOverview({
       }])
     }
 
-    // Parse target — could be "ProjectName / dataset" (resolved) or just "dataset"
-    const isGlobal = targetDatasetName.indexOf(' / ') !== -1
-    setIsGlobalNav(isGlobal)
+    // Parse target — extract dataset name and find target project
     const slashIdx = targetDatasetName.indexOf(' / ')
-    if (slashIdx !== -1) {
-      // Global ref — need to find the project by display name
+    const dsName = slashIdx !== -1 ? targetDatasetName.slice(slashIdx + 3) : targetDatasetName
+    const isGlobal = slashIdx !== -1
+    setIsGlobalNav(isGlobal)
+
+    // Find target project: prefer explicit projectId, fall back to display name match
+    let targetProject: typeof projects[0] | undefined
+    if (projectId) {
+      targetProject = projects.find(p => p.id === projectId)
+      if (!targetProject) {
+        // Project not accessible — show inaccessible dialog
+        const projDisplay = slashIdx !== -1 ? targetDatasetName.slice(0, slashIdx) : projectId
+        setInaccessibleInfo({ projectName: projDisplay, datasetName: dsName })
+        return
+      }
+    } else if (slashIdx !== -1) {
       const projDisplay = targetDatasetName.slice(0, slashIdx)
-      const dsName = targetDatasetName.slice(slashIdx + 3)
-      const targetProject = projects.find(p =>
+      targetProject = projects.find(p =>
         (p as any).displayName === projDisplay || p.id === projDisplay
       )
-      if (targetProject && targetProject.id !== selectedProjectId) {
-        // Different project — switch project, wait for datasets to load, then select dataset
-        onProjectSelect(targetProject.id)
-        setPendingNavTarget({ datasetName: dsName, typeName: targetTypeName, waitingForDatasets: true })
-      } else {
-        // Same project — just switch dataset
-        onDatasetSelect(dsName)
-        setPendingNavTarget({ typeName: targetTypeName })
-      }
+    }
+
+    if (targetProject && targetProject.id !== selectedProjectId) {
+      // Different project — switch project, wait for datasets to load, then select dataset
+      onProjectSelect(targetProject.id)
+      setPendingNavTarget({ datasetName: dsName, typeName: targetTypeName, waitingForDatasets: true })
     } else {
-      // Cross-dataset ref — same project, different dataset
-      onDatasetSelect(targetDatasetName)
+      // Same project or no project switch needed — just switch dataset
+      onDatasetSelect(dsName)
       setPendingNavTarget({ typeName: targetTypeName })
     }
   }, [selectedProjectId, selectedDatasetName, selectedSchemaId, projects, onProjectSelect, onDatasetSelect])
