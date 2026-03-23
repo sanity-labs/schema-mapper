@@ -104,6 +104,8 @@ interface OrgOverviewProps {
   // Callbacks — these trigger lazy loading in parent
   onProjectSelect: (projectId: string) => void
   onDatasetSelect: (datasetName: string) => void
+  // Pending dataset override — tells parent to use this dataset instead of auto-selecting "production"
+  onPendingDataset?: (datasetName: string | null) => void
   // Multi-schema (workspace) support
   deployedSchemas?: DeployedSchemaEntry[]
   selectedSchemaId?: string | null
@@ -158,6 +160,7 @@ function OrgOverview({
   isSchemasLoading,
   onProjectSelect,
   onDatasetSelect,
+  onPendingDataset,
   deployedSchemas,
   selectedSchemaId,
   onSchemaSelect,
@@ -304,6 +307,11 @@ function OrgOverview({
       setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
     }
   }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect, onSchemaSelect])
+
+  // Notify parent of pending dataset override (suppresses auto-select of "production")
+  useEffect(() => {
+    onPendingDataset?.(pendingNavTarget?.datasetName ?? null)
+  }, [pendingNavTarget?.datasetName, onPendingDataset])
 
   // When datasets load after a cross-project navigation, select the target dataset
   useEffect(() => {

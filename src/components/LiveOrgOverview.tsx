@@ -348,6 +348,7 @@ function LiveOrgOverviewInner() {
   datasetsLoadingRef.current = state.datasetsLoading
   const schemasRef = useRef(state.schemas)
   schemasRef.current = state.schemas
+  const pendingDatasetRef = useRef<string | null>(null)
   const schemasLoadingRef = useRef(state.schemasLoading)
   schemasLoadingRef.current = state.schemasLoading
 
@@ -466,7 +467,8 @@ function LiveOrgOverviewInner() {
     [state.selectedProjectId, projects],
   )
 
-  // Auto-select 'production' dataset when datasets become available for the selected project
+  // Auto-select dataset when datasets become available for the selected project
+  // If OrgOverview has a pending navigation target, use that instead of defaulting to "production"
   useEffect(() => {
     if (!state.selectedProjectId) return
     if (state.selectedDatasetName) return // already have a selection
@@ -474,6 +476,20 @@ function LiveOrgOverviewInner() {
 
     const datasets = state.datasets.get(state.selectedProjectId)
     if (!datasets || datasets.length === 0) return
+
+    // Check if OrgOverview has a pending dataset from back navigation
+    const pendingDs = pendingDatasetRef.current
+    if (pendingDs) {
+      const target = datasets.find(d => d.name === pendingDs)
+      if (target) {
+        dispatch({type: 'SELECT_DATASET', datasetName: pendingDs})
+        const pendingKey = `${state.selectedProjectId}::${pendingDs}`
+        if (!state.schemas.has(pendingKey) && !state.schemasLoading.has(pendingKey)) {
+          dispatch({type: 'SCHEMA_LOADING', key: pendingKey})
+        }
+        return
+      }
+    }
 
     const production = datasets.find(d => d.name === 'production')
     const autoSelect = production ? 'production' : datasets[0].name
@@ -576,6 +592,10 @@ function LiveOrgOverviewInner() {
   }, [])
 
   // -----------------------------------------------------------------------
+  const handlePendingDataset = useCallback((datasetName: string | null) => {
+    pendingDatasetRef.current = datasetName
+  }, [])
+
   // Derive props for OrgOverview
   // -----------------------------------------------------------------------
 
@@ -770,6 +790,7 @@ function LiveOrgOverviewInner() {
         isSchemasLoading={isSchemasLoading}
         onProjectSelect={handleProjectSelect}
         onDatasetSelect={handleDatasetSelect}
+        onPendingDataset={handlePendingDataset}
         deployedSchemas={currentDeployedSchemas}
         selectedSchemaId={state.selectedSchemaId}
         onSchemaSelect={handleSchemaSelect}
