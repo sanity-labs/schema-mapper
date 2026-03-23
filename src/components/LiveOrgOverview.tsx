@@ -516,7 +516,35 @@ function LiveOrgOverviewInner() {
           }
         }),
       }))
-      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas})
+      // Also resolve cross-dataset names in ALL deployed schema entries' types
+      // so SELECT_SCHEMA (workspace switch) gets resolved types too
+      const resolvedDeployedSchemas = deployedSchemas.map(entry => ({
+        ...entry,
+        types: entry.types.map(t => ({
+          ...t,
+          fields: t.fields.map(f => {
+            if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
+            if (f.crossDatasetResourceType === 'media-library') return f
+            const parts = f.crossDatasetName.split('.')
+            if (parts.length === 2) {
+              const projName = projectNameMap.get(parts[0]) || parts[0]
+              const projId = parts[0]
+              return {
+                ...f,
+                crossDatasetProjectId: projId,
+                crossDatasetName: `${projName} / ${parts[1]}`,
+                crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
+              }
+            }
+            if (f.crossDatasetTooltip) return f
+            return {
+              ...f,
+              crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${f.crossDatasetName}</strong>`,
+            }
+          }),
+        })),
+      }))
+      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas})
 
       // Track schema discovery completion
       const [projectId, datasetName] = key.split('::')
