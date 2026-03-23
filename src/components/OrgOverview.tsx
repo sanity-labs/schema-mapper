@@ -710,7 +710,7 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 42 : 500 }}
+            style={{ maxHeight: navigationStack.length > 0 ? 0 : (navCollapsed && collapseEnabled ? 42 : 500) }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
@@ -723,24 +723,7 @@ function OrgOverview({
               }}
               onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
             >
-              {navigationStack.length > 0 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
-                  className={"flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-colors mr-1 " + (isGlobalNav ? "bg-purple-50 dark:bg-purple-950/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100" : "bg-teal-50 dark:bg-teal-950/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100")}
-                >
-                  <GoArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to</span>
-                  <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
-                  <GoChevronRight className="w-3 h-3 opacity-50" />
-                  <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
-                  {navigationStack[navigationStack.length - 1].focusedType && navigationStack[navigationStack.length - 1].focusedType !== '__clear__' && (
-                    <>
-                      <GoChevronRight className="w-3 h-3 opacity-50" />
-                      <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
-                    </>
-                  )}
-                </button>
-              )}
+
               {selectedProject && (
                 <>
                   <span className="font-normal text-foreground">{selectedProject.displayName}</span>
@@ -876,20 +859,41 @@ function OrgOverview({
               }}
             >
               <GoDatabase className="text-base" />
-              <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
-              <Badge
-                variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
-                className={
-                  (selectedDataset.aclMode === 'public'
-                    ? 'bg-green-100 text-green-800 hover:bg-green-200 font-normal dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
-                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
-                  + ' cursor-pointer select-none transition-colors'
-                }
-                onClick={() => setShowAclDialog(true)}
-              >
-                {selectedDataset.aclMode === 'public' ? <GoUnlock className="inline-block mr-1 align-middle" /> : <GoLock className="inline-block mr-1 align-middle" />}
-                {selectedDataset.aclMode}
-              </Badge>
+              {navigationStack.length > 0 ? (
+                <>
+                  <span className={isGlobalNav ? 'font-normal text-purple-700 dark:text-purple-400' : 'font-normal text-teal-700 dark:text-teal-400'}>
+                    {selectedProject?.displayName} / {selectedDatasetName}
+                  </span>
+                  <Badge
+                    variant="default"
+                    className={
+                      (isGlobalNav
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300'
+                        : 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300')
+                      + ' font-normal'
+                    }
+                  >
+                    {isGlobalNav ? 'global reference' : 'cross-dataset reference'}
+                  </Badge>
+                  <span className="text-muted-foreground">·</span>
+                  <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
+                  <Badge
+                    variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
+                    className={
+                      (selectedDataset.aclMode === 'public'
+                        ? 'bg-green-100 text-green-800 hover:bg-green-200 font-normal dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
+                        : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
+                      + ' cursor-pointer select-none transition-colors'
+                    }
+                    onClick={() => setShowAclDialog(true)}
+                  >
+                    {selectedDataset.aclMode === 'public' ? <GoUnlock className="inline-block mr-1 align-middle" /> : <GoLock className="inline-block mr-1 align-middle" />}
+                    {selectedDataset.aclMode}
+                  </Badge>
               {effectiveSource && (
                 <Badge
                   variant="default"
@@ -941,6 +945,8 @@ function OrgOverview({
                   />
                 </>
               )}
+                </>
+              )}
             </div>
           )}
 
@@ -952,6 +958,21 @@ function OrgOverview({
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
+            {/* Back bar for cross-dataset navigation */}
+            {navigationStack.length > 0 && (
+              <div
+                className={
+                  'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer select-none transition-colors'
+                  + (isGlobalNav
+                    ? ' bg-purple-50 text-purple-700 border-b border-purple-200 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800 dark:hover:bg-purple-950/70'
+                    : ' bg-teal-50 text-teal-700 border-b border-teal-200 hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/70')
+                }
+                onClick={() => handleNavigateBack()}
+              >
+                <GoArrowLeft className="text-base" />
+                <span>Back to {navigationStack[navigationStack.length - 1].projectName} / {navigationStack[navigationStack.length - 1].datasetLabel}</span>
+              </div>
+            )}
             {!selectedDatasetName ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Select a project and dataset to view the schema graph</p>
