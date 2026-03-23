@@ -141,7 +141,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
             <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
               <Stack space={3}>
                 <Text size={1} weight="medium" muted>
-                  Included datasets
+                  Included schemas
                 </Text>
 
                 {/* Current dataset — always included, not toggleable */}
