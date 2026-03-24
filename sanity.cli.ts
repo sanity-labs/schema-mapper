@@ -4,6 +4,7 @@ export default defineCliConfig({
   app: {
     organizationId: 'YOUR_ORG_ID', // TODO: Replace with your Sanity organization ID
     entry: './src/App.tsx',
+    icon: './static/icon.svg',
   },
   // deployment: {
   //   appId: 'YOUR_APP_ID', // Uncomment after first deploy
