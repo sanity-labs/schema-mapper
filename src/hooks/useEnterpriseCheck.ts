@@ -17,7 +17,7 @@ export function useEnterpriseCheck(orgId: string | undefined): EnterpriseStatus 
     let cancelled = false
     setIsLoading(true)
 
-    fetch(`${WORKER_URL}?org=${encodeURIComponent(orgId)}`)
+    fetch(`${WORKER_URL}?orgId=${encodeURIComponent(orgId)}`)
       .then((res) => res.json())
       .then((data) => {
         if (!cancelled) {
