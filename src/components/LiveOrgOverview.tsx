@@ -310,9 +310,16 @@ function ActiveSchemaDiscovery({
 // progressive lazy loading across 3 phases
 // ---------------------------------------------------------------------------
 
-function LiveOrgOverviewInner() {
-  const projects = useProjects()
+function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]}) {
+  const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
+  // Optional config-level filter: when allowedProjectIds is non-empty,
+  // only keep projects whose id appears in the list.
+  const projects = useMemo(() => {
+    if (!allowedProjectIds || allowedProjectIds.length === 0) return allProjects
+    const allowed = new Set(allowedProjectIds)
+    return allProjects.filter((p: any) => allowed.has(p.id))
+  }, [allProjects, allowedProjectIds])
   const client = useClient({apiVersion: '2024-01-01'})
   const [orgName, setOrgName] = useState<string | undefined>(undefined)
 
@@ -805,7 +812,7 @@ function LiveOrgOverviewInner() {
 // LiveOrgOverview — public export, wraps inner in Suspense + ErrorBoundary
 // ---------------------------------------------------------------------------
 
-export function LiveOrgOverview() {
+export function LiveOrgOverview({allowedProjectIds}: {allowedProjectIds?: string[]} = {}) {
   return (
     <ErrorBoundary
       fallback={
@@ -835,7 +842,7 @@ export function LiveOrgOverview() {
           />
         }
       >
-        <LiveOrgOverviewInner />
+        <LiveOrgOverviewInner allowedProjectIds={allowedProjectIds} />
       </Suspense>
     </ErrorBoundary>
   )

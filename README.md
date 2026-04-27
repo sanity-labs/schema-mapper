@@ -90,6 +90,7 @@ You'll be prompted to choose a hostname (e.g. `my-org-schema-mapper`). After dep
 ## Tips
 
 - **Iframe reload** — In dev mode, some browsers (especially Arc) may require you to right-click the app and reload the iframe for it to connect properly. This is not an issue once the app is deployed.
+- **Filter projects** — Optionally restrict which projects appear in the UI by setting `allowedProjectIds` in `src/App.tsx` to an array of project IDs. Leave it empty (default) to show all projects in the org.
 
 ## Tech Stack
 

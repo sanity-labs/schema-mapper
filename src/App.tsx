@@ -25,6 +25,11 @@ const theme = buildTheme()
 
 const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
 
+// Optional: restrict the project list to specific project IDs.
+// When empty, all projects in the org are shown (default behaviour).
+// When populated, only projects whose id is in this list will appear in the UI.
+const allowedProjectIds: string[] = []
+
 const config: SanityConfig[] = [
   {
     projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your Sanity project ID
@@ -101,10 +106,10 @@ export default function App() {
           <Suspense fallback={<LoadingScreen />}>
             <HashRouter>
               <Routes>
-                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
-                <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
-                <Route path="/:orgId" element={<LiveOrgOverview />} />
-                <Route path="/" element={<LiveOrgOverview />} />
+                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
+                <Route path="/:orgId/:projectId" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
+                <Route path="/:orgId" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
+                <Route path="/" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
               </Routes>
             </HashRouter>
           </Suspense>

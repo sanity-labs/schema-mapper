@@ -105,6 +105,8 @@ In `<path>/sanity.cli.ts`: replace `YOUR_PROJECT_ID` with the chosen project ID,
 
 In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID, and replace `YOUR_ORG_ID` with the org ID.
 
+> Optional: `src/App.tsx` also contains an `allowedProjectIds: string[] = []` constant. If the user wants to restrict which projects appear in the UI, populate this array with project IDs. Leave empty (default) to show all projects in the org.
+
 ### 8. Install dependencies
 
 - Check for `pnpm-lock.yaml` → use `pnpm install`
