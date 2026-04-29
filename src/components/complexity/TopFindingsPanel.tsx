@@ -87,12 +87,13 @@ export function TopFindingsPanel({
           </div>
           <p className="text-xs text-purple-900/80 dark:text-purple-200/80 leading-relaxed mb-3 max-w-2xl">
             <strong className="font-normal">{formatNumber(driftAttrs)}</strong>
-            {' '}distinct populated <code className="font-mono text-xs">(path, datatype)</code> pair
+            {' '}unique <code className="font-mono text-xs">(path, datatype)</code> pair
             {driftAttrs === 1 ? ' is' : 's are'} populated in your data but not declared in any deployed
             schema{driftPct && <> — roughly <strong className="font-normal">{driftPct}</strong> of your
-            plan limit</>}. These are the most direct lever to drop your attribute count: either declare
-            them in the schema (so editors control them) or run a migration to unset them across all
-            documents that populate them.{' '}
+            plan limit</>}. Each pair counts once globally, no matter how many documents populate it. To
+            drop your attribute count: either declare them in the schema (so editors control them) or run
+            a migration to unset them across <em>all</em> documents that populate them (decrement happens
+            only when the path is empty across the whole dataset).{' '}
             <em className="not-italic">
               (Removing schema fields that aren't populated doesn't change billing — see "Schema cleanup"
               below.)
@@ -129,12 +130,13 @@ export function TopFindingsPanel({
           )}
         </div>
         <p className="text-xs text-muted-foreground mb-3 leading-relaxed max-w-3xl">
-          Per-doc-type view to <em>identify</em> where the populated paths live. Sanity bills attributes
-          dataset-globally — the same path on two doc types counts once — so per-row counts don't sum to
-          your billing total.
+          Per-doc-type view to <em>identify</em> where unique populated paths live. Each number below is a
+          count of <strong className="font-normal text-foreground">unique paths</strong> — not occurrences.
+          Sanity bills attributes globally, so the same path used by two doc types only counts once;
+          per-row Realized counts therefore <em>don't sum</em> to your headline total.
           {estimatedTotal > 0 && (
             <> Globally we count <strong className="font-normal text-foreground">
-              {formatNumber(estimatedTotal)}</strong> distinct (path, datatype) pairs.</>
+              {formatNumber(estimatedTotal)}</strong> unique (path, datatype) pairs across the dataset.</>
           )}
         </p>
         <div className="-mx-4 -my-2 overflow-x-auto whitespace-nowrap sm:-mx-0">
@@ -145,12 +147,12 @@ export function TopFindingsPanel({
                   <th className="whitespace-nowrap py-2 pr-3">Document type</th>
                   <th
                     className="whitespace-nowrap py-2 px-3 text-right"
-                    title="Distinct populated paths today — this doc type's current contribution to the dataset attribute count (per-doc-type view; globally, paths shared across types only count once)"
+                    title="Unique populated paths in this doc type's documents (deduplicated across all docs of this type). Globally, paths shared across types only count once."
                   >Realized</th>
                   {hasDeployedSchema && (
                     <th
                       className="whitespace-nowrap py-2 px-3 text-right"
-                      title="Theoretical max from the schema. If editors populate every declared field on every doc of this type, this is the ceiling on the doc type's attribute contribution."
+                      title="Unique paths the schema declares for this doc type. The theoretical max contribution if every declared field gets populated."
                     >Schema max</th>
                   )}
                   {hasDeployedSchema && (
@@ -159,12 +161,15 @@ export function TopFindingsPanel({
                       title="Realized ÷ Schema max — how much of the theoretical capacity is currently used"
                     >Used</th>
                   )}
-                  {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Schema-defined paths no scanned doc populates — schema cleanup, not billing">Dead</th>}
-                  {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Populated paths missing from the schema — these add to attribute count">Drift</th>}
-                  <th className="whitespace-nowrap py-2 px-3 text-right">Docs</th>
+                  {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Unique schema paths no scanned doc populates — schema cleanup, not billing">Dead</th>}
+                  {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Unique populated paths missing from the schema — these add to attribute count">Drift</th>}
                   <th
                     className="whitespace-nowrap py-2 px-3 text-right"
-                    title="Average number of paths populated by a single document of this type"
+                    title="Total documents scanned. Doc count does not directly drive attribute count — only unique path coverage does."
+                  >Docs</th>
+                  <th
+                    className="whitespace-nowrap py-2 px-3 text-right"
+                    title="Average number of unique paths a single document of this type populates"
                   >Avg paths/doc</th>
                   <th
                     className="whitespace-nowrap py-2 pl-3 text-right"

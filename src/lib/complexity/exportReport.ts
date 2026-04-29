@@ -1,0 +1,234 @@
+// Builds export artifacts for the Analyze-mode panel.
+//
+// Markdown output is intentionally LLM-friendly: small intro paragraph that
+// re-states what dataset attributes are, then the data, then a short footer.
+// Paste into Claude/ChatGPT/etc. with "what should I do about this?" and the
+// model has enough context to give specific advice.
+
+import type {SchemaPath} from './walkSchema'
+import type {DataPathRecord, PathStatsResult} from './pathStats'
+import {synthesizeFindings} from './findings'
+import {computeNormalization} from './normalization'
+
+export interface ExportContext {
+  projectName: string
+  projectId: string
+  datasetName: string
+  workspaceName?: string | null
+  /** Live attribute count from /v1/data/stats. */
+  liveAttributeCount: number | null
+  /** Plan attribute limit. */
+  planLimit: number | null
+  /** Total documents the scan walked. */
+  docsScanned: number
+  /** Whether the dataset has a deployed schema. */
+  hasDeployedSchema: boolean
+}
+
+export interface ExportInput extends ExportContext {
+  schemaPaths: SchemaPath[]
+  data: DataPathRecord[]
+  scannedByDocType: Map<string, number>
+  pathStats: PathStatsResult
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString()
+}
+
+function pct(num: number, den: number | null): string {
+  if (!den || den <= 0) return '—'
+  return `${((num / den) * 100).toFixed(1)}%`
+}
+
+function shapeLabel(ratio: number, populated: number, docs: number): string {
+  if (docs <= 1 || populated === 0) return '—'
+  if (ratio >= 0.95) return 'Normalized'
+  if (ratio >= 0.5) return 'Mostly normalized'
+  return 'Denormalized'
+}
+
+export function buildMarkdownReport(input: ExportInput): string {
+  const findings = synthesizeFindings({
+    schema: input.schemaPaths,
+    data: input.data,
+    scannedByDocType: input.scannedByDocType,
+  })
+  const normalization = computeNormalization(input.schemaPaths)
+
+  const lines: string[] = []
+  const datasetTitle = `${input.projectName} / ${input.datasetName}` + (input.workspaceName ? ` / ${input.workspaceName}` : '')
+
+  lines.push(`# Schema complexity report — ${datasetTitle}`)
+  lines.push('')
+  lines.push(
+    '> **What this measures.** Sanity bills "dataset attributes" — unique populated `(field path, datatype)` pairs across the dataset. Schema complexity by itself is free; only paths that real documents populate count. This report shows what is currently populated, where the schema is dormant, and where data has drifted from the schema. Reference: https://www.sanity.io/docs/apis-and-sdks/attribute-limit',
+  )
+  lines.push('')
+
+  // Headline numbers
+  lines.push('## Headline')
+  lines.push('')
+  if (input.liveAttributeCount !== null && input.planLimit) {
+    lines.push(
+      `- **Attributes used:** ${fmt(input.liveAttributeCount)} of ${fmt(input.planLimit)} (${pct(input.liveAttributeCount, input.planLimit)} of plan limit) — from \`/v1/data/stats\`, authoritative for billing.`,
+    )
+  } else if (input.liveAttributeCount !== null) {
+    lines.push(`- **Attributes used:** ${fmt(input.liveAttributeCount)}.`)
+  }
+  lines.push(
+    `- **Scan estimate:** ${fmt(input.pathStats.totals.estimatedAttributes)} unique \`(path, datatype)\` pairs from ${fmt(input.docsScanned)} document${input.docsScanned === 1 ? '' : 's'}.`,
+  )
+  if (input.hasDeployedSchema) {
+    lines.push(
+      `- **Drift attributes (paths populated but undeclared in schema):** ${fmt(input.pathStats.totals.driftAttributesGlobal)}` +
+        (input.planLimit ? ` (${pct(input.pathStats.totals.driftAttributesGlobal, input.planLimit)} of plan limit)` : '') +
+        ` — direct lever for reduction.`,
+    )
+  } else {
+    lines.push(`- **Deployed schema:** none. Dead/drift comparison disabled. Run \`npx sanity deploy\` to enable.`)
+  }
+  lines.push('')
+
+  // Top contributors table
+  lines.push('## Top contributors by document type')
+  lines.push('')
+  lines.push(
+    '_Per-doctype identification view. Sanity counts attributes globally, so per-row Realized counts do not sum to the headline. **Schema max** is the theoretical max contribution if every declared field gets populated. **Shape** indicates whether more docs would grow the attribute count (Denormalized) or not (Normalized)._',
+  )
+  lines.push('')
+  if (input.hasDeployedSchema) {
+    lines.push('| Doc type | Realized | Schema max | Used | Dead | Drift | Docs | Avg paths/doc | Shape |')
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
+  } else {
+    lines.push('| Doc type | Realized | Docs | Avg paths/doc | Shape |')
+    lines.push('| --- | ---: | ---: | ---: | --- |')
+  }
+  for (const f of findings.byDocType) {
+    const usedPct = f.schemaPathCount > 0 ? `${Math.round((f.populatedPathCount / f.schemaPathCount) * 100)}%` : '—'
+    const avg = f.avgPathsPerDoc >= 100 ? Math.round(f.avgPathsPerDoc) : f.avgPathsPerDoc.toFixed(1)
+    const shape = shapeLabel(f.normalizationRatio, f.populatedPathCount, f.docCount)
+    if (input.hasDeployedSchema) {
+      lines.push(
+        `| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.schemaPathCount)} | ${usedPct} | ${fmt(f.deadPathCount)} | ${fmt(f.driftPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`,
+      )
+    } else {
+      lines.push(`| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`)
+    }
+  }
+  lines.push('')
+
+  // Drift cleanup
+  if (input.hasDeployedSchema && findings.driftCandidates.length > 0) {
+    lines.push('## Reduce attribute usage — drift paths')
+    lines.push('')
+    lines.push(
+      '_These paths are populated in your data but not declared in any deployed schema. They count toward your attribute total. To remove: either declare them in the schema (so editors control them) or run a migration to unset them across all populating docs._',
+    )
+    lines.push('')
+    for (const f of findings.driftCandidates) {
+      lines.push(`### ${f.docType} — ${f.driftPathCount} drift path${f.driftPathCount === 1 ? '' : 's'}`)
+      lines.push('')
+      for (const p of f.driftPaths) lines.push(`- \`${p}\``)
+      lines.push('')
+    }
+  }
+
+  // Dead schema cleanup
+  if (input.hasDeployedSchema && findings.cleanupCandidates.length > 0) {
+    lines.push('## Schema cleanup — dead fields')
+    lines.push('')
+    lines.push(
+      '_Schema fields that no scanned document populates. Removing them does **not** reduce billing (unpopulated paths do not count) — it simplifies the editor experience and prevents future attribute growth from accidental population._',
+    )
+    lines.push('')
+    for (const f of findings.cleanupCandidates) {
+      lines.push(`### ${f.docType} — ${f.deadPathCount} of ${f.schemaPathCount} schema paths unused`)
+      lines.push('')
+      for (const p of f.deadPaths) lines.push(`- \`${p}\``)
+      lines.push('')
+    }
+  }
+
+  // Naming consistency
+  if (input.hasDeployedSchema && (normalization.collisions.length > 0 || normalization.nearDuplicates.length > 0)) {
+    lines.push('## Field name consistency')
+    lines.push('')
+    if (normalization.collisions.length > 0) {
+      lines.push('### Type collisions')
+      lines.push('')
+      lines.push(
+        '_The same field name is declared with multiple primitive datatypes across doc types. Each datatype variant counts as a separate attribute, so this **does** add to billing._',
+      )
+      lines.push('')
+      lines.push('| Field name | Datatypes | Total uses |')
+      lines.push('| --- | --- | ---: |')
+      for (const c of normalization.collisions) {
+        lines.push(`| \`${c.name}\` | ${c.datatypes.join(', ')} | ${fmt(c.occurrences.length)} |`)
+      }
+      lines.push('')
+    }
+    if (normalization.nearDuplicates.length > 0) {
+      lines.push('### Likely synonyms')
+      lines.push('')
+      lines.push(
+        '_Different names that probably mean the same thing. Picking one canonical form and renaming the others reduces editor confusion. Heuristic — skip groups where the names mean genuinely different things in your domain._',
+      )
+      lines.push('')
+      for (const g of normalization.nearDuplicates) {
+        lines.push(`- **${g.canonical}** → ${g.variants.map((v) => `\`${v}\``).join(', ')} (${fmt(g.totalOccurrences)} uses)`)
+      }
+      lines.push('')
+    }
+  }
+
+  // Hot paths (top 25 for context)
+  lines.push('## Top populated paths')
+  lines.push('')
+  lines.push('_The 25 most-populated paths in the dataset, by document count._')
+  lines.push('')
+  lines.push('| Path | Doc type | Datatype | Docs | % populated |')
+  lines.push('| --- | --- | --- | ---: | ---: |')
+  for (const r of input.pathStats.hot.slice(0, 25)) {
+    lines.push(`| \`${r.path}\` | ${r.docType} | ${r.datatype} | ${fmt(r.occurrences)} | ${(r.populationRatio * 100).toFixed(0)}% |`)
+  }
+  lines.push('')
+
+  lines.push('---')
+  lines.push('')
+  lines.push(
+    `_Generated by Schema Mapper · ${new Date().toISOString()} · ${fmt(input.docsScanned)} documents scanned · project ${input.projectId}_`,
+  )
+
+  return lines.join('\n')
+}
+
+export function buildCsvReport(input: ExportInput): string {
+  const rows: (string | number)[][] = []
+  rows.push(['section', 'path', 'doc_type', 'datatype', 'occurrences', 'population_ratio'])
+  for (const r of input.pathStats.hot) {
+    rows.push(['hot', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
+  }
+  if (input.hasDeployedSchema) {
+    for (const r of input.pathStats.dead) {
+      rows.push(['dead', r.path, r.docType, r.datatype, 0, '0'])
+    }
+    for (const r of input.pathStats.drift) {
+      rows.push(['drift', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
+    }
+  }
+  return rows
+    .map((row) =>
+      row
+        .map((v) => {
+          const s = String(v)
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+        })
+        .join(','),
+    )
+    .join('\n')
+}
+
+export function timestampSlug(): string {
+  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+}

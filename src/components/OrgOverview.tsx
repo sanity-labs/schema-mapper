@@ -5,6 +5,11 @@ import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { ResourceProvider } from '@sanity/sdk-react'
+import { AnalyzeExportMenu } from './complexity/AnalyzeExportMenu'
+import { walkSchema } from '../lib/complexity/walkSchema'
+import { computePathStats } from '../lib/complexity/pathStats'
+import { getCachedScan } from '../hooks/useDatasetScan'
+import { useDatasetStats } from '../hooks/useDatasetStats'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
@@ -1017,38 +1022,57 @@ function OrgOverview({
                   </TabList>
                 </>
               )}
-              {/* Export dropdown — shown in both normal and navigation modes */}
+              {/* Export — different surfaces per mode.
+                  - Visualize: graph PDF / PNG / SVG via the core ExportDropdown.
+                  - Analyze: complexity report (Markdown for AI, CSV for spreadsheets). */}
               {selectedProject && (
                 <>
                   {!(navigationStack.length === 0) && <span className="flex-1" />}
-                  <ExportDropdown
-                    graphRef={graphRef}
-                    extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
-                    onExport={(format) => trackEvent('export_triggered', {
-                      format,
-                      project_id: selectedProject.id,
-                      project_name: selectedProject.displayName,
-                      dataset_name: selectedDataset.name,
-                      type_count: effectiveTypes.length,
-                    })}
-                    types={effectiveTypes}
-                    context={{
-                      projectName: selectedProject.displayName,
-                      projectId: selectedProject.id,
-                      datasetName: selectedDataset.name,
-                      aclMode: selectedDataset.aclMode,
-                      totalDocuments: selectedDataset.totalDocuments,
-                      typeCount: effectiveTypes.length,
-                      schemaSource: effectiveSource,
-                      orgId: orgId,
-                      orgName: orgName,
-                      workspaceName: selectedWorkspaceName,
-                      focusedType: graphState.focusedType,
-                      focusDepth: graphState.focusDepth,
-                      totalTypeCount: effectiveTypes.length,
-                    }}
-                    disabled={graphState.isSearching}
-                  />
+                  {viewMode === 'analyze' ? (
+                    <AnalyzeExportSlot
+                      projectId={selectedProject.id}
+                      projectName={selectedProject.displayName}
+                      datasetName={selectedDataset.name}
+                      workspaceName={selectedWorkspaceName ?? null}
+                      schemaKey={`${selectedProject.id}::${selectedDataset.name}::${selectedSchemaId ?? ''}`}
+                      activeSchema={activeDeployedSchema}
+                      orgId={orgId}
+                      onExport={(kind) => trackEvent('analyze_export', {
+                        kind,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                      })}
+                    />
+                  ) : (
+                    <ExportDropdown
+                      graphRef={graphRef}
+                      extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
+                      onExport={(format) => trackEvent('export_triggered', {
+                        format,
+                        project_id: selectedProject.id,
+                        project_name: selectedProject.displayName,
+                        dataset_name: selectedDataset.name,
+                        type_count: effectiveTypes.length,
+                      })}
+                      types={effectiveTypes}
+                      context={{
+                        projectName: selectedProject.displayName,
+                        projectId: selectedProject.id,
+                        datasetName: selectedDataset.name,
+                        aclMode: selectedDataset.aclMode,
+                        totalDocuments: selectedDataset.totalDocuments,
+                        typeCount: effectiveTypes.length,
+                        schemaSource: effectiveSource,
+                        orgId: orgId,
+                        orgName: orgName,
+                        workspaceName: selectedWorkspaceName,
+                        focusedType: graphState.focusedType,
+                        focusDepth: graphState.focusDepth,
+                        totalTypeCount: effectiveTypes.length,
+                      }}
+                      disabled={graphState.isSearching}
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -1310,6 +1334,72 @@ function OrgOverview({
         </Stack>
       </InfoDialog>
     </div>
+  )
+}
+
+/**
+ * Renders the Analyze-mode export menu in the dataset header. Reads scan
+ * result from the module-level cache (so we don't need to plumb the hook's
+ * progress/start/cancel up here) and pulls plan limit + live attribute count
+ * from the stats endpoint. The dropdown is disabled until a scan exists.
+ */
+function AnalyzeExportSlot({
+  projectId,
+  projectName,
+  datasetName,
+  workspaceName,
+  schemaKey,
+  activeSchema,
+  orgId,
+  onExport,
+}: {
+  projectId: string
+  projectName: string
+  datasetName: string
+  workspaceName: string | null
+  schemaKey: string
+  activeSchema: DeployedSchemaEntry | null
+  orgId?: string
+  onExport?: (kind: 'markdown_copy' | 'markdown_download' | 'csv_download') => void
+}) {
+  const {stats} = useDatasetStats(projectId, datasetName)
+  const scanResult = getCachedScan(schemaKey)
+  const schemaPaths = useMemo(() => walkSchema(activeSchema?.rawSchema), [activeSchema?.rawSchema])
+  const pathStats = useMemo(
+    () =>
+      scanResult
+        ? computePathStats({
+            schema: schemaPaths,
+            data: scanResult.data,
+            scannedByDocType: scanResult.scannedByDocType,
+          })
+        : null,
+    [schemaPaths, scanResult],
+  )
+  const planLimit = (() => {
+    const v = stats?.fields?.count?.limit
+    return typeof v === 'number' && v > 0 ? v : null
+  })()
+  const liveAttributeCount = (() => {
+    const v = stats?.fields?.count?.value
+    return typeof v === 'number' ? v : null
+  })()
+
+  return (
+    <AnalyzeExportMenu
+      projectId={projectId}
+      projectName={projectName}
+      datasetName={datasetName}
+      workspaceName={workspaceName}
+      schemaPaths={schemaPaths}
+      scanResult={scanResult}
+      pathStats={pathStats}
+      liveAttributeCount={liveAttributeCount}
+      planLimit={planLimit}
+      docsScanned={scanResult?.scannedDocuments ?? 0}
+      hasDeployedSchema={schemaPaths.length > 0}
+      onExport={onExport}
+    />
   )
 }
 

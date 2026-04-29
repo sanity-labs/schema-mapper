@@ -84,11 +84,12 @@ export default function ComplexityView({
         <div>
           <h2 className="text-base font-normal mb-1">Complexity analysis</h2>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
-            <strong className="font-normal text-foreground">Dataset attributes</strong> are unique populated
+            <strong className="font-normal text-foreground">Dataset attributes</strong> are <strong className="font-normal text-foreground">unique populated</strong>{' '}
             <code className="font-mono text-xs mx-1 rounded bg-gray-100 dark:bg-white/5 px-1 py-0.5">(field path, datatype)</code>
-            pairs across your dataset. Plans cap them. Schema complexity by itself doesn't cost you anything —
-            what costs you is which paths your documents <em>actually populate</em>. Run a scan to see what's
-            really driving your number.
+            pairs <strong className="font-normal text-foreground">counted dataset-wide</strong> — not per
+            document, not per doc type. Adding 1,000 documents that all populate the same fields adds zero
+            attributes. Plans cap the total. Schema complexity by itself is free; only paths that real
+            documents populate cost.
             {workspaceName ? <> Workspace: <em className="not-italic">{workspaceName}</em>.</> : null}
           </p>
           <p className="text-xs text-muted-foreground mt-2">

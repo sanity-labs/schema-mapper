@@ -33,23 +33,6 @@ function copyText(s: string) {
   navigator.clipboard.writeText(s).catch(() => {})
 }
 
-function csvCell(value: string | number): string {
-  const s = String(value)
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
-
-function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n')
-  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'})
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
 export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeployedSchema, onJumpToType, onScanLifecycle}: RealDataPanelProps) {
   // Emit completion/error lifecycle events once per status transition.
   const lastReportedStatus = useRef<string>('idle')
@@ -101,14 +84,17 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
   return (
     <div className="space-y-6">
       <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
-        Every distinct path in the live data is one row. <strong className="font-normal text-foreground">Hot</strong>{' '}
-        paths are populated in the most documents — they're your bread-and-butter.
+        Each row is one <em>unique</em> populated path — that's what Sanity bills as an attribute.
+        <strong className="font-normal text-foreground"> Docs</strong> tells you <em>how many documents</em>
+        populate that one path; doc count doesn't change attribute count, only path uniqueness does.
+        <strong className="font-normal text-foreground"> Hot</strong> paths are populated in the most
+        documents.
         {hasDeployedSchema ? (
           <>
             {' '}<strong className="font-normal text-foreground">Dead</strong>{' '}
-            schema paths exist in the deployed schema but no document populates them — they're free wins to delete.{' '}
-            <strong className="font-normal text-foreground">Drift</strong> paths are populated in data but never
-            declared in the schema — typically the biggest hidden contributor to attribute count.
+            paths exist in the schema but no document populates them — schema cleanup, not billing.{' '}
+            <strong className="font-normal text-foreground">Drift</strong> paths are populated in data but
+            never declared in the schema — typically the biggest hidden contributor to attribute count.
           </>
         ) : (
           <> Dead/drift comparison needs a deployed schema; only populated paths are shown below.</>
@@ -116,10 +102,10 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
       </p>
 
       <div className={`grid grid-cols-1 ${hasDeployedSchema ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
-        {hasDeployedSchema && <Stat label="Schema paths" value={stats.totals.schemaPaths} />}
-        <Stat label="Populated paths (≈ attributes)" value={stats.totals.dataPaths} />
+        {hasDeployedSchema && <Stat label="Unique schema paths" value={stats.totals.schemaPaths} />}
+        <Stat label="Unique populated paths" value={stats.totals.dataPaths} />
         {hasDeployedSchema && (
-          <Stat label="Drift paths" value={stats.totals.driftCount} tone={stats.totals.driftCount > 0 ? 'amber' : 'default'} />
+          <Stat label="Unique drift paths" value={stats.totals.driftCount} tone={stats.totals.driftCount > 0 ? 'amber' : 'default'} />
         )}
       </div>
 
@@ -175,7 +161,7 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
       )}
 
       {result.completedAt && (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             className="px-3 py-1.5 text-xs rounded border border-gray-950/15 hover:bg-gray-950/[0.03] dark:border-white/15 dark:hover:bg-white/[0.05] transition-colors"
@@ -183,24 +169,9 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
           >
             Re-run scan
           </button>
-          <button
-            type="button"
-            className="px-3 py-1.5 text-xs rounded border border-gray-950/15 hover:bg-gray-950/[0.03] dark:border-white/15 dark:hover:bg-white/[0.05] transition-colors"
-            onClick={() => {
-              const sections: (string | number)[][] = []
-              sections.push(['section', 'path', 'doc_type', 'datatype', 'occurrences', 'population_ratio'])
-              for (const r of stats.hot) sections.push(['hot', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
-              if (hasDeployedSchema) {
-                for (const r of stats.dead) sections.push(['dead', r.path, r.docType, r.datatype, 0, '0'])
-                for (const r of stats.drift) sections.push(['drift', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
-              }
-              const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-              downloadCsv(`complexity-scan-${stamp}.csv`, sections)
-              onScanLifecycle?.('completed', {action: 'export_csv', rows: sections.length - 1})
-            }}
-          >
-            Export CSV
-          </button>
+          <span className="text-xs text-muted-foreground">
+            Use the export menu in the header to download a Markdown report or CSV.
+          </span>
         </div>
       )}
     </div>
