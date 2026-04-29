@@ -156,10 +156,57 @@ export function buildMarkdownReport(input: ExportInput): string {
       lines.push('')
       lines.push('| Array path | Doc type | Children | Depth | Polymorphic |')
       lines.push('| --- | --- | ---: | ---: | --- |')
-      for (const a of schemaMetrics.arrays.slice(0, 30)) {
+      for (const a of schemaMetrics.arrays) {
         lines.push(`| \`${a.path}\` | ${a.docType} | ${fmt(a.childPathCount)} | ${a.depth} | ${a.isPolymorphic ? 'yes' : 'no'} |`)
       }
       lines.push('')
+    }
+
+    // Deepest schema paths per doc type — useful for spotting the worst nesting
+    // hot spots an LLM could simplify.
+    const docTypesWithDeep = schemaMetrics.byDocType.filter((m) => m.deepestPaths.length > 0)
+    if (docTypesWithDeep.length > 0) {
+      lines.push('### Deepest paths by doc type')
+      lines.push('')
+      lines.push('_The deepest few paths per doc type. Deep nesting is fine if the data is normalized; flag it when you see arrays-of-arrays-of-arrays you didn\'t intend._')
+      lines.push('')
+      for (const m of docTypesWithDeep) {
+        lines.push(`- **${m.docType}** (max depth ${m.maxDepth}): ${m.deepestPaths.map((p) => `\`${p.path}\``).join(', ')}`)
+      }
+      lines.push('')
+    }
+  }
+
+  // Per-doctype full schema path enumeration. Heavy but comprehensive — an LLM
+  // can review each doctype's structure without needing to ask follow-ups.
+  if (input.hasDeployedSchema) {
+    const schemaByDoc = new Map<string, {path: string; datatype: string}[]>()
+    for (const p of input.schemaPaths) {
+      if (p.isArrayContainer) continue
+      let arr = schemaByDoc.get(p.docType)
+      if (!arr) {
+        arr = []
+        schemaByDoc.set(p.docType, arr)
+      }
+      arr.push({path: p.path, datatype: p.datatype})
+    }
+    if (schemaByDoc.size > 0) {
+      lines.push('## Schema paths per doc type')
+      lines.push('')
+      lines.push('_Every declared `(path, datatype)` pair grouped by doc type. Each row is one path — sorted alphabetically. Use this as the source of truth when discussing the schema with an LLM._')
+      lines.push('')
+      const sortedDocs = Array.from(schemaByDoc.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+      for (const [docType, paths] of sortedDocs) {
+        paths.sort((a, b) => a.path.localeCompare(b.path))
+        lines.push(`### ${docType} — ${paths.length} path${paths.length === 1 ? '' : 's'}`)
+        lines.push('')
+        lines.push('| Path | Datatype |')
+        lines.push('| --- | --- |')
+        for (const p of paths) {
+          lines.push(`| \`${p.path}\` | ${p.datatype} |`)
+        }
+        lines.push('')
+      }
     }
   }
 

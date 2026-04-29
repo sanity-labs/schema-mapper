@@ -21,13 +21,6 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-function formatPct(ratio: number): string {
-  if (!Number.isFinite(ratio) || ratio < 0) return '—'
-  if (ratio >= 0.999) return '100%'
-  if (ratio < 0.005) return `<1%`
-  return `${Math.round(ratio * 100)}%`
-}
-
 function copyText(s: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard) return
   navigator.clipboard.writeText(s).catch(() => {})
@@ -117,7 +110,6 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
           docType: r.docType,
           datatype: r.datatype,
           occurrences: r.occurrences,
-          ratio: r.populationRatio,
         }))}
         onJumpToType={onJumpToType}
       />
@@ -131,7 +123,6 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
             docType: r.docType,
             datatype: r.datatype,
             occurrences: 0,
-            ratio: 0,
           }))}
           onJumpToType={onJumpToType}
           emptyText="None — every schema path is populated somewhere."
@@ -194,7 +185,7 @@ function Stat({label, value, tone = 'default'}: {label: string; value: number; t
 interface PathTableProps {
   title: string
   description: string
-  rows: {path: string; docType: string; datatype: string; occurrences: number; ratio: number}[]
+  rows: {path: string; docType: string; datatype: string; occurrences: number}[]
   onJumpToType?: (docType: string) => void
   emptyText?: string
 }
@@ -215,8 +206,10 @@ function PathTable({title, description, rows, onJumpToType, emptyText}: PathTabl
                   <th className="whitespace-nowrap py-2 pr-3">Path</th>
                   <th className="whitespace-nowrap py-2 px-3">Type</th>
                   <th className="whitespace-nowrap py-2 px-3">Datatype</th>
-                  <th className="whitespace-nowrap py-2 px-3 text-right">Docs</th>
-                  <th className="whitespace-nowrap py-2 px-3 text-right">% pop.</th>
+                  <th
+                    className="whitespace-nowrap py-2 px-3 text-right"
+                    title="Documents (of this doc type) that populate this path. The path counts as a single attribute regardless — doc count tells you migration scope."
+                  >Docs</th>
                   <th className="whitespace-nowrap py-2 pl-3 sr-only">Actions</th>
                 </tr>
               </thead>
@@ -237,7 +230,6 @@ function PathTable({title, description, rows, onJumpToType, emptyText}: PathTabl
                     </td>
                     <td className="py-2 px-3 text-muted-foreground">{row.datatype}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{formatNumber(row.occurrences)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatPct(row.ratio)}</td>
                     <td className="py-2 pl-3 text-right">
                       <button
                         type="button"
