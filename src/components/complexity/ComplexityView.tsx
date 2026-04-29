@@ -226,14 +226,15 @@ export default function ComplexityView({
             onToggle={(e) => setShowSchemaDetails((e.target as HTMLDetailsElement).open)}
           >
             <summary className="cursor-pointer text-sm font-normal text-muted-foreground hover:text-foreground select-none">
-              Schema-only metrics — depth, fanout, naming consistency
+              Theoretical complexity — schema-only depth, fanout, naming
             </summary>
             <div className="mt-4 space-y-8">
               <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
-                These describe the shape of your deployed schema regardless of data. Useful for spotting
-                modeling smells (deeply nested arrays, polymorphic unions, name drift across types) but
-                <em className="not-italic"> remember</em>: complex schemas are only expensive when documents
-                actually populate the complexity.
+                <strong className="font-normal text-foreground">These numbers describe what's <em className="not-italic">possible</em>, not what you're paying for.</strong>{' '}
+                The deployed schema declares paths, depth, polymorphism — that's theoretical capacity. A doc
+                type with high theoretical complexity but normalized data (every doc the same shape) costs
+                no more attributes than a simpler one. Pair this with the "Top contributors by document type"
+                section above to see how much of the theoretical capacity is realized.
               </p>
               <SchemaMetricsPanel paths={paths} onJumpToType={onJumpToType} />
               <NormalizationPanel paths={paths} onJumpToType={onJumpToType} />

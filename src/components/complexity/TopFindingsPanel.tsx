@@ -27,6 +27,13 @@ function formatPathsPerDoc(n: number): string {
   return n.toFixed(1)
 }
 
+function normalizationLabel(ratio: number, populated: number, docs: number): {text: string; tone: 'good' | 'warn' | 'mixed' | 'na'} {
+  if (docs <= 1 || populated === 0) return {text: '—', tone: 'na'}
+  if (ratio >= 0.95) return {text: 'Normalized', tone: 'good'}
+  if (ratio >= 0.5) return {text: 'Mostly normalized', tone: 'mixed'}
+  return {text: 'Denormalized', tone: 'warn'}
+}
+
 function pctOfLimit(n: number, limit: number | null): string {
   if (!limit || limit <= 0) return ''
   const p = (n / limit) * 100
@@ -92,35 +99,16 @@ export function TopFindingsPanel({
             </em>
           </p>
           {driftTop.length > 0 && (
-            <ul className="space-y-2 mt-3">
+            <ul className="space-y-3 mt-3">
               {driftTop.map((f) => (
                 <li key={f.docType}>
-                  <div className="flex items-baseline gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onJumpToType?.(f.docType)}
-                      className="text-sm hover:underline focus:outline-none focus:underline text-left"
-                    >
-                      {f.docType}
-                    </button>
-                    <span className="text-xs text-purple-900/70 dark:text-purple-200/70 tabular-nums">
-                      {f.driftPathCount} drift path{f.driftPathCount === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  {f.driftSamples.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {f.driftSamples.slice(0, 3).map((p) => (
-                        <code key={p} className="font-mono text-xs rounded bg-white/60 dark:bg-white/5 px-1.5 py-0.5">
-                          {p}
-                        </code>
-                      ))}
-                      {f.driftSamples.length > 3 && (
-                        <span className="text-xs text-purple-900/70 dark:text-purple-200/70">
-                          +{f.driftSamples.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <PathList
+                    docType={f.docType}
+                    paths={f.driftPaths}
+                    countLabel={`${f.driftPathCount} drift path${f.driftPathCount === 1 ? '' : 's'}`}
+                    tone="purple"
+                    onJumpToType={onJumpToType}
+                  />
                 </li>
               ))}
             </ul>
@@ -160,7 +148,14 @@ export function TopFindingsPanel({
                   {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Schema-defined paths no scanned doc populates — schema cleanup, not billing">Dead</th>}
                   {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Populated paths missing from the schema — these add to attribute count">Drift</th>}
                   <th className="whitespace-nowrap py-2 px-3 text-right">Docs</th>
-                  <th className="whitespace-nowrap py-2 pl-3 text-right">Paths / doc</th>
+                  <th
+                    className="whitespace-nowrap py-2 px-3 text-right"
+                    title="Average number of paths populated by a single document of this type"
+                  >Avg paths/doc</th>
+                  <th
+                    className="whitespace-nowrap py-2 pl-3 text-right"
+                    title="Normalized = every doc has the same shape, so additional docs don't add attributes. Denormalized = each doc populates a different subset, so doc count drives attribute growth."
+                  >Shape</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-950/5 dark:divide-white/5">
@@ -199,7 +194,28 @@ export function TopFindingsPanel({
                       </td>
                     )}
                     <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatNumber(f.docCount)}</td>
-                    <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">{formatPathsPerDoc(f.pathsPerDoc)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatPathsPerDoc(f.avgPathsPerDoc)}</td>
+                    <td className="py-2 pl-3 text-right">
+                      {(() => {
+                        const label = normalizationLabel(f.normalizationRatio, f.populatedPathCount, f.docCount)
+                        const cls =
+                          label.tone === 'good'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
+                            : label.tone === 'mixed'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                              : label.tone === 'warn'
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
+                                : 'text-muted-foreground'
+                        if (label.tone === 'na') {
+                          return <span className={cls}>—</span>
+                        }
+                        return (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${cls}`} title={`Normalization ratio ${(f.normalizationRatio * 100).toFixed(0)}%`}>
+                            {label.text}
+                          </span>
+                        )
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,8 +232,12 @@ export function TopFindingsPanel({
             missing from the schema. <em>These do count toward attributes</em> and are the lever for
             reduction.
             {' '}
-            <span className="text-muted-foreground">Paths / doc</span>: rough fanout — how many distinct
-            paths a document of this type tends to populate.
+            <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 px-1.5">Normalized</span>{' '}
+            shape means every document has the same fields populated — adding more docs <em>does not</em>
+            grow your attribute count.
+            {' '}
+            <span className="rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-1.5">Denormalized</span>{' '}
+            means docs vary; each new doc may add attributes.
           </p>
         )}
       </div>
@@ -237,41 +257,94 @@ export function TopFindingsPanel({
             <strong className="font-normal">won't change your current attribute count</strong> (unpopulated
             paths don't bill). Treat this as separate from "Reduce attribute usage" above.
           </p>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {cleanupTop.map((f) => (
               <li key={f.docType}>
-                <div className="flex items-baseline gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onJumpToType?.(f.docType)}
-                    className="text-sm hover:underline focus:outline-none focus:underline text-left"
-                  >
-                    {f.docType}
-                  </button>
-                  <span className="text-xs text-amber-900/70 dark:text-amber-200/70 tabular-nums">
-                    {f.deadPathCount} of {f.schemaPathCount} schema paths unused
-                  </span>
-                </div>
-                {f.deadSamples.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {f.deadSamples.slice(0, 3).map((p) => (
-                      <code key={p} className="font-mono text-xs rounded bg-white/60 dark:bg-white/5 px-1.5 py-0.5">
-                        {p}
-                      </code>
-                    ))}
-                    {f.deadSamples.length > 3 && (
-                      <span className="text-xs text-amber-900/70 dark:text-amber-200/70">
-                        +{f.deadSamples.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                )}
+                <PathList
+                  docType={f.docType}
+                  paths={f.deadPaths}
+                  countLabel={`${f.deadPathCount} of ${f.schemaPathCount} schema paths unused`}
+                  tone="amber"
+                  onJumpToType={onJumpToType}
+                />
               </li>
             ))}
           </ul>
         </div>
       )}
     </section>
+  )
+}
+
+const VISIBLE_PATHS = 5
+
+interface PathListProps {
+  docType: string
+  paths: string[]
+  countLabel: string
+  tone: 'amber' | 'purple'
+  onJumpToType?: (docType: string) => void
+}
+
+/**
+ * Renders a doctype heading with a path list. The first VISIBLE_PATHS are
+ * always shown; the rest sit behind a `<details>` summary so the data is
+ * accessible (no truncation) without overwhelming the layout.
+ */
+function PathList({docType, paths, countLabel, tone, onJumpToType}: PathListProps) {
+  const subText = tone === 'amber'
+    ? 'text-amber-900/70 dark:text-amber-200/70'
+    : 'text-purple-900/70 dark:text-purple-200/70'
+  const visible = paths.slice(0, VISIBLE_PATHS)
+  const hidden = paths.slice(VISIBLE_PATHS)
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => onJumpToType?.(docType)}
+          className="text-sm hover:underline focus:outline-none focus:underline text-left"
+          title="Show this type in the visualizer"
+        >
+          {docType}
+        </button>
+        <span className={`text-xs tabular-nums ${subText}`}>{countLabel}</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof navigator !== 'undefined' && navigator.clipboard) {
+              navigator.clipboard.writeText(paths.join('\n')).catch(() => {})
+            }
+          }}
+          className={`ml-auto text-xs ${subText} hover:underline focus:outline-none focus:underline`}
+          title="Copy all paths for this doc type"
+        >
+          copy all
+        </button>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {visible.map((p) => (
+          <code key={p} className="font-mono text-xs rounded bg-white/60 dark:bg-white/5 px-1.5 py-0.5">
+            {p}
+          </code>
+        ))}
+      </div>
+      {hidden.length > 0 && (
+        <details className="mt-1 group">
+          <summary className={`text-xs cursor-pointer select-none ${subText} hover:underline`}>
+            Show {hidden.length} more
+          </summary>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {hidden.map((p) => (
+              <code key={p} className="font-mono text-xs rounded bg-white/60 dark:bg-white/5 px-1.5 py-0.5">
+                {p}
+              </code>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   )
 }
 

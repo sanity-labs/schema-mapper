@@ -24,12 +24,24 @@ export interface DocTypeFinding {
   deadPathCount: number
   /** Populated paths missing from the schema. Often the biggest hidden contributor. */
   driftPathCount: number
-  /** Average populated paths per scanned document — fanout hint. */
-  pathsPerDoc: number
-  /** First few example dead paths (for the "what to remove" hint). */
-  deadSamples: string[]
-  /** First few example drift paths (for the "what to investigate" hint). */
-  driftSamples: string[]
+  /**
+   * Average number of paths a single document of this type populates (sum of
+   * per-path occurrences divided by docCount). For a fully-normalized doc
+   * type this approaches `populatedPathCount`; for a denormalized one it's
+   * much lower.
+   */
+  avgPathsPerDoc: number
+  /**
+   * 0..1 — `avgPathsPerDoc / populatedPathCount`. 1.0 means every doc has the
+   * same shape (fully normalized: doc count doesn't drive attribute count).
+   * Lower means each doc populates a subset (denormalized: more docs add
+   * attributes).
+   */
+  normalizationRatio: number
+  /** Every dead path on this doc type, in schema-order. UI handles visible vs hidden. */
+  deadPaths: string[]
+  /** Every drift path on this doc type, in walker-order (highest-occurrence first). UI handles visible vs hidden. */
+  driftPaths: string[]
 }
 
 export interface FindingsSummary {
@@ -48,7 +60,6 @@ export interface FindingsSummary {
   driftCandidates: DocTypeFinding[]
 }
 
-const SAMPLE_LIMIT = 5
 const CLEANUP_DEAD_RATIO = 0.5
 
 interface SynthesizeInput {
@@ -108,6 +119,18 @@ export function synthesizeFindings({schema, data, scannedByDocType}: SynthesizeI
       if (!schemaSet.has(path)) driftPaths.push(path)
     }
 
+    // Sum of per-path occurrences = total path-populations. Divided by doc
+    // count, it's the average number of paths a doc of this type populates.
+    // Compare against populatedPathCount: if avg ≈ populatedPathCount, every
+    // doc has the same shape (normalized — doc count doesn't drive billing).
+    let totalOccurrences = 0
+    for (const rec of dataMap.values()) totalOccurrences += rec.occurrences
+    const avgPathsPerDoc = docCount > 0 ? totalOccurrences / docCount : 0
+    const normalizationRatio =
+      populatedPathCount > 0 && docCount > 0
+        ? Math.min(1, avgPathsPerDoc / populatedPathCount)
+        : 0
+
     const finding: DocTypeFinding = {
       docType,
       docCount,
@@ -115,9 +138,10 @@ export function synthesizeFindings({schema, data, scannedByDocType}: SynthesizeI
       schemaPathCount,
       deadPathCount: deadPaths.length,
       driftPathCount: driftPaths.length,
-      pathsPerDoc: docCount > 0 ? populatedPathCount / docCount : 0,
-      deadSamples: deadPaths.slice(0, SAMPLE_LIMIT),
-      driftSamples: driftPaths.slice(0, SAMPLE_LIMIT),
+      avgPathsPerDoc,
+      normalizationRatio,
+      deadPaths,
+      driftPaths,
     }
     byDocType.push(finding)
 

@@ -18,7 +18,7 @@ export function SchemaMetricsPanel({paths, onJumpToType}: SchemaMetricsPanelProp
   if (metrics.byDocType.length === 0) {
     return (
       <section>
-        <h3 className="text-sm font-normal mb-2">Schema metrics</h3>
+        <h3 className="text-sm font-normal mb-2">Theoretical schema complexity</h3>
         <p className="text-sm text-muted-foreground">No document types in the deployed schema yet.</p>
       </section>
     )
@@ -27,7 +27,7 @@ export function SchemaMetricsPanel({paths, onJumpToType}: SchemaMetricsPanelProp
   return (
     <section>
       <div className="flex items-baseline justify-between mb-3">
-        <h3 className="text-sm font-normal">Schema metrics</h3>
+        <h3 className="text-sm font-normal">Theoretical schema complexity</h3>
         <p className="text-xs text-muted-foreground">
           {formatNumber(metrics.totals.pathCount)} paths · {formatNumber(metrics.totals.arrayCount)} arrays · max depth {metrics.totals.maxDepth}
         </p>
