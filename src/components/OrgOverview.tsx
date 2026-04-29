@@ -342,13 +342,12 @@ function OrgOverview({
     onPendingDataset?.(pendingNavTarget?.datasetName ?? null)
   }, [pendingNavTarget?.datasetName, onPendingDataset])
 
-  // Reset to Visualize when the active dataset or workspace schema changes, or
-  // when entering cross-dataset navigation — Analyze mode is scoped to a specific
-  // (project, dataset, workspace) selection and the cross-dataset overlay would
-  // be confusing.
-  useEffect(() => {
-    setViewMode('visualize')
-  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, navigationStack.length])
+  // The URL is the source of truth for viewMode (LiveOrgOverview reads/writes
+  // ?mode=analyze). We deliberately do NOT reset viewMode when the dataset or
+  // workspace changes — that would clobber a deep-linked ?mode=analyze on
+  // initial hydration and also fights the user's last-chosen tab as they
+  // switch datasets. If a dataset switch should drop the mode param, that's
+  // the parent navigate()'s job, not a state reset here.
 
   // After SchemaGraph picks up a jump-to-type focus, release it so future renders
   // aren't pinned and the user can navigate freely.

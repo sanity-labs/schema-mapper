@@ -143,8 +143,22 @@ export function TopFindingsPanel({
               <thead>
                 <tr className="text-left text-xs font-normal text-muted-foreground border-b border-gray-950/10 dark:border-white/10">
                   <th className="whitespace-nowrap py-2 pr-3">Document type</th>
-                  <th className="whitespace-nowrap py-2 px-3 text-right">Populated paths</th>
-                  {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right">In schema</th>}
+                  <th
+                    className="whitespace-nowrap py-2 px-3 text-right"
+                    title="Distinct populated paths today — this doc type's current contribution to the dataset attribute count (per-doc-type view; globally, paths shared across types only count once)"
+                  >Realized</th>
+                  {hasDeployedSchema && (
+                    <th
+                      className="whitespace-nowrap py-2 px-3 text-right"
+                      title="Theoretical max from the schema. If editors populate every declared field on every doc of this type, this is the ceiling on the doc type's attribute contribution."
+                    >Schema max</th>
+                  )}
+                  {hasDeployedSchema && (
+                    <th
+                      className="whitespace-nowrap py-2 px-3 text-right"
+                      title="Realized ÷ Schema max — how much of the theoretical capacity is currently used"
+                    >Used</th>
+                  )}
                   {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Schema-defined paths no scanned doc populates — schema cleanup, not billing">Dead</th>}
                   {hasDeployedSchema && <th className="whitespace-nowrap py-2 px-3 text-right" title="Populated paths missing from the schema — these add to attribute count">Drift</th>}
                   <th className="whitespace-nowrap py-2 px-3 text-right">Docs</th>
@@ -174,6 +188,13 @@ export function TopFindingsPanel({
                     <td className="py-2 px-3 text-right tabular-nums">{formatNumber(f.populatedPathCount)}</td>
                     {hasDeployedSchema && (
                       <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatNumber(f.schemaPathCount)}</td>
+                    )}
+                    {hasDeployedSchema && (
+                      <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                        {f.schemaPathCount > 0
+                          ? `${Math.min(100, Math.round((f.populatedPathCount / f.schemaPathCount) * 100))}%`
+                          : '—'}
+                      </td>
                     )}
                     {hasDeployedSchema && (
                       <td className="py-2 px-3 text-right tabular-nums">
@@ -223,22 +244,32 @@ export function TopFindingsPanel({
           </div>
         </div>
         {hasDeployedSchema && (
-          <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-3xl">
-            <span className="text-amber-700 dark:text-amber-400">Dead</span>: schema fields nothing populates.
-            Removing them <em>doesn't reduce billing</em> (unpopulated paths don't count) — it's a schema /
-            editor-experience cleanup.
-            {' '}
-            <span className="text-purple-700 dark:text-purple-400">Drift</span>: paths populated in data but
-            missing from the schema. <em>These do count toward attributes</em> and are the lever for
-            reduction.
-            {' '}
-            <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 px-1.5">Normalized</span>{' '}
-            shape means every document has the same fields populated — adding more docs <em>does not</em>
-            grow your attribute count.
-            {' '}
-            <span className="rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-1.5">Denormalized</span>{' '}
-            means docs vary; each new doc may add attributes.
-          </p>
+          <div className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-3xl space-y-1.5">
+            <p>
+              <strong className="font-normal text-foreground">Realized</strong> is what the doc type
+              contributes today. <strong className="font-normal text-foreground">Schema max</strong> is
+              the theoretical ceiling — what the contribution would be if editors populated every declared
+              field. <strong className="font-normal text-foreground">Used</strong> is how much of that
+              ceiling is in play. A doc type with low Used has dormant capacity that could grow attributes
+              if editors start filling more fields.
+            </p>
+            <p>
+              <span className="text-amber-700 dark:text-amber-400">Dead</span>: declared but unused. Removing
+              them <em>doesn't reduce billing</em> (unpopulated paths don't count) — it's a schema /
+              editor-experience cleanup.
+              {' '}
+              <span className="text-purple-700 dark:text-purple-400">Drift</span>: populated but undeclared
+              — these <em>do</em> count toward attributes and are the direct lever for reduction.
+            </p>
+            <p>
+              <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 px-1.5">Normalized</span>{' '}
+              shape means every doc has the same fields populated — adding more docs <em>does not</em>
+              grow attributes.
+              {' '}
+              <span className="rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-1.5">Denormalized</span>{' '}
+              means docs vary; each new doc may add attributes.
+            </p>
+          </div>
         )}
       </div>
 
