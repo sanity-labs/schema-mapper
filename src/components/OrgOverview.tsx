@@ -1054,11 +1054,21 @@ function OrgOverview({
             </div>
           )}
 
-          {/* ---- Schema Graph Area ---- */}
-          {/* Cross-dataset navigation bar */}
+          {/* ---- Schema Graph / Analyze Area ----
+              The visualizer needs a fixed-height frame with overflow:hidden so the
+              graph can pan inside it. Analyze mode is a vertical document — letting
+              it flow with the page (no min-height, no inner overflow) avoids the
+              double-scroll quirk. */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? (" border-2 border-dashed " + (isGlobalNav ? "border-purple-300 dark:border-purple-700" : "border-teal-300 dark:border-teal-700")) : " border")}
+            className={
+              (viewMode === 'analyze'
+                ? 'mb-[30px] rounded-lg'
+                : 'flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden')
+              + (navigationStack.length > 0
+                ? ' border-2 border-dashed ' + (isGlobalNav ? 'border-purple-300 dark:border-purple-700' : 'border-teal-300 dark:border-teal-700')
+                : ' border')
+            }
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >

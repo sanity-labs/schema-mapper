@@ -79,7 +79,7 @@ export default function ComplexityView({
   const [showSchemaDetails, setShowSchemaDetails] = useState(false)
 
   return (
-    <div className="h-full w-full overflow-auto p-6">
+    <div className="w-full p-6">
       <div className="mx-auto max-w-5xl space-y-8">
         <div>
           <h2 className="text-base font-normal mb-1">Complexity analysis</h2>
