@@ -9,7 +9,8 @@ export interface ScanProgress {
   status: ScanStatus
   totalDocuments: number
   scannedDocuments: number
-  pageCount: number
+  /** Bytes received so far (NDJSON stream). */
+  bytesReceived: number
   error: string | null
 }
 
@@ -33,8 +34,10 @@ export interface UseDatasetScanResult {
   cancel: () => void
 }
 
-const PAGE_SIZE = 200
 const PROGRESS_THROTTLE_MS = 100
+// Render the progress at least this often even when no new docs arrive — useful
+// during startup before the first document streams in.
+const STALL_TICK_MS = 500
 
 interface ScanState {
   pathOccurrences: Map<string, {docType: string; path: string; datatype: string; occurrences: number}>
@@ -63,42 +66,45 @@ export function useDatasetScan(cacheKey: string): UseDatasetScanResult {
     status: 'idle',
     totalDocuments: 0,
     scannedDocuments: 0,
-    pageCount: 0,
+    bytesReceived: 0,
     error: null,
   })
   const [result, setResult] = useState<ScanResult | null>(() => getCachedScan(cacheKey))
 
-  const cancelledRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
   const runningRef = useRef(false)
   const mountedRef = useRef(true)
 
   // Reset when cacheKey changes (different dataset/workspace)
   useEffect(() => {
-    cancelledRef.current = false
+    abortRef.current?.abort()
+    abortRef.current = null
     runningRef.current = false
-    setProgress({status: 'idle', totalDocuments: 0, scannedDocuments: 0, pageCount: 0, error: null})
+    setProgress({status: 'idle', totalDocuments: 0, scannedDocuments: 0, bytesReceived: 0, error: null})
     setResult(getCachedScan(cacheKey))
   }, [cacheKey])
 
-  // Cancel any in-flight scan if the consumer unmounts and stop touching state
+  // Cancel any in-flight scan if the consumer unmounts.
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
-      cancelledRef.current = true
+      abortRef.current?.abort()
     }
   }, [])
 
   const cancel = useCallback(() => {
     if (!runningRef.current) return
-    cancelledRef.current = true
+    abortRef.current?.abort()
   }, [])
 
   const start = useCallback(
     (typeNames: string[]) => {
       if (runningRef.current) return
       if (typeNames.length === 0) return
-      cancelledRef.current = false
+
+      const controller = new AbortController()
+      abortRef.current = controller
       runningRef.current = true
 
       const state: ScanState = {
@@ -108,7 +114,7 @@ export function useDatasetScan(cacheKey: string): UseDatasetScanResult {
 
       let totalDocs = 0
       let scannedDocs = 0
-      let pageCount = 0
+      let bytesReceived = 0
       let lastProgressEmit = 0
 
       function emitProgress(status: ScanStatus = 'running', error: string | null = null) {
@@ -120,60 +126,103 @@ export function useDatasetScan(cacheKey: string): UseDatasetScanResult {
           status,
           totalDocuments: totalDocs,
           scannedDocuments: scannedDocs,
-          pageCount,
+          bytesReceived,
           error,
         })
       }
 
+      function ingestDoc(doc: unknown) {
+        if (!doc || typeof doc !== 'object') return
+        const d = doc as Record<string, unknown>
+        const docType = typeof d._type === 'string' ? d._type : 'unknown'
+        // Skip drafts so we don't double-count paths populated in both the
+        // published doc and its draft (drafts share the same path namespace
+        // but are typically a superset of published).
+        if (typeof d._id === 'string' && d._id.startsWith('drafts.')) return
+        // System types we never analyze.
+        if (docType.startsWith('sanity.') || docType.startsWith('system.')) return
+        state.scannedByDocType.set(docType, (state.scannedByDocType.get(docType) ?? 0) + 1)
+        const docPaths = walkDocument(doc)
+        for (const dp of docPaths) {
+          const key = `${docType}::${dp.path}`
+          const existing = state.pathOccurrences.get(key)
+          if (existing) existing.occurrences += 1
+          else state.pathOccurrences.set(key, {docType, path: dp.path, datatype: dp.datatype, occurrences: 1})
+        }
+        scannedDocs += 1
+      }
+
       ;(async () => {
+        const stallTick = setInterval(() => emitProgress('running'), STALL_TICK_MS)
         try {
-          // Pre-fetch total document count for progress denominator
           const cli = clientRef.current
-          const total = await cli.fetch<number>(`count(*[_type in $types])`, {types: typeNames})
-          totalDocs = typeof total === 'number' ? total : 0
-          emitProgress('running')
-
-          // Cursor-based pagination — _id > $lastId, ordered by _id ascending
-          let lastId = ''
-          while (!cancelledRef.current) {
-            const docs: any[] = await cli.fetch(
-              `*[_type in $types && _id > $lastId] | order(_id) [0...$pageSize]`,
-              {types: typeNames, lastId, pageSize: PAGE_SIZE},
-            )
-            if (!Array.isArray(docs) || docs.length === 0) break
-
-            for (const doc of docs) {
-              if (cancelledRef.current) break
-              const docType = typeof doc?._type === 'string' ? doc._type : 'unknown'
-              state.scannedByDocType.set(docType, (state.scannedByDocType.get(docType) ?? 0) + 1)
-              const docPaths = walkDocument(doc)
-              for (const dp of docPaths) {
-                const key = `${docType}::${dp.path}`
-                const existing = state.pathOccurrences.get(key)
-                if (existing) existing.occurrences += 1
-                else state.pathOccurrences.set(key, {docType, path: dp.path, datatype: dp.datatype, occurrences: 1})
-              }
-              scannedDocs += 1
-            }
-
-            pageCount += 1
-            lastId = docs[docs.length - 1]?._id ?? lastId
-            emitProgress('running')
+          const config = cli.config()
+          const projectId = config.projectId
+          const dataset = config.dataset
+          const token = config.token
+          if (!projectId || !dataset) {
+            throw new Error('Client is not bound to a project + dataset')
           }
 
-          if (cancelledRef.current) {
-            runningRef.current = false
-            // Even on cancel, surface the partial result so the user can inspect it
-            const partial: ScanResult = {
-              data: Array.from(state.pathOccurrences.values()),
-              scannedByDocType: state.scannedByDocType,
-              completedAt: null,
-              totalDocuments: totalDocs,
-              scannedDocuments: scannedDocs,
+          // Pre-fetch total count for the progress denominator (filtered by user types).
+          totalDocs = await cli.fetch<number>(`count(*[_type in $types])`, {types: typeNames})
+          if (typeof totalDocs !== 'number') totalDocs = 0
+          emitProgress('running')
+
+          // Stream the export endpoint as NDJSON.
+          // /v<date>/data/export/<dataset>?types=<csv> returns one document per line.
+          const apiVersion = '2024-01-01'
+          const url = `https://${projectId}.api.sanity.io/v${apiVersion}/data/export/${dataset}?types=${encodeURIComponent(typeNames.join(','))}`
+          const res = await fetch(url, {
+            headers: {
+              ...(token ? {Authorization: `Bearer ${token}`} : {}),
+              Accept: 'application/x-ndjson',
+            },
+            signal: controller.signal,
+          })
+          if (!res.ok) {
+            const body = await res.text().catch(() => '')
+            throw new Error(`Export API ${res.status}: ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ''}`)
+          }
+          if (!res.body) {
+            throw new Error('Export API returned no body to stream')
+          }
+
+          const reader = res.body.getReader()
+          const decoder = new TextDecoder('utf-8')
+          let buffer = ''
+          while (true) {
+            const {value, done} = await reader.read()
+            if (done) break
+            bytesReceived += value.byteLength
+            buffer += decoder.decode(value, {stream: true})
+            // Process complete lines; keep the trailing partial line in the buffer.
+            let nl = buffer.indexOf('\n')
+            while (nl >= 0) {
+              const line = buffer.slice(0, nl)
+              buffer = buffer.slice(nl + 1)
+              if (line.length > 0) {
+                try {
+                  const doc = JSON.parse(line)
+                  ingestDoc(doc)
+                } catch {
+                  // Skip malformed lines — usually transient at the very tail.
+                }
+              }
+              nl = buffer.indexOf('\n')
             }
-            if (mountedRef.current) setResult(partial)
-            emitProgress('cancelled')
-            return
+            emitProgress('running')
+          }
+          // Flush any trailing line that didn't end in a newline.
+          buffer += decoder.decode()
+          const tail = buffer.trim()
+          if (tail.length > 0) {
+            try {
+              const doc = JSON.parse(tail)
+              ingestDoc(doc)
+            } catch {
+              /* ignore */
+            }
           }
 
           const finalResult: ScanResult = {
@@ -189,8 +238,26 @@ export function useDatasetScan(cacheKey: string): UseDatasetScanResult {
           emitProgress('done')
         } catch (err) {
           runningRef.current = false
-          const message = err instanceof Error ? err.message : String(err)
-          emitProgress('error', message)
+          const isAbort =
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            (err as {name?: string})?.name === 'AbortError'
+          if (isAbort) {
+            // Surface the partial result so the user can inspect what was scanned.
+            const partial: ScanResult = {
+              data: Array.from(state.pathOccurrences.values()),
+              scannedByDocType: state.scannedByDocType,
+              completedAt: null,
+              totalDocuments: totalDocs,
+              scannedDocuments: scannedDocs,
+            }
+            if (mountedRef.current) setResult(partial)
+            emitProgress('cancelled')
+          } else {
+            const message = err instanceof Error ? err.message : String(err)
+            emitProgress('error', message)
+          }
+        } finally {
+          clearInterval(stallTick)
         }
       })()
     },

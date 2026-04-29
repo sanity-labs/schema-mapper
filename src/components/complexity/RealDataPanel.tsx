@@ -60,7 +60,7 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
       onScanLifecycle?.('completed', {
         scanned: progress.scannedDocuments,
         total: progress.totalDocuments,
-        page_count: progress.pageCount,
+        bytes_received: progress.bytesReceived,
       })
     } else if (progress.status === 'error') {
       onScanLifecycle?.('error', {
@@ -68,7 +68,7 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
         message: progress.error ?? '',
       })
     }
-  }, [progress.status, progress.scannedDocuments, progress.totalDocuments, progress.pageCount, progress.error, onScanLifecycle])
+  }, [progress.status, progress.scannedDocuments, progress.totalDocuments, progress.bytesReceived, progress.error, onScanLifecycle])
 
   const stats = useMemo(() => {
     if (!result) return null

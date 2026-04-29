@@ -24,6 +24,12 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function ratioPct(ratio: number): number {
   return Math.min(100, Math.max(0, ratio * 100))
 }
@@ -126,7 +132,10 @@ export default function ComplexityView({
             <div className="flex items-center gap-3 mb-3">
               <Spinner muted style={{width: 14, height: 14}} />
               <p className="text-sm">
-                Scanning… {formatNumber(progress.scannedDocuments)} of {formatNumber(progress.totalDocuments)} documents (page {progress.pageCount + 1})
+                Scanning… {formatNumber(progress.scannedDocuments)} of {formatNumber(progress.totalDocuments)} documents{' '}
+                <span className="text-muted-foreground">
+                  ({formatBytes(progress.bytesReceived)} streamed)
+                </span>
               </p>
               <button
                 type="button"
