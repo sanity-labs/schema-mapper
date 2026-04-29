@@ -7,13 +7,14 @@ import React, {
   useMemo,
   Suspense,
 } from 'react'
+import {useParams, useNavigate, useSearchParams} from 'react-router-dom'
 import {
   useProjects,
   ResourceProvider,
   useDashboardOrganizationId,
   useClient,
 } from '@sanity/sdk-react'
-import OrgOverview from './OrgOverview'
+import OrgOverview, {type ViewMode} from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
 import type {ProjectInfo, DatasetInfo, DiscoveredType, DeployedSchemaEntry} from '../types'
@@ -313,6 +314,37 @@ function ActiveSchemaDiscovery({
 function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]}) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
+
+  // ---- URL-backed selection ----
+  // Route shape: /:orgId/:projectId/:dataset (HashRouter, see App.tsx)
+  // Query params: ?mode=analyze&workspace=<schemaId>
+  const params = useParams<{orgId?: string; projectId?: string; dataset?: string}>()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlMode: ViewMode = searchParams.get('mode') === 'analyze' ? 'analyze' : 'visualize'
+  const urlWorkspace = searchParams.get('workspace')
+
+  // Build a path while preserving the active query string. Pass `mergeQuery`
+  // to override individual keys.
+  const buildHref = useCallback(
+    (
+      next: {projectId?: string | null; dataset?: string | null},
+      mergeQuery: Record<string, string | null> = {},
+    ) => {
+      const orgSeg = params.orgId ?? orgId ?? ''
+      const projectSeg = next.projectId ?? null
+      const datasetSeg = next.dataset ?? null
+      const segments = [orgSeg, projectSeg, datasetSeg].filter((s): s is string => Boolean(s))
+      const qs = new URLSearchParams(searchParams)
+      for (const [k, v] of Object.entries(mergeQuery)) {
+        if (v === null) qs.delete(k)
+        else qs.set(k, v)
+      }
+      const qsString = qs.toString()
+      return `/${segments.join('/')}${qsString ? `?${qsString}` : ''}`
+    },
+    [orgId, params.orgId, searchParams],
+  )
   // Optional config-level filter: when allowedProjectIds is non-empty,
   // only keep projects whose id appears in the list.
   const projects = useMemo(() => {
@@ -344,6 +376,44 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
   }, [orgId, orgName])
 
   const [state, dispatch] = useReducer(reducer, initialState)
+
+  // ---- Hydrate state from URL ----
+  // When the URL changes externally (initial load with a deep link, browser
+  // back/forward, dashboard route propagation) we sync state to match. We
+  // only fire when the URL value differs from current state to avoid loops
+  // with the navigate() calls in our own select handlers.
+  useEffect(() => {
+    if (params.projectId && params.projectId !== state.selectedProjectId) {
+      handleProjectSelect(params.projectId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.projectId])
+
+  useEffect(() => {
+    if (
+      params.projectId &&
+      params.dataset &&
+      params.projectId === state.selectedProjectId &&
+      params.dataset !== state.selectedDatasetName
+    ) {
+      handleDatasetSelect(params.dataset)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.dataset, state.selectedProjectId])
+
+  useEffect(() => {
+    if (urlWorkspace && urlWorkspace !== state.selectedSchemaId) {
+      // Apply workspace selection only if it exists for the current dataset.
+      const key = state.selectedProjectId && state.selectedDatasetName
+        ? `${state.selectedProjectId}::${state.selectedDatasetName}`
+        : null
+      const entries = key ? state.deployedSchemas.get(key) : null
+      if (entries?.some((e) => e.id === urlWorkspace)) {
+        dispatch({type: 'SELECT_SCHEMA', schemaId: urlWorkspace})
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlWorkspace, state.deployedSchemas, state.selectedProjectId, state.selectedDatasetName])
 
   // Track which project IDs we've started access checks for (to avoid re-triggering)
   const accessCheckStartedRef = useRef(new Set<string>())
@@ -392,6 +462,9 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
   const handleProjectSelect = useCallback(
     (projectId: string) => {
       dispatch({type: 'SELECT_PROJECT', projectId})
+      // Push the new project into the URL. Drop the dataset segment and the
+      // workspace query param — those should be reselected for the new project.
+      navigate(buildHref({projectId, dataset: null}, {workspace: null}))
 
       // Track project view
       const proj = (projects || []).find((p: any) => p.id === projectId)
@@ -444,6 +517,11 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
   const handleDatasetSelect = useCallback(
     (datasetName: string) => {
       dispatch({type: 'SELECT_DATASET', datasetName})
+      // Sync URL with the selection. Workspace defaults to whatever the new
+      // dataset auto-selects; drop the param now and let SCHEMA_LOADED fix it.
+      if (state.selectedProjectId) {
+        navigate(buildHref({projectId: state.selectedProjectId, dataset: datasetName}, {workspace: null}))
+      }
 
       // selectedProjectId comes from the reducer, but we need the latest value
       // The dispatch of SELECT_DATASET will update it, but we need the current one for the schema key
@@ -594,9 +672,36 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
     dispatch({type: 'ERROR', key, error})
   }, [])
 
-  const handleSchemaSelect = useCallback((schemaId: string) => {
-    dispatch({type: 'SELECT_SCHEMA', schemaId})
-  }, [])
+  const handleSchemaSelect = useCallback(
+    (schemaId: string) => {
+      dispatch({type: 'SELECT_SCHEMA', schemaId})
+      if (state.selectedProjectId && state.selectedDatasetName) {
+        navigate(
+          buildHref(
+            {projectId: state.selectedProjectId, dataset: state.selectedDatasetName},
+            {workspace: schemaId},
+          ),
+        )
+      }
+    },
+    [buildHref, navigate, state.selectedProjectId, state.selectedDatasetName],
+  )
+
+  // View mode handler — pushes ?mode=analyze (or removes the param when default).
+  const handleViewModeChange = useCallback(
+    (mode: ViewMode) => {
+      navigate(
+        buildHref(
+          {
+            projectId: state.selectedProjectId ?? null,
+            dataset: state.selectedDatasetName ?? null,
+          },
+          {mode: mode === 'analyze' ? 'analyze' : null},
+        ),
+      )
+    },
+    [buildHref, navigate, state.selectedProjectId, state.selectedDatasetName],
+  )
 
   // -----------------------------------------------------------------------
   const handlePendingDataset = useCallback((datasetName: string | null) => {
@@ -803,6 +908,8 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
         onSchemaSelect={handleSchemaSelect}
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
+        viewMode={urlMode}
+        onViewModeChange={handleViewModeChange}
       />
     </>
   )

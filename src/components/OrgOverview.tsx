@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { ResourceProvider } from '@sanity/sdk-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
@@ -12,6 +13,10 @@ import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+
+const ComplexityView = lazy(() => import('./complexity/ComplexityView'))
+
+export type ViewMode = 'visualize' | 'analyze'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -113,6 +118,9 @@ interface OrgOverviewProps {
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
   schemasCache?: Map<string, DiscoveredType[]>
   deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  // View mode (visualize ↔ analyze) — controlled by parent so it can be URL-backed
+  viewMode?: ViewMode
+  onViewModeChange?: (mode: ViewMode) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +175,8 @@ function OrgOverview({
   onSchemaSelect,
   schemasCache,
   deployedSchemasCache,
+  viewMode: viewModeProp,
+  onViewModeChange,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -178,6 +188,23 @@ function OrgOverview({
 
   // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)
+
+  // ---- View mode (visualizer ↔ complexity analyzer) ----
+  // Controlled by parent (URL-backed). Falls back to local state when the
+  // parent doesn't provide a value (e.g. tests, isolated rendering).
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>('visualize')
+  const viewMode = viewModeProp ?? localViewMode
+  const setViewMode = useCallback(
+    (mode: ViewMode) => {
+      if (onViewModeChange) onViewModeChange(mode)
+      else setLocalViewMode(mode)
+    },
+    [onViewModeChange],
+  )
+  // When the user clicks "show in visualizer" inside the analyzer, we switch
+  // back and pass this through to SchemaGraph as a focus target. Cleared after
+  // the graph applies it so subsequent renders aren't pinned.
+  const [analyzeFocusType, setAnalyzeFocusType] = useState<string | null>(null)
 
   // ---- Dialog state ----
   const [showLockedDialog, setShowLockedDialog] = useState(false)
@@ -315,6 +342,22 @@ function OrgOverview({
     onPendingDataset?.(pendingNavTarget?.datasetName ?? null)
   }, [pendingNavTarget?.datasetName, onPendingDataset])
 
+  // Reset to Visualize when the active dataset or workspace schema changes, or
+  // when entering cross-dataset navigation — Analyze mode is scoped to a specific
+  // (project, dataset, workspace) selection and the cross-dataset overlay would
+  // be confusing.
+  useEffect(() => {
+    setViewMode('visualize')
+  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, navigationStack.length])
+
+  // After SchemaGraph picks up a jump-to-type focus, release it so future renders
+  // aren't pinned and the user can navigate freely.
+  useEffect(() => {
+    if (!analyzeFocusType) return
+    const t = setTimeout(() => setAnalyzeFocusType(null), 1200)
+    return () => clearTimeout(t)
+  }, [analyzeFocusType])
+
   // When datasets load after a cross-project navigation, select the target dataset
   useEffect(() => {
     if (!pendingNavTarget?.waitingForDatasets || datasets.length === 0 || !pendingNavTarget.datasetName) return
@@ -437,6 +480,16 @@ function OrgOverview({
   const selectedWorkspaceName = showSchemaRow && selectedSchemaId
     ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
     : undefined
+
+  // Active deployed schema (for Analyze mode — full nested raw schema lives here).
+  // Falls back to first entry when there is no explicit selection (single-workspace case).
+  const activeDeployedSchema = useMemo<DeployedSchemaEntry | null>(() => {
+    if (!deployedSchemas || deployedSchemas.length === 0) return null
+    if (selectedSchemaId) {
+      return deployedSchemas.find(s => s.id === selectedSchemaId) ?? deployedSchemas[0] ?? null
+    }
+    return deployedSchemas[0] ?? null
+  }, [deployedSchemas, selectedSchemaId])
 
   // ---- Linked schema status for cross-dataset/global refs ----
   const linkedSchemaStatus = useMemo(() => {
@@ -922,10 +975,53 @@ function OrgOverview({
               <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               )}
+              {/* View-mode toggle — Visualize ↔ Analyze (complexity).
+                  Hidden during cross-dataset navigation (Analyze is scoped to a single dataset). */}
+              {selectedProject && navigationStack.length === 0 && (
+                <>
+                  <span className="flex-1" />
+                  <TabList space={1}>
+                    <Tab
+                      aria-controls="view-mode-panel-visualize"
+                      id="view-mode-tab-visualize"
+                      label="Visualize"
+                      selected={viewMode === 'visualize'}
+                      onClick={() => {
+                        if (viewMode === 'visualize') return
+                        setViewMode('visualize')
+                        trackEvent('mode_switched', {
+                          mode: 'visualize',
+                          org_id: orgId,
+                          project_id: selectedProject.id,
+                          dataset_name: selectedDataset.name,
+                        })
+                      }}
+                    />
+                    <Tab
+                      aria-controls="view-mode-panel-analyze"
+                      id="view-mode-tab-analyze"
+                      label="Analyze"
+                      selected={viewMode === 'analyze'}
+                      onClick={() => {
+                        if (viewMode === 'analyze') return
+                        setViewMode('analyze')
+                        trackEvent('mode_switched', {
+                          mode: 'analyze',
+                          org_id: orgId,
+                          project_id: selectedProject.id,
+                          dataset_name: selectedDataset.name,
+                          has_deployed_schema: effectiveSource === 'deployed',
+                          type_count: effectiveTypes.length,
+                        })
+                      }}
+                    />
+                  </TabList>
+                </>
+              )}
               {/* Export dropdown — shown in both normal and navigation modes */}
               {selectedProject && (
                 <>
-                  <span className="flex-1" />
+                  {!(navigationStack.length === 0) && <span className="flex-1" />}
                   <ExportDropdown
                     graphRef={graphRef}
                     extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
@@ -992,20 +1088,71 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph
-                types={effectiveTypes}
-                onStateChange={setGraphState}
-                onViewportChange={handleViewportChange}
-                fitViewTrigger={fitViewTrigger}
-                onCrossDatasetNavigate={handleCrossDatasetNavigate}
-                accessibleProjectIds={accessibleProjectIds}
-                onMediaLibraryClick={handleMediaLibraryClick}
-                onInaccessibleClick={handleInaccessibleClick}
-                pendingFocusType={pendingNavTarget?.typeName}
-                pendingFocusDepth={pendingNavTarget?.focusDepth}
-                restoreViewport={pendingRestoreViewport}
-                viewportNudge={viewportNudge}
-              />
+              viewMode === 'analyze' && selectedProject && selectedDataset ? (
+                <Suspense
+                  fallback={
+                    <div className="flex flex-col items-center justify-center h-full gap-3">
+                      <Spinner muted />
+                      <p className="text-sm text-muted-foreground">Loading complexity analysis…</p>
+                    </div>
+                  }
+                >
+                  {/* Scope useClient() inside the analyzer to the active project/dataset.
+                      Without this wrapper, hooks like useDatasetStats/useDatasetScan
+                      inherit the SanityApp bootstrap config and hit the placeholder
+                      project, causing "Dataset 'production' not found for project ID
+                      'bootstrap'". */}
+                  <ResourceProvider
+                    projectId={selectedProject.id}
+                    dataset={selectedDataset.name}
+                    fallback={null}
+                  >
+                  <ComplexityView
+                    projectId={selectedProject.id}
+                    datasetName={selectedDataset.name}
+                    workspaceName={selectedWorkspaceName ?? null}
+                    schemaKey={`${selectedProject.id}::${selectedDataset.name}::${selectedSchemaId ?? ''}`}
+                    types={effectiveTypes}
+                    activeSchema={activeDeployedSchema}
+                    onJumpToType={(typeName) => {
+                      setAnalyzeFocusType(typeName)
+                      setViewMode('visualize')
+                      trackEvent('complexity_action_taken', {
+                        action: 'jump_to_visualizer',
+                        org_id: orgId,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                        type_name: typeName,
+                      })
+                    }}
+                    onScanLifecycle={(event, payload) => {
+                      trackEvent(`complexity_scan_${event}`, {
+                        org_id: orgId,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                        type_count: effectiveTypes.length,
+                        ...payload,
+                      })
+                    }}
+                  />
+                  </ResourceProvider>
+                </Suspense>
+              ) : (
+                <SchemaGraph
+                  types={effectiveTypes}
+                  onStateChange={setGraphState}
+                  onViewportChange={handleViewportChange}
+                  fitViewTrigger={fitViewTrigger}
+                  onCrossDatasetNavigate={handleCrossDatasetNavigate}
+                  accessibleProjectIds={accessibleProjectIds}
+                  onMediaLibraryClick={handleMediaLibraryClick}
+                  onInaccessibleClick={handleInaccessibleClick}
+                  pendingFocusType={pendingNavTarget?.typeName ?? analyzeFocusType ?? undefined}
+                  pendingFocusDepth={pendingNavTarget?.focusDepth}
+                  restoreViewport={pendingRestoreViewport}
+                  viewportNudge={viewportNudge}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>

@@ -515,15 +515,16 @@ export function useDeployedSchema(): {
           return
         }
 
-        // Parse ALL workspace entries
-        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]}[] = []
+        // Parse ALL workspace entries — retain raw schema alongside parsed types
+        // (raw is consumed by the complexity analyzer; parsed flat shape by the visualizer)
+        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]; rawSchema: unknown[]}[] = []
 
         for (const entry of rawSchemas) {
           const schemaData = extractSchemaData(entry)
           if (!Array.isArray(schemaData) || schemaData.length === 0) continue
           const parsed = parseDeployedSchema(schemaData)
           if (parsed.length > 0) {
-            parsedEntries.push({entry, parsedTypes: parsed})
+            parsedEntries.push({entry, parsedTypes: parsed, rawSchema: schemaData})
           }
         }
 
@@ -565,7 +566,7 @@ export function useDeployedSchema(): {
         if (cancelled) return
 
         // Build DeployedSchemaEntry for each workspace
-        const deployedSchemaEntries: DeployedSchemaEntry[] = parsedEntries.map(({entry, parsedTypes}) => {
+        const deployedSchemaEntries: DeployedSchemaEntry[] = parsedEntries.map(({entry, parsedTypes, rawSchema}) => {
           const typesWithCounts: DiscoveredType[] = parsedTypes.map((t) => ({
             ...t,
             documentCount: countMap.get(t.name) ?? 0,
@@ -576,6 +577,7 @@ export function useDeployedSchema(): {
             name: entry.workspace?.title || entry.workspace?.name || 'Default',
             workspace: entry.workspace?.name || 'default',
             types: typesWithCounts,
+            rawSchema,
           }
         })
 

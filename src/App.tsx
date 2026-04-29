@@ -11,28 +11,86 @@ import {initAnalytics} from './lib/analytics'
 
 initAnalytics()
 
-// Suppress ResizeObserver loop errors — these fire with error=null and crash Vite's overlay
+// Suppress noise that doesn't represent actionable bugs:
+// - ResizeObserver loop errors (fire with error=null and crash Vite's overlay)
+// - Sanity SDK background-subscription 404s (RxJS reportUnhandledError re-throws
+//   these asynchronously when an internal store like presence/projection/document
+//   subscribes to a dataset the current user can't read or that doesn't exist).
+//   These show up as `Not Found - Resource not found. (traceId: …)`. The Sanity
+//   CLI ships a global error handler that paints a full-screen overlay for any
+//   uncaught error UNLESS something subscribes to `window.__sanityErrorChannel`.
+//   We subscribe and filter; non-suppressed errors are re-emitted to console
+//   so genuine bugs still surface.
+const SANITY_BENIGN_ERROR_PATTERN = /Not Found - Resource not found/i
+
+interface SanityErrorChannel {
+  subscribe: (cb: (msg: {error: Error; params: unknown}) => void) => () => void
+}
+
+declare global {
+  interface Window {
+    __sanityErrorChannel?: SanityErrorChannel
+  }
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('error', (event) => {
     if (event.message?.includes?.('ResizeObserver') || event.error === null) {
       event.preventDefault()
-      return
     }
   })
+
+  // Subscribe to Sanity's error channel as soon as it exists. The CLI's inline
+  // script defines it before our app bundle loads, so the channel is already
+  // present here.
+  const channel = window.__sanityErrorChannel
+  if (channel) {
+    channel.subscribe(({error}) => {
+      const msg = error?.message ?? String(error ?? '')
+      if (SANITY_BENIGN_ERROR_PATTERN.test(msg)) {
+        // Swallow — these come from SDK-internal observables we don't own.
+        return
+      }
+      // Re-emit anything else so we don't accidentally hide genuine bugs.
+      console.error(error)
+    })
+  }
 }
 
 const theme = buildTheme()
 
-const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
+// Read the organization ID from the dashboard's `_context` URL param at runtime.
+// The dashboard always provides `?_context={"orgId":"..."}` when it loads the app.
+// Falls back to '' for the NotInDashboard view (the deploy-time orgId lives in
+// `sanity.cli.ts` — that's the only place a user has to edit).
+function readOrgIdFromUrl(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const ctxParam = new URLSearchParams(window.location.search).get('_context')
+    if (!ctxParam) return ''
+    const ctx = JSON.parse(ctxParam) as {orgId?: string}
+    return typeof ctx.orgId === 'string' ? ctx.orgId : ''
+  } catch {
+    return ''
+  }
+}
+
+const organizationId = readOrgIdFromUrl()
 
 // Optional: restrict the project list to specific project IDs.
 // When empty, all projects in the org are shown (default behaviour).
 // When populated, only projects whose id is in this list will appear in the UI.
 const allowedProjectIds: string[] = []
 
+// SanityApp needs at least one resource handle to bootstrap its SanityInstance
+// context. Schema Mapper doesn't actually use this resource — it discovers real
+// projects via `useProjects()` and renders each via `<ResourceProvider>` on
+// demand. The bootstrap value just has to satisfy the SDK's projectId regex
+// (a-z, 0-9, dashes). The 404 from the SDK probing this placeholder is silenced
+// by the __sanityErrorChannel subscriber above.
 const config: SanityConfig[] = [
   {
-    projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your Sanity project ID
+    projectId: 'bootstrap',
     dataset: 'production',
   },
 ]

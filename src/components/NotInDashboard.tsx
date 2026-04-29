@@ -5,7 +5,7 @@ interface NotInDashboardProps {
 }
 
 export function NotInDashboard({ organizationId }: NotInDashboardProps) {
-  const dashboardUrl = organizationId && organizationId !== 'YOUR_ORG_ID'
+  const dashboardUrl = organizationId
     ? `https://www.sanity.io/@${organizationId}/application/__dev/`
     : 'https://www.sanity.io/manage'
 
