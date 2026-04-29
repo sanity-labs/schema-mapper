@@ -9,6 +9,7 @@ import type {SchemaPath} from './walkSchema'
 import type {DataPathRecord, PathStatsResult} from './pathStats'
 import {synthesizeFindings} from './findings'
 import {computeNormalization} from './normalization'
+import {computeSchemaMetrics} from './schemaMetrics'
 
 export interface ExportContext {
   projectName: string
@@ -19,7 +20,7 @@ export interface ExportContext {
   liveAttributeCount: number | null
   /** Plan attribute limit. */
   planLimit: number | null
-  /** Total documents the scan walked. */
+  /** Total documents the scan walked. Zero when no scan has run. */
   docsScanned: number
   /** Whether the dataset has a deployed schema. */
   hasDeployedSchema: boolean
@@ -27,9 +28,12 @@ export interface ExportContext {
 
 export interface ExportInput extends ExportContext {
   schemaPaths: SchemaPath[]
-  data: DataPathRecord[]
-  scannedByDocType: Map<string, number>
-  pathStats: PathStatsResult
+  /** Optional — present once a scan has completed. */
+  data?: DataPathRecord[]
+  /** Optional — present once a scan has completed. */
+  scannedByDocType?: Map<string, number>
+  /** Optional — derived from data; absent when no scan. */
+  pathStats?: PathStatsResult
 }
 
 function fmt(n: number): string {
@@ -49,12 +53,16 @@ function shapeLabel(ratio: number, populated: number, docs: number): string {
 }
 
 export function buildMarkdownReport(input: ExportInput): string {
-  const findings = synthesizeFindings({
-    schema: input.schemaPaths,
-    data: input.data,
-    scannedByDocType: input.scannedByDocType,
-  })
+  const hasScan = !!input.data && !!input.pathStats && !!input.scannedByDocType
+  const findings = hasScan
+    ? synthesizeFindings({
+        schema: input.schemaPaths,
+        data: input.data!,
+        scannedByDocType: input.scannedByDocType!,
+      })
+    : null
   const normalization = computeNormalization(input.schemaPaths)
+  const schemaMetrics = input.hasDeployedSchema ? computeSchemaMetrics(input.schemaPaths) : null
 
   const lines: string[] = []
   const datasetTitle = `${input.projectName} / ${input.datasetName}` + (input.workspaceName ? ` / ${input.workspaceName}` : '')
@@ -62,7 +70,7 @@ export function buildMarkdownReport(input: ExportInput): string {
   lines.push(`# Schema complexity report — ${datasetTitle}`)
   lines.push('')
   lines.push(
-    '> **What this measures.** Sanity bills "dataset attributes" — unique populated `(field path, datatype)` pairs across the dataset. Schema complexity by itself is free; only paths that real documents populate count. This report shows what is currently populated, where the schema is dormant, and where data has drifted from the schema. Reference: https://www.sanity.io/docs/apis-and-sdks/attribute-limit',
+    '> **What this measures.** Sanity bills "dataset attributes" — unique populated `(field path, datatype)` pairs counted dataset-wide (not per document, not per doc type). Schema complexity by itself is free; only paths that real documents populate count. This report shows what is currently populated, where the schema is dormant, and where data has drifted from the schema. Reference: https://www.sanity.io/docs/apis-and-sdks/attribute-limit',
   )
   lines.push('')
 
@@ -76,50 +84,87 @@ export function buildMarkdownReport(input: ExportInput): string {
   } else if (input.liveAttributeCount !== null) {
     lines.push(`- **Attributes used:** ${fmt(input.liveAttributeCount)}.`)
   }
-  lines.push(
-    `- **Scan estimate:** ${fmt(input.pathStats.totals.estimatedAttributes)} unique \`(path, datatype)\` pairs from ${fmt(input.docsScanned)} document${input.docsScanned === 1 ? '' : 's'}.`,
-  )
-  if (input.hasDeployedSchema) {
+  if (hasScan) {
     lines.push(
-      `- **Drift attributes (paths populated but undeclared in schema):** ${fmt(input.pathStats.totals.driftAttributesGlobal)}` +
-        (input.planLimit ? ` (${pct(input.pathStats.totals.driftAttributesGlobal, input.planLimit)} of plan limit)` : '') +
-        ` — direct lever for reduction.`,
+      `- **Scan estimate:** ${fmt(input.pathStats!.totals.estimatedAttributes)} unique \`(path, datatype)\` pairs from ${fmt(input.docsScanned)} document${input.docsScanned === 1 ? '' : 's'}.`,
     )
-  } else {
-    lines.push(`- **Deployed schema:** none. Dead/drift comparison disabled. Run \`npx sanity deploy\` to enable.`)
-  }
-  lines.push('')
-
-  // Top contributors table
-  lines.push('## Top contributors by document type')
-  lines.push('')
-  lines.push(
-    '_Per-doctype identification view. Sanity counts attributes globally, so per-row Realized counts do not sum to the headline. **Schema max** is the theoretical max contribution if every declared field gets populated. **Shape** indicates whether more docs would grow the attribute count (Denormalized) or not (Normalized)._',
-  )
-  lines.push('')
-  if (input.hasDeployedSchema) {
-    lines.push('| Doc type | Realized | Schema max | Used | Dead | Drift | Docs | Avg paths/doc | Shape |')
-    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
-  } else {
-    lines.push('| Doc type | Realized | Docs | Avg paths/doc | Shape |')
-    lines.push('| --- | ---: | ---: | ---: | --- |')
-  }
-  for (const f of findings.byDocType) {
-    const usedPct = f.schemaPathCount > 0 ? `${Math.round((f.populatedPathCount / f.schemaPathCount) * 100)}%` : '—'
-    const avg = f.avgPathsPerDoc >= 100 ? Math.round(f.avgPathsPerDoc) : f.avgPathsPerDoc.toFixed(1)
-    const shape = shapeLabel(f.normalizationRatio, f.populatedPathCount, f.docCount)
     if (input.hasDeployedSchema) {
       lines.push(
-        `| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.schemaPathCount)} | ${usedPct} | ${fmt(f.deadPathCount)} | ${fmt(f.driftPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`,
+        `- **Drift attributes (paths populated but undeclared in schema):** ${fmt(input.pathStats!.totals.driftAttributesGlobal)}` +
+          (input.planLimit ? ` (${pct(input.pathStats!.totals.driftAttributesGlobal, input.planLimit)} of plan limit)` : '') +
+          ` — direct lever for reduction.`,
       )
-    } else {
-      lines.push(`| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`)
     }
+  } else {
+    lines.push(
+      `- **Scan:** not run yet. The report below covers what we know from the deployed schema only — i.e. theoretical capacity. Run a scan in the Analyze view to add realized data, dead-vs-drift, and per-doctype shape (normalized vs denormalized) information.`,
+    )
+  }
+  if (!input.hasDeployedSchema) {
+    lines.push(`- **Deployed schema:** none. Run \`npx sanity deploy\` to enable schema-side analysis.`)
   }
   lines.push('')
 
-  // Drift cleanup
-  if (input.hasDeployedSchema && findings.driftCandidates.length > 0) {
+  // ----- With scan: real-data view -----
+  if (hasScan && findings) {
+    lines.push('## Top contributors by document type')
+    lines.push('')
+    lines.push(
+      '_Per-doctype identification view. Each number is a count of unique paths (not occurrences). Sanity counts attributes globally, so per-row Realized counts do not sum to the headline. **Schema max** is the theoretical max contribution if every declared field gets populated. **Shape** indicates whether more docs would grow the attribute count (Denormalized) or not (Normalized)._',
+    )
+    lines.push('')
+    if (input.hasDeployedSchema) {
+      lines.push('| Doc type | Realized | Schema max | Used | Dead | Drift | Docs | Avg paths/doc | Shape |')
+      lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
+    } else {
+      lines.push('| Doc type | Realized | Docs | Avg paths/doc | Shape |')
+      lines.push('| --- | ---: | ---: | ---: | --- |')
+    }
+    for (const f of findings.byDocType) {
+      const usedPct = f.schemaPathCount > 0 ? `${Math.round((f.populatedPathCount / f.schemaPathCount) * 100)}%` : '—'
+      const avg = f.avgPathsPerDoc >= 100 ? Math.round(f.avgPathsPerDoc) : f.avgPathsPerDoc.toFixed(1)
+      const shape = shapeLabel(f.normalizationRatio, f.populatedPathCount, f.docCount)
+      if (input.hasDeployedSchema) {
+        lines.push(
+          `| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.schemaPathCount)} | ${usedPct} | ${fmt(f.deadPathCount)} | ${fmt(f.driftPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`,
+        )
+      } else {
+        lines.push(`| ${f.docType} | ${fmt(f.populatedPathCount)} | ${fmt(f.docCount)} | ${avg} | ${shape} |`)
+      }
+    }
+    lines.push('')
+  }
+
+  // ----- Schema-only: theoretical complexity (always when schema exists) -----
+  if (schemaMetrics && schemaMetrics.byDocType.length > 0) {
+    lines.push('## Theoretical schema complexity')
+    lines.push('')
+    lines.push(
+      '_Schema-only view. Numbers describe what is **possible** — not what you are paying for. A doc type with high theoretical complexity but normalized data costs no more than a simpler one. Pair with the realized view above (when a scan is available)._',
+    )
+    lines.push('')
+    lines.push('| Doc type | Schema paths | Root fields | Arrays | Max depth |')
+    lines.push('| --- | ---: | ---: | ---: | ---: |')
+    for (const m of schemaMetrics.byDocType) {
+      lines.push(`| ${m.docType} | ${fmt(m.pathCount)} | ${fmt(m.rootFieldCount)} | ${fmt(m.arrayCount)} | ${m.maxDepth} |`)
+    }
+    lines.push('')
+    if (schemaMetrics.arrays.length > 0) {
+      lines.push('### Top arrays by fanout')
+      lines.push('')
+      lines.push('_Each child path under an array container is a distinct attribute when populated. High fanout = lots of attribute potential._')
+      lines.push('')
+      lines.push('| Array path | Doc type | Children | Depth | Polymorphic |')
+      lines.push('| --- | --- | ---: | ---: | --- |')
+      for (const a of schemaMetrics.arrays.slice(0, 30)) {
+        lines.push(`| \`${a.path}\` | ${a.docType} | ${fmt(a.childPathCount)} | ${a.depth} | ${a.isPolymorphic ? 'yes' : 'no'} |`)
+      }
+      lines.push('')
+    }
+  }
+
+  // Drift cleanup (scan only)
+  if (hasScan && findings && input.hasDeployedSchema && findings.driftCandidates.length > 0) {
     lines.push('## Reduce attribute usage — drift paths')
     lines.push('')
     lines.push(
@@ -134,8 +179,8 @@ export function buildMarkdownReport(input: ExportInput): string {
     }
   }
 
-  // Dead schema cleanup
-  if (input.hasDeployedSchema && findings.cleanupCandidates.length > 0) {
+  // Dead schema cleanup (scan only)
+  if (hasScan && findings && input.hasDeployedSchema && findings.cleanupCandidates.length > 0) {
     lines.push('## Schema cleanup — dead fields')
     lines.push('')
     lines.push(
@@ -182,17 +227,19 @@ export function buildMarkdownReport(input: ExportInput): string {
     }
   }
 
-  // Hot paths (top 25 for context)
-  lines.push('## Top populated paths')
-  lines.push('')
-  lines.push('_The 25 most-populated paths in the dataset, by document count._')
-  lines.push('')
-  lines.push('| Path | Doc type | Datatype | Docs | % populated |')
-  lines.push('| --- | --- | --- | ---: | ---: |')
-  for (const r of input.pathStats.hot.slice(0, 25)) {
-    lines.push(`| \`${r.path}\` | ${r.docType} | ${r.datatype} | ${fmt(r.occurrences)} | ${(r.populationRatio * 100).toFixed(0)}% |`)
+  // Hot paths (scan only — top 25 for context)
+  if (hasScan && input.pathStats) {
+    lines.push('## Top populated paths')
+    lines.push('')
+    lines.push('_The 25 most-populated paths in the dataset, by document count._')
+    lines.push('')
+    lines.push('| Path | Doc type | Datatype | Docs | % populated |')
+    lines.push('| --- | --- | --- | ---: | ---: |')
+    for (const r of input.pathStats.hot.slice(0, 25)) {
+      lines.push(`| \`${r.path}\` | ${r.docType} | ${r.datatype} | ${fmt(r.occurrences)} | ${(r.populationRatio * 100).toFixed(0)}% |`)
+    }
+    lines.push('')
   }
-  lines.push('')
 
   lines.push('---')
   lines.push('')
@@ -206,15 +253,23 @@ export function buildMarkdownReport(input: ExportInput): string {
 export function buildCsvReport(input: ExportInput): string {
   const rows: (string | number)[][] = []
   rows.push(['section', 'path', 'doc_type', 'datatype', 'occurrences', 'population_ratio'])
-  for (const r of input.pathStats.hot) {
-    rows.push(['hot', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
-  }
-  if (input.hasDeployedSchema) {
-    for (const r of input.pathStats.dead) {
-      rows.push(['dead', r.path, r.docType, r.datatype, 0, '0'])
+  if (input.pathStats) {
+    for (const r of input.pathStats.hot) {
+      rows.push(['hot', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
     }
-    for (const r of input.pathStats.drift) {
-      rows.push(['drift', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
+    if (input.hasDeployedSchema) {
+      for (const r of input.pathStats.dead) {
+        rows.push(['dead', r.path, r.docType, r.datatype, 0, '0'])
+      }
+      for (const r of input.pathStats.drift) {
+        rows.push(['drift', r.path, r.docType, r.datatype, r.occurrences, r.populationRatio.toFixed(4)])
+      }
+    }
+  } else if (input.hasDeployedSchema) {
+    // No scan — still produce a useful CSV from the schema-defined paths.
+    for (const p of input.schemaPaths) {
+      if (p.isArrayContainer) continue
+      rows.push(['schema', p.path, p.docType, p.datatype, '', ''])
     }
   }
   return rows

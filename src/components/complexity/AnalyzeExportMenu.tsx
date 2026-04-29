@@ -29,17 +29,21 @@ function downloadBlob(filename: string, content: string, mime: string) {
 
 export function AnalyzeExportMenu(props: AnalyzeExportMenuProps) {
   const {schemaPaths, scanResult, pathStats, onExport, ...ctx} = props
-  const ready = !!scanResult && !!pathStats
+  // Always-enabled when there's at least a deployed schema OR a completed
+  // scan. With only schema, the report is the theoretical-capacity view; with
+  // a scan, it adds realized data, dead/drift, and shape (normalized) info.
+  const ready = schemaPaths.length > 0 || (!!scanResult && !!pathStats)
+  const hasScan = !!scanResult && !!pathStats
   const [copied, setCopied] = useState(false)
 
   const buildInput = () => {
-    if (!scanResult || !pathStats) return null
+    if (!ready) return null
     return {
       ...ctx,
       schemaPaths,
-      data: scanResult.data,
-      scannedByDocType: scanResult.scannedByDocType,
-      pathStats,
+      data: scanResult?.data,
+      scannedByDocType: scanResult?.scannedByDocType,
+      pathStats: pathStats ?? undefined,
     }
   }
 
@@ -81,14 +85,19 @@ export function AnalyzeExportMenu(props: AnalyzeExportMenuProps) {
   const baseBtn =
     'px-3 py-1.5 text-sm rounded border border-gray-950/15 dark:border-white/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
 
+  const tooltip = ready
+    ? hasScan
+      ? 'Copy a Markdown report (headline, contributors, dead/drift, top paths) — paste into Claude / ChatGPT for analysis'
+      : 'Copy a Markdown report (theoretical schema complexity only — run a scan to add real-data sections)'
+    : 'No deployed schema and no scan to export'
+
   return (
-    <div className="flex items-center gap-2" title={ready ? '' : 'Run a scan to enable export'}>
+    <div className="flex items-center gap-2" title={tooltip}>
       <button
         type="button"
         className={`${baseBtn} hover:bg-gray-950/[0.03] dark:hover:bg-white/[0.05]`}
         onClick={handleCopyMarkdown}
         disabled={!ready}
-        title="Copy a Markdown report to clipboard — paste into Claude / ChatGPT for analysis"
       >
         {copied ? 'Copied ✓' : 'Copy as Markdown'}
       </button>
