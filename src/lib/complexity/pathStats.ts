@@ -39,10 +39,30 @@ export interface PathStatsResult {
   dead: DeadPath[]
   drift: DriftPath[]
   totals: {
+    /** Schema-defined (path, datatype) pairs, counted per doc type. */
     schemaPaths: number
+    /** Populated (path, datatype) pairs, counted per doc type. */
     dataPaths: number
+    /** Schema-side per-doctype paths not populated by any doc. */
     deadCount: number
+    /** Per-doctype populated paths the schema doesn't declare. */
     driftCount: number
+    /**
+     * Estimated attributes Sanity is billing you for: unique (path, datatype)
+     * pairs across the dataset, ignoring doc type. This is what the stats API
+     * reports — it should be very close to that number.
+     *
+     * Sanity attributes are dataset-global: `lessons` as `array` is one
+     * attribute whether it appears on one doc type or ten.
+     */
+    estimatedAttributes: number
+    /**
+     * The subset of estimated attributes that come from populated paths the
+     * deployed schema does NOT declare anywhere. Removing these via document
+     * migrations (unset across all docs that populate them) is the most
+     * direct lever to reduce your attribute count.
+     */
+    driftAttributesGlobal: number
   }
 }
 
@@ -51,20 +71,29 @@ const DEAD_LIMIT = 100
 const DRIFT_LIMIT = 100
 
 export function computePathStats({schema, data, scannedByDocType}: PathStatsInput): PathStatsResult {
-  // Build keyed lookups: `${docType}::${path}`
+  // Per-doctype keys (for the editor-facing dead/drift split).
   const schemaKey = (p: {docType: string; path: string}) => `${p.docType}::${p.path}`
+  // Global (path, datatype) keys (for the billing-facing attribute estimate).
+  // Sanity counts attributes dataset-wide regardless of which doc type owns the path.
+  const globalKey = (p: {path: string; datatype: string}) => `${p.path}::${p.datatype}`
 
   const schemaSet = new Set<string>()
   const schemaInfo = new Map<string, SchemaPath>()
+  const schemaGlobalSet = new Set<string>()
   for (const p of schema) {
     if (p.isArrayContainer) continue
     const k = schemaKey(p)
     schemaSet.add(k)
     if (!schemaInfo.has(k)) schemaInfo.set(k, p)
+    schemaGlobalSet.add(globalKey(p))
   }
 
   const dataSet = new Set<string>()
-  for (const d of data) dataSet.add(schemaKey(d))
+  const dataGlobalSet = new Set<string>()
+  for (const d of data) {
+    dataSet.add(schemaKey(d))
+    dataGlobalSet.add(globalKey(d))
+  }
 
   const hot: HotPath[] = data
     .map<HotPath>((d) => {
@@ -85,10 +114,20 @@ export function computePathStats({schema, data, scannedByDocType}: PathStatsInpu
   dead.sort((a, b) => a.docType.localeCompare(b.docType) || b.depth - a.depth)
 
   const drift: DriftPath[] = []
+  let driftAttributesGlobal = 0
+  const driftGlobalSeen = new Set<string>()
   for (const d of data) {
     if (schemaSet.has(schemaKey(d))) continue
     const total = scannedByDocType.get(d.docType) ?? 0
     drift.push({...d, populationRatio: total > 0 ? d.occurrences / total : 0})
+    // Drift "attributes" globally: a populated (path, datatype) pair the schema
+    // doesn't declare anywhere. Each unique pair counts once, even if multiple
+    // doc types populate it.
+    const gk = globalKey(d)
+    if (!schemaGlobalSet.has(gk) && !driftGlobalSeen.has(gk)) {
+      driftGlobalSeen.add(gk)
+      driftAttributesGlobal += 1
+    }
   }
   drift.sort((a, b) => b.occurrences - a.occurrences)
 
@@ -101,6 +140,8 @@ export function computePathStats({schema, data, scannedByDocType}: PathStatsInpu
       dataPaths: dataSet.size,
       deadCount: dead.length,
       driftCount: drift.length,
+      estimatedAttributes: dataGlobalSet.size,
+      driftAttributesGlobal,
     },
   }
 }

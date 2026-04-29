@@ -18,9 +18,10 @@ export function NormalizationPanel({paths, onJumpToType}: NormalizationPanelProp
     <section>
       <h3 className="text-sm font-normal mb-1">Field name consistency</h3>
       <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-3xl">
-        Two ways your schema can drift over time. Neither directly costs attributes — but inconsistent
-        naming and reused names with different shapes lead to surprises later, and editors learn the wrong
-        mental model.
+        Two ways your schema can drift over time. Naming inconsistency mostly hurts editors and code
+        clarity — but type collisions (the same name with different primitive types) <em>can</em> nudge
+        billing up: Sanity counts attributes by <code className="font-mono text-xs">(path, datatype)</code>,
+        so each datatype variant of the same path counts separately.
       </p>
 
       {!hasFindings && (

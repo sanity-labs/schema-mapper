@@ -1,8 +1,12 @@
-import {useDatasetStats} from '../../hooks/useDatasetStats'
+import type {DatasetStats} from '../../types'
 
 interface HeadlinePanelProps {
-  projectId: string
-  datasetName: string
+  /** Stats result from the parent (lifted so plan limit is shared with other panels). */
+  stats: DatasetStats | null
+  isLoading: boolean
+  error: Error | null
+  /** Optional scan-derived estimate to show side-by-side with the live count. */
+  estimatedAttributes?: number
 }
 
 function formatNumber(n: number): string {
@@ -15,9 +19,7 @@ function pctClass(ratio: number): string {
   return 'bg-emerald-500 dark:bg-emerald-500'
 }
 
-export function HeadlinePanel({projectId, datasetName}: HeadlinePanelProps) {
-  const {stats, isLoading, error} = useDatasetStats(projectId, datasetName)
-
+export function HeadlinePanel({stats, isLoading, error, estimatedAttributes}: HeadlinePanelProps) {
   if (isLoading) {
     return (
       <div className="rounded-lg border border-gray-950/10 dark:border-white/10 p-5">
@@ -88,6 +90,19 @@ export function HeadlinePanel({projectId, datasetName}: HeadlinePanelProps) {
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Live count from the dataset stats endpoint — authoritative for billing.
+        {hasLimit && (
+          <> You're at <strong className="font-normal text-foreground">{(ratio * 100).toFixed(1)}%</strong> of your plan limit.</>
+        )}
+        {typeof estimatedAttributes === 'number' && estimatedAttributes > 0 && (
+          <>
+            {' '}Our scan estimates <strong className="font-normal text-foreground">{formatNumber(estimatedAttributes)}</strong>
+            {' '}distinct (path, datatype) pairs from real documents
+            {typeof value === 'number' && value > 0 && (
+              <> — within {Math.abs(estimatedAttributes - value).toLocaleString()} of the live number, so the
+              walker is calibrated correctly.</>
+            )}
+          </>
+        )}
       </p>
     </div>
   )

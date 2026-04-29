@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { Spinner } from '@sanity/ui'
 import type { DeployedSchemaEntry, DiscoveredType } from '../../types'
 import { walkSchema } from '../../lib/complexity/walkSchema'
+import { computePathStats } from '../../lib/complexity/pathStats'
 import { useDatasetScan } from '../../hooks/useDatasetScan'
+import { useDatasetStats } from '../../hooks/useDatasetStats'
 import { HeadlinePanel } from './HeadlinePanel'
 import { SchemaMetricsPanel } from './SchemaMetricsPanel'
 import { NormalizationPanel } from './NormalizationPanel'
@@ -56,6 +58,24 @@ export default function ComplexityView({
   const scannedRatio =
     progress.totalDocuments > 0 ? progress.scannedDocuments / progress.totalDocuments : 0
 
+  // Lifted stats fetch so plan limit is shared across panels (HeadlinePanel,
+  // TopFindingsPanel, RealDataPanel — for "% of limit" framing).
+  const {stats, isLoading: statsLoading, error: statsError} = useDatasetStats(projectId, datasetName)
+  const planLimit = (() => {
+    const v = stats?.fields?.count?.limit
+    return typeof v === 'number' && v > 0 ? v : null
+  })()
+  const liveAttributeCount = (() => {
+    const v = stats?.fields?.count?.value
+    return typeof v === 'number' ? v : null
+  })()
+
+  // Compute global stats once and share — used by HeadlinePanel and TopFindings.
+  const pathStats = useMemo(
+    () => (result ? computePathStats({schema: paths, data: result.data, scannedByDocType: result.scannedByDocType}) : null),
+    [paths, result],
+  )
+
   const [showSchemaDetails, setShowSchemaDetails] = useState(false)
 
   return (
@@ -85,7 +105,12 @@ export default function ComplexityView({
           </p>
         </div>
 
-        <HeadlinePanel projectId={projectId} datasetName={datasetName} />
+        <HeadlinePanel
+          stats={stats}
+          isLoading={statsLoading}
+          error={statsError}
+          estimatedAttributes={pathStats?.totals.estimatedAttributes}
+        />
 
         {!hasRawSchema && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200">
@@ -161,7 +186,10 @@ export default function ComplexityView({
           <TopFindingsPanel
             schemaPaths={paths}
             scanResult={result}
+            pathStats={pathStats}
             hasDeployedSchema={hasRawSchema}
+            planLimit={planLimit}
+            liveAttributeCount={liveAttributeCount}
             onJumpToType={onJumpToType}
           />
         )}
