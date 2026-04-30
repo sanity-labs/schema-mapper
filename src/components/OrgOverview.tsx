@@ -8,7 +8,7 @@ import { ResourceProvider } from '@sanity/sdk-react'
 import { AnalyzeExportMenu } from './complexity/AnalyzeExportMenu'
 import { walkSchema } from '../lib/complexity/walkSchema'
 import { computePathStats } from '../lib/complexity/pathStats'
-import { getCachedScan } from '../hooks/useDatasetScan'
+import { useCachedScan } from '../hooks/useDatasetScan'
 import { useDatasetStats } from '../hooks/useDatasetStats'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
@@ -1363,7 +1363,7 @@ function AnalyzeExportSlot({
   onExport?: (kind: 'markdown_copy' | 'markdown_download' | 'csv_download') => void
 }) {
   const {stats} = useDatasetStats(projectId, datasetName)
-  const scanResult = getCachedScan(schemaKey)
+  const scanResult = useCachedScan(schemaKey)
   const schemaPaths = useMemo(() => walkSchema(activeSchema?.rawSchema), [activeSchema?.rawSchema])
   const pathStats = useMemo(
     () =>
@@ -1398,6 +1398,7 @@ function AnalyzeExportSlot({
       planLimit={planLimit}
       docsScanned={scanResult?.scannedDocuments ?? 0}
       hasDeployedSchema={schemaPaths.length > 0}
+      systemPathsCount={scanResult?.systemPaths.length ?? 0}
       onExport={onExport}
     />
   )

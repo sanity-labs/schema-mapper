@@ -3,19 +3,31 @@
 // recorded once per document, regardless of how many times the value appears
 // (e.g. `body[].text` is one path even if there are 50 entries in `body`).
 //
-// Output is a Set-like list of {path, datatype} tuples for the document. The
-// caller accumulates across documents to compute "how many docs populate path
-// X."
+// Output is split into two buckets:
+//   - `paths`: user-controllable paths (everything except `_system.*`).
+//   - `systemPaths`: Sanity's internal indexing attributes (`_system.*`).
+//     These exist on every document but aren't user content; they are
+//     surfaced separately so the headline can attribute their contribution
+//     without contaminating per-doctype findings.
 
 const SKIP_TOP_LEVEL = new Set(['_id', '_type', '_createdAt', '_updatedAt', '_rev'])
-// Inside nested objects we still skip _key and the _type marker on union members
-const SKIP_NESTED = new Set(['_key', '_id', '_createdAt', '_updatedAt', '_rev'])
+// Nested system markers we keep skipping (still emitted by Sanity, not user fields).
+// Note: `_key` and `_type` ARE attributes Sanity counts on array entries, so we
+// keep them out of this set to align with the schema walker's emission.
+const SKIP_NESTED = new Set(['_id', '_createdAt', '_updatedAt', '_rev'])
 
 const DEFAULT_MAX_DEPTH = 50
 
 export interface DocPath {
   path: string
   datatype: string
+}
+
+export interface WalkDocumentResult {
+  /** User-content paths populated in the document. */
+  paths: DocPath[]
+  /** Unique `_system.*` paths the walker observed (filtered from `paths`). */
+  systemPaths: string[]
 }
 
 function detectDatatype(value: unknown): string {
@@ -68,16 +80,20 @@ function walkValue(value: unknown, prefix: string, depth: number, ctx: WalkConte
 
   if (typeof value === 'object') {
     const dt = detectDatatype(value)
-    // Composite/leaf-like objects (image, slug, reference, block) are recorded
-    // as a single path — we don't expand their internal structure because
-    // those internals are not user fields and don't shift attribute counts in
-    // a meaningful way for the diagnostic.
-    if (dt === 'reference' || dt === 'image' || dt === 'slug' || dt === 'block') {
+    // Composite/leaf-like objects (image, slug, reference) are recorded as a
+    // single path. The schema walker treats them the same way; expanding them
+    // would just create artificial drift on every populated image.
+    //
+    // Block objects, however, ARE expanded by the schema walker into their
+    // canonical Portable Text shape, so we recurse into them here too. The
+    // `_type === 'block'` discriminator is captured normally by the regular
+    // object walk below.
+    if (dt === 'reference' || dt === 'image' || dt === 'slug') {
       if (prefix) ctx.out.set(prefix, dt)
       return
     }
-    // Plain object — record itself, then walk fields.
-    if (prefix) ctx.out.set(prefix, 'object')
+    // Plain object (or block) — record itself, then walk fields.
+    if (prefix) ctx.out.set(prefix, dt === 'block' ? 'block' : 'object')
     const obj = value as Record<string, unknown>
     for (const [key, child] of Object.entries(obj)) {
       const isTop = depth === 0
@@ -93,17 +109,32 @@ function walkValue(value: unknown, prefix: string, depth: number, ctx: WalkConte
 }
 
 /**
- * Returns the set of unique populated paths in the document, with the leaf
- * datatype detected for each. The document's `_type` is NOT used as a path
- * prefix — callers usually scope by document type separately.
+ * Returns the set of unique populated paths in the document, partitioned into
+ * user-content paths and `_system.*` paths. The document's `_type` is NOT
+ * used as a path prefix — callers usually scope by document type separately.
  */
-export function walkDocument(doc: unknown, opts: {maxDepth?: number} = {}): DocPath[] {
-  const ctx: WalkContext = {
-    out: new Map<string, string>(),
-    maxDepth: opts.maxDepth ?? DEFAULT_MAX_DEPTH,
+export function walkDocument(doc: unknown, opts: {maxDepth?: number} = {}): WalkDocumentResult {
+  const userOut = new Map<string, string>()
+  const systemOut = new Map<string, string>()
+  const maxDepth = opts.maxDepth ?? DEFAULT_MAX_DEPTH
+
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
+    return {paths: [], systemPaths: []}
   }
-  walkValue(doc, '', 0, ctx)
+
+  const obj = doc as Record<string, unknown>
+  for (const [key, child] of Object.entries(obj)) {
+    if (SKIP_TOP_LEVEL.has(key)) continue
+    if (key === '_system') {
+      // Walk the system subtree into its own bucket so callers can surface
+      // the overhead without polluting per-doctype findings.
+      walkValue(child, '_system', 1, {out: systemOut, maxDepth})
+      continue
+    }
+    walkValue(child, key, 1, {out: userOut, maxDepth})
+  }
+
   const paths: DocPath[] = []
-  for (const [path, datatype] of ctx.out) paths.push({path, datatype})
-  return paths
+  for (const [path, datatype] of userOut) paths.push({path, datatype})
+  return {paths, systemPaths: Array.from(systemOut.keys())}
 }

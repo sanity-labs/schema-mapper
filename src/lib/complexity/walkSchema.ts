@@ -84,6 +84,122 @@ function isHiddenType(name: string): boolean {
   return HIDDEN_TYPE_PREFIXES.some((p) => name.startsWith(p))
 }
 
+/**
+ * Emit Sanity's canonical Portable Text block shape under the current path.
+ *
+ * The deployed schema reports a block field as a bare `object` with only
+ * `_type: 'block'` set, so the walker has no nested attributes to recurse
+ * into. The actual data however populates the full Portable Text shape:
+ * `children[]` (spans), `markDefs[]` (annotations), plus discriminator
+ * fields. Without this expansion every block field shows ~12+ paths as
+ * `Undeclared` even though they are part of the well-known block contract.
+ *
+ * Custom decorators / annotations / styles defined at the schema level
+ * (`marks.decorators`, `marks.annotations`, `styles`, `lists`) still appear
+ * as additional fields on `markDefs[]` etc. when the data populates them;
+ * those are walked normally by the schema walker for fields it can see, and
+ * by the data walker at runtime.
+ */
+function emitBlockShape(ctx: TraverseContext) {
+  // The block object itself.
+  pushPath(ctx, 'block')
+
+  // Block-level attributes.
+  const blockAttrs: Array<{seg: string; type: string}> = [
+    {seg: '_type', type: 'string'},
+    {seg: '_key', type: 'string'},
+    {seg: 'style', type: 'string'},
+    {seg: 'listItem', type: 'string'},
+    {seg: 'level', type: 'number'},
+  ]
+  for (const a of blockAttrs) {
+    pushPath(
+      {...ctx, segments: [...ctx.segments, a.seg], depth: ctx.depth + 1},
+      a.type,
+    )
+  }
+
+  // children[] — spans.
+  const childrenCtx: TraverseContext = {
+    ...ctx,
+    segments: [...ctx.segments, 'children'],
+    depth: ctx.depth + 1,
+  }
+  pushPath(childrenCtx, 'array', {isArrayContainer: true})
+  const childEntryCtx: TraverseContext = {
+    ...childrenCtx,
+    segments: [...childrenCtx.segments, '[]'],
+    depth: childrenCtx.depth + 1,
+  }
+  pushPath(childEntryCtx, 'object')
+  for (const a of [
+    {seg: '_type', type: 'string'},
+    {seg: '_key', type: 'string'},
+    {seg: 'text', type: 'string'},
+  ]) {
+    pushPath(
+      {...childEntryCtx, segments: [...childEntryCtx.segments, a.seg], depth: childEntryCtx.depth + 1},
+      a.type,
+    )
+  }
+  // children[].marks[] — array of strings.
+  const marksCtx: TraverseContext = {
+    ...childEntryCtx,
+    segments: [...childEntryCtx.segments, 'marks'],
+    depth: childEntryCtx.depth + 1,
+  }
+  pushPath(marksCtx, 'array', {isArrayContainer: true})
+  pushPath(
+    {...marksCtx, segments: [...marksCtx.segments, '[]'], depth: marksCtx.depth + 1},
+    'string',
+  )
+
+  // markDefs[] — annotation objects keyed by `_key` referenced from spans.
+  const markDefsCtx: TraverseContext = {
+    ...ctx,
+    segments: [...ctx.segments, 'markDefs'],
+    depth: ctx.depth + 1,
+  }
+  pushPath(markDefsCtx, 'array', {isArrayContainer: true})
+  const markDefEntryCtx: TraverseContext = {
+    ...markDefsCtx,
+    segments: [...markDefsCtx.segments, '[]'],
+    depth: markDefsCtx.depth + 1,
+  }
+  pushPath(markDefEntryCtx, 'object')
+  for (const a of [
+    {seg: '_type', type: 'string'},
+    {seg: '_key', type: 'string'},
+  ]) {
+    pushPath(
+      {...markDefEntryCtx, segments: [...markDefEntryCtx.segments, a.seg], depth: markDefEntryCtx.depth + 1},
+      a.type,
+    )
+  }
+}
+
+/**
+ * Emit `_key` and `_type` discriminators for object-shaped array members.
+ * Sanity adds `_key` automatically to every array-of-objects entry, and
+ * `_type` whenever the array is polymorphic (or members are named types).
+ * The data walker observes these in real documents; without emitting them
+ * here they would appear as undeclared paths.
+ */
+function emitArrayObjectDiscriminators(ctx: TraverseContext, opts: {emitType: boolean}) {
+  const lastSeg = ctx.segments[ctx.segments.length - 1]
+  if (lastSeg !== '[]') return
+  pushPath(
+    {...ctx, segments: [...ctx.segments, '_key'], depth: ctx.depth + 1},
+    'string',
+  )
+  if (opts.emitType) {
+    pushPath(
+      {...ctx, segments: [...ctx.segments, '_type'], depth: ctx.depth + 1},
+      'string',
+    )
+  }
+}
+
 // ---- GROQ type schema format ----
 
 function buildGroqMaps(schema: any[]): {
@@ -184,7 +300,9 @@ function traverseGroqValue(value: any, ctx: TraverseContext): void {
         pushPath(ctx, 'boolean')
         return
       }
-      // Polymorphic union — walk every member; each member's children inherit viaUnion=true.
+      // Polymorphic union of objects. Emit `_key` + `_type` once at this
+      // level (the array entry); members will dedupe.
+      emitArrayObjectDiscriminators({...ctx, viaUnion: true}, {emitType: true})
       const next: TraverseContext = {...ctx, viaUnion: true}
       for (const item of items) {
         traverseGroqValue(item, next)
@@ -198,11 +316,13 @@ function traverseGroqValue(value: any, ctx: TraverseContext): void {
       // Image
       if (typeAttr?.type === 'string' && typeAttr.value === 'image') {
         pushPath(ctx, 'image')
+        // images sit on array entries too — emit discriminators
+        emitArrayObjectDiscriminators(ctx, {emitType: true})
         return
       }
-      // Block (portable text leaf)
+      // Block (Portable Text). Expand canonical block shape.
       if (typeAttr?.type === 'string' && typeAttr.value === 'block') {
-        pushPath(ctx, 'block')
+        emitBlockShape(ctx)
         return
       }
       // Reference (object form with dereferencesTo)
@@ -210,8 +330,9 @@ function traverseGroqValue(value: any, ctx: TraverseContext): void {
         pushPath(ctx, 'reference', {referenceTo: value.dereferencesTo})
         return
       }
-      // Object — record itself, then walk attributes.
+      // Object — record itself, emit array discriminators if applicable, then walk attributes.
       pushPath(ctx, 'object')
+      emitArrayObjectDiscriminators(ctx, {emitType: true})
       for (const [attrName, attrValue] of Object.entries(attrs as Record<string, any>)) {
         if (SYSTEM_ATTRIBUTES.has(attrName)) continue
         const inner = attrValue?.value
@@ -302,8 +423,33 @@ function traverseStudioField(field: StudioField, ctx: TraverseContext): void {
         depth: ctx.depth + 1,
         viaUnion: ctx.viaUnion || polymorphic,
       }
+      // Object-shaped array members get `_key` automatically, and `_type`
+      // when polymorphic or named. Emit discriminators once at the entry.
+      const hasObjectMember = items.some(
+        (m) =>
+          m?.type === 'object' ||
+          m?.type === 'block' ||
+          ctx.documentTypeNames.has(m?.type ?? ''),
+      )
+      if (hasObjectMember) {
+        pushPath(
+          {...arrayCtx, segments: [...arrayCtx.segments, '_key'], depth: arrayCtx.depth + 1},
+          'string',
+        )
+        const emitType = polymorphic || items.some((m) => m?.type !== 'object')
+        if (emitType) {
+          pushPath(
+            {...arrayCtx, segments: [...arrayCtx.segments, '_type'], depth: arrayCtx.depth + 1},
+            'string',
+          )
+        }
+      }
       // Each `of` member contributes its shape directly under the array container.
       for (const member of items) {
+        if (member?.type === 'block') {
+          emitBlockShape(arrayCtx)
+          continue
+        }
         // For inline objects inside the array, dive into their fields if present.
         if (member?.type === 'object' && Array.isArray((member as StudioField).fields)) {
           // Walk fields directly under the array entry (no extra segment for the object).
@@ -315,7 +461,7 @@ function traverseStudioField(field: StudioField, ctx: TraverseContext): void {
             })
           }
         } else {
-          // For named-type members (block, custom types, references), record their datatype at the array entry.
+          // For named-type members (custom types, references), record their datatype at the array entry.
           traverseStudioField(member as StudioField, {
             ...arrayCtx,
             // No additional segment — the member IS the array entry shape.
@@ -326,6 +472,17 @@ function traverseStudioField(field: StudioField, ctx: TraverseContext): void {
     }
     case 'object': {
       pushPath(ctx, 'object')
+      // If we landed directly on an array entry, emit `_key` (and `_type`
+      // if the member is a named type — caller knows that). The Studio
+      // array case handles polymorphic emission above; this handles the
+      // single-object-in-array case.
+      const lastSeg = ctx.segments[ctx.segments.length - 1]
+      if (lastSeg === '[]') {
+        pushPath(
+          {...ctx, segments: [...ctx.segments, '_key'], depth: ctx.depth + 1},
+          'string',
+        )
+      }
       const fields = field.fields ?? []
       for (const sub of fields) {
         if (SYSTEM_ATTRIBUTES.has(sub.name)) continue
@@ -338,7 +495,7 @@ function traverseStudioField(field: StudioField, ctx: TraverseContext): void {
       return
     }
     case 'block':
-      pushPath(ctx, 'block')
+      emitBlockShape(ctx)
       return
     default:
       // Custom named type — record as object/known type. We don't recurse into

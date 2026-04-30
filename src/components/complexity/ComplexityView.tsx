@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Spinner } from '@sanity/ui'
 import type { DeployedSchemaEntry, DiscoveredType } from '../../types'
 import { walkSchema } from '../../lib/complexity/walkSchema'
 import { computePathStats } from '../../lib/complexity/pathStats'
+import { buildDepthHistogram } from '../../lib/complexity/depthHistogram'
+import { detectPatterns } from '../../lib/complexity/patterns'
 import { useDatasetScan } from '../../hooks/useDatasetScan'
 import { useDatasetStats } from '../../hooks/useDatasetStats'
 import { HeadlinePanel } from './HeadlinePanel'
@@ -10,6 +12,10 @@ import { SchemaMetricsPanel } from './SchemaMetricsPanel'
 import { NormalizationPanel } from './NormalizationPanel'
 import { RealDataPanel } from './RealDataPanel'
 import { TopFindingsPanel } from './TopFindingsPanel'
+import { DepthAnalysisPanel } from './DepthAnalysisPanel'
+import { PatternFindingsPanel } from './PatternFindingsPanel'
+import { OutliersPanel } from './OutliersPanel'
+import { Checkbox } from './Checkbox'
 
 interface ComplexityViewProps {
   projectId: string
@@ -51,12 +57,24 @@ export default function ComplexityView({
   const hasRawSchema = paths.length > 0
   const typeNames = useMemo(() => types.map((t) => t.name), [types])
 
+  // Variant inclusion toggle persisted across re-runs. Drafts and release
+  // versions both contribute paths to billing, so default true.
+  const [includeAllVersions, setIncludeAllVersions] = useState(true)
+
   // Hoisted scan controls so the run-scan button can live above the detailed panel.
   const {progress, result, start, cancel} = useDatasetScan(schemaKey)
   const isRunning = progress.status === 'running'
   const hasScan = !!result
   const scannedRatio =
     progress.totalDocuments > 0 ? progress.scannedDocuments / progress.totalDocuments : 0
+  const startScan = (extra: Record<string, unknown> = {}) => {
+    start(typeNames, {includeAllVersions})
+    onScanLifecycle?.('started', {
+      type_count: typeNames.length,
+      include_all_versions: includeAllVersions,
+      ...extra,
+    })
+  }
 
   // Lifted stats fetch so plan limit is shared across panels (HeadlinePanel,
   // TopFindingsPanel, RealDataPanel — for "% of limit" framing).
@@ -76,6 +94,16 @@ export default function ComplexityView({
     [paths, result],
   )
 
+  const depthHistogram = useMemo(
+    () => (result ? buildDepthHistogram(result.data) : null),
+    [result],
+  )
+
+  const patternFindings = useMemo(
+    () => (result ? detectPatterns({schema: paths, data: result.data}) : []),
+    [paths, result],
+  )
+
   const [showSchemaDetails, setShowSchemaDetails] = useState(false)
 
   return (
@@ -86,7 +114,7 @@ export default function ComplexityView({
           <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
             <strong className="font-normal text-foreground">Dataset attributes</strong> are <strong className="font-normal text-foreground">unique populated</strong>{' '}
             <code className="font-mono text-xs mx-1 rounded bg-gray-100 dark:bg-white/5 px-1 py-0.5">(field path, datatype)</code>
-            pairs <strong className="font-normal text-foreground">counted dataset-wide</strong> — not per
+            pairs <strong className="font-normal text-foreground">counted dataset-wide</strong>. Not per
             document, not per doc type. Adding 1,000 documents that all populate the same fields adds zero
             attributes. Plans cap the total. Schema complexity by itself is free; only paths that real
             documents populate cost.
@@ -110,15 +138,22 @@ export default function ComplexityView({
           stats={stats}
           isLoading={statsLoading}
           error={statsError}
-          estimatedAttributes={pathStats?.totals.estimatedAttributes}
+          countedPaths={pathStats?.totals.estimatedAttributes}
+          systemOverhead={result?.systemPaths.length ?? 0}
+          driftPaths={pathStats?.totals.driftAttributesGlobal ?? 0}
+          scannedDocuments={result?.scannedDocuments ?? 0}
+          totalDocuments={result?.totalDocuments ?? 0}
+          includeAllVersions={result?.options.includeAllVersions ?? true}
+          hasScan={!!result}
         />
 
         {!hasRawSchema && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200">
             <p className="leading-relaxed">
               No deployed schema for this dataset, so we can't compare data against schema (no{' '}
-              <em className="not-italic">dead</em> or <em className="not-italic">drift</em> findings). The
-              scan still walks documents and tells you which paths are populated — useful on its own. Run
+              <em className="not-italic">unused field</em> or <em className="not-italic">undeclared
+              path</em> findings). The scan still walks documents and tells you which paths are
+              populated, useful on its own. Run
               {' '}<code className="font-mono text-xs">npx sanity deploy</code> in your Studio to unlock the
               full comparison.
             </p>
@@ -135,21 +170,33 @@ export default function ComplexityView({
             <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80 leading-relaxed mb-3 max-w-2xl">
               The scan walks every document in this dataset and records which paths are actually populated.
               {hasRawSchema
-                ? ' We then compare against your deployed schema to flag dead schema fields and undeclared drift.'
-                : ' Without a deployed schema we can\'t flag dead/drift, but the populated-path picture is still useful.'}{' '}
-              Cancel any time — partial results are still useful.
+                ? ' We then compare against your deployed schema to flag unused fields and undeclared paths.'
+                : ' Without a deployed schema we can\'t flag unused or undeclared paths, but the populated-path picture is still useful.'}{' '}
+              Cancel any time. Partial results are still useful.
             </p>
-            <button
-              type="button"
-              className="px-3 py-1.5 text-sm rounded border border-emerald-700/30 dark:border-emerald-300/30 bg-white dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-100 transition-colors"
-              onClick={() => {
-                start(typeNames)
-                onScanLifecycle?.('started', {type_count: typeNames.length})
-              }}
-              disabled={typeNames.length === 0}
-            >
-              Run scan
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded border border-emerald-700/30 dark:border-emerald-300/30 bg-white dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-100 transition-colors"
+                onClick={() => startScan()}
+                disabled={typeNames.length === 0}
+              >
+                Run scan
+              </button>
+              <label className="inline-flex h-lh items-center gap-2 text-xs text-emerald-900 dark:text-emerald-100 cursor-pointer">
+                <Checkbox
+                  checked={includeAllVersions}
+                  onChange={setIncludeAllVersions}
+                  ariaLabel="Include drafts and release versions in the scan"
+                  tone="emerald"
+                />
+                Include all versions
+              </label>
+              <span className="text-xs text-emerald-900/60 dark:text-emerald-200/60">
+                Drafts and release versions both contribute paths to billing. Toggle off to scan
+                published documents only.
+              </span>
+            </div>
           </div>
         )}
 
@@ -176,8 +223,8 @@ export default function ComplexityView({
             </div>
             <div className="h-1.5 w-full rounded-full bg-gray-950/5 dark:bg-white/10 overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-all"
-                style={{width: `${ratioPct(scannedRatio).toFixed(1)}%`}}
+                className="h-full w-(--progress) bg-emerald-500 transition-all"
+                style={{'--progress': `${ratioPct(scannedRatio).toFixed(1)}%`} as CSSProperties}
               />
             </div>
           </div>
@@ -191,6 +238,25 @@ export default function ComplexityView({
             hasDeployedSchema={hasRawSchema}
             planLimit={planLimit}
             liveAttributeCount={liveAttributeCount}
+            projectId={projectId}
+            onJumpToType={onJumpToType}
+          />
+        )}
+
+        {hasScan && depthHistogram && depthHistogram.rows.length > 0 && (
+          <DepthAnalysisPanel histogram={depthHistogram} planLimit={planLimit} />
+        )}
+
+        {hasScan && patternFindings.length > 0 && (
+          <PatternFindingsPanel findings={patternFindings} />
+        )}
+
+        {hasScan && result && result.topOutliers.length > 0 && (
+          <OutliersPanel
+            outliers={result.topOutliers}
+            projectId={projectId}
+            datasetName={datasetName}
+            workspaceName={workspaceName}
             onJumpToType={onJumpToType}
           />
         )}
@@ -200,18 +266,17 @@ export default function ComplexityView({
         {(hasScan || isRunning) && (
           <details className="group" open={hasScan && !isRunning}>
             <summary className="cursor-pointer text-sm font-normal text-muted-foreground hover:text-foreground select-none">
-              Detailed scan results — populated paths{hasRawSchema ? ', dead schema fields, and drift' : ''}
+              Detailed scan results: populated paths{hasRawSchema ? ', unused fields, and undeclared paths' : ''}
             </summary>
             <div className="mt-4">
               <RealDataPanel
                 progress={progress}
                 result={result}
-                onRerun={() => {
-                  start(typeNames)
-                  onScanLifecycle?.('started', {type_count: typeNames.length, rerun: true})
-                }}
+                onRerun={() => startScan({rerun: true})}
                 schemaPaths={paths}
                 hasDeployedSchema={hasRawSchema}
+                includeAllVersions={includeAllVersions}
+                onIncludeAllVersionsChange={setIncludeAllVersions}
                 onJumpToType={onJumpToType}
                 onScanLifecycle={onScanLifecycle}
               />
@@ -227,12 +292,12 @@ export default function ComplexityView({
             onToggle={(e) => setShowSchemaDetails((e.target as HTMLDetailsElement).open)}
           >
             <summary className="cursor-pointer text-sm font-normal text-muted-foreground hover:text-foreground select-none">
-              Theoretical complexity — schema-only depth, fanout, naming
+              Theoretical complexity: schema-only depth, fanout, naming
             </summary>
             <div className="mt-4 space-y-8">
               <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
                 <strong className="font-normal text-foreground">These numbers describe what's <em className="not-italic">possible</em>, not what you're paying for.</strong>{' '}
-                The deployed schema declares paths, depth, polymorphism — that's theoretical capacity. A doc
+                The deployed schema declares paths, depth, polymorphism: that's theoretical capacity. A doc
                 type with high theoretical complexity but normalized data (every doc the same shape) costs
                 no more attributes than a simpler one. Pair this with the "Top contributors by document type"
                 section above to see how much of the theoretical capacity is realized.

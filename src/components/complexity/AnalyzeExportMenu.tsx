@@ -31,7 +31,8 @@ export function AnalyzeExportMenu(props: AnalyzeExportMenuProps) {
   const {schemaPaths, scanResult, pathStats, onExport, ...ctx} = props
   // Always-enabled when there's at least a deployed schema OR a completed
   // scan. With only schema, the report is the theoretical-capacity view; with
-  // a scan, it adds realized data, dead/drift, and shape (normalized) info.
+  // a scan, it adds live paths, unused fields, undeclared paths, and shape
+  // information.
   const ready = schemaPaths.length > 0 || (!!scanResult && !!pathStats)
   const hasScan = !!scanResult && !!pathStats
   const [copied, setCopied] = useState(false)
@@ -87,8 +88,8 @@ export function AnalyzeExportMenu(props: AnalyzeExportMenuProps) {
 
   const tooltip = ready
     ? hasScan
-      ? 'Copy a Markdown report (headline, contributors, dead/drift, top paths) — paste into Claude / ChatGPT for analysis'
-      : 'Copy a Markdown report (theoretical schema complexity only — run a scan to add real-data sections)'
+      ? 'Copy a Markdown report (headline, contributors, unused fields, undeclared paths, top paths). Paste into Claude or ChatGPT for analysis.'
+      : 'Copy a Markdown report (theoretical schema complexity only). Run a scan to add real-data sections.'
     : 'No deployed schema and no scan to export'
 
   return (

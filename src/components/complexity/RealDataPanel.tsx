@@ -2,6 +2,7 @@ import {useEffect, useMemo, useRef} from 'react'
 import type {SchemaPath} from '../../lib/complexity/walkSchema'
 import {computePathStats} from '../../lib/complexity/pathStats'
 import type {ScanProgress, ScanResult} from '../../hooks/useDatasetScan'
+import {Checkbox} from './Checkbox'
 
 interface RealDataPanelProps {
   /** Scan progress from the hoisted useDatasetScan in the parent. */
@@ -13,6 +14,10 @@ interface RealDataPanelProps {
   schemaPaths: SchemaPath[]
   /** When false, hide dead/drift sections — comparison isn't meaningful. */
   hasDeployedSchema: boolean
+  /** Whether the parent will run the scan with all variants (drafts + release versions). */
+  includeAllVersions: boolean
+  /** Update the variant-inclusion state in the parent (re-run picks it up). */
+  onIncludeAllVersionsChange: (next: boolean) => void
   onJumpToType?: (docType: string) => void
   onScanLifecycle?: (event: 'started' | 'completed' | 'cancelled' | 'error', payload?: Record<string, unknown>) => void
 }
@@ -26,7 +31,17 @@ function copyText(s: string) {
   navigator.clipboard.writeText(s).catch(() => {})
 }
 
-export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeployedSchema, onJumpToType, onScanLifecycle}: RealDataPanelProps) {
+export function RealDataPanel({
+  progress,
+  result,
+  onRerun,
+  schemaPaths,
+  hasDeployedSchema,
+  includeAllVersions,
+  onIncludeAllVersionsChange,
+  onJumpToType,
+  onScanLifecycle,
+}: RealDataPanelProps) {
   // Emit completion/error lifecycle events once per status transition.
   const lastReportedStatus = useRef<string>('idle')
   useEffect(() => {
@@ -77,34 +92,35 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
   return (
     <div className="space-y-6">
       <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
-        Each row is one <em>unique</em> populated path — that's what Sanity bills as an attribute.
+        Each row is one <em>unique</em> populated path. That's what Sanity bills as an attribute.
         <strong className="font-normal text-foreground"> Docs</strong> tells you <em>how many documents</em>
         populate that one path; doc count doesn't change attribute count, only path uniqueness does.
         <strong className="font-normal text-foreground"> Hot</strong> paths are populated in the most
         documents.
         {hasDeployedSchema ? (
           <>
-            {' '}<strong className="font-normal text-foreground">Dead</strong>{' '}
-            paths exist in the schema but no document populates them — schema cleanup, not billing.{' '}
-            <strong className="font-normal text-foreground">Drift</strong> paths are populated in data but
-            never declared in the schema — typically the biggest hidden contributor to attribute count.
+            {' '}<strong className="font-normal text-foreground">Unused fields</strong>{' '}
+            exist in the schema but no document populates them. Schema cleanup, not billing.{' '}
+            <strong className="font-normal text-foreground">Undeclared paths</strong> are populated in
+            data but never declared in the schema, typically the biggest hidden contributor to
+            attribute count.
           </>
         ) : (
-          <> Dead/drift comparison needs a deployed schema; only populated paths are shown below.</>
+          <> Unused-vs-undeclared comparison needs a deployed schema; only populated paths are shown below.</>
         )}
       </p>
 
       <div className={`grid grid-cols-1 ${hasDeployedSchema ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
-        {hasDeployedSchema && <Stat label="Unique schema paths" value={stats.totals.schemaPaths} />}
-        <Stat label="Unique populated paths" value={stats.totals.dataPaths} />
+        {hasDeployedSchema && <Stat label="Declared fields" value={stats.totals.schemaPaths} />}
+        <Stat label="Live paths" value={stats.totals.dataPaths} />
         {hasDeployedSchema && (
-          <Stat label="Unique drift paths" value={stats.totals.driftCount} tone={stats.totals.driftCount > 0 ? 'amber' : 'default'} />
+          <Stat label="Undeclared paths" value={stats.totals.driftCount} tone={stats.totals.driftCount > 0 ? 'amber' : 'default'} />
         )}
       </div>
 
       <PathTable
         title="Hot paths"
-        description="Paths populated in the most documents — the long tail of your attribute count."
+        description="Paths populated in the most documents. The long tail of your attribute count."
         rows={stats.hot.map((r) => ({
           path: r.path,
           docType: r.docType,
@@ -116,8 +132,8 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
 
       {hasDeployedSchema && (
         <PathTable
-          title="Dead schema paths"
-          description="Defined in the schema but not populated in any scanned document. Likely safe to remove."
+          title="Unused fields"
+          description="Declared in the schema but not populated in any scanned document. Likely safe to remove."
           rows={stats.dead.map((r) => ({
             path: r.path,
             docType: r.docType,
@@ -125,14 +141,14 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
             occurrences: 0,
           }))}
           onJumpToType={onJumpToType}
-          emptyText="None — every schema path is populated somewhere."
+          emptyText="None. Every declared field is populated somewhere."
         />
       )}
 
       {hasDeployedSchema && (
         <PathTable
-          title="Drift paths"
-          description="Populated in data but not present in the deployed schema — typically legacy fields from removed types. They still count toward the attribute limit."
+          title="Undeclared paths"
+          description="Populated in data but not present in the deployed schema. Typically legacy fields from removed types. They still count toward the attribute limit."
           rows={stats.drift.map((r) => ({
             path: r.path,
             docType: r.docType,
@@ -141,18 +157,18 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
             ratio: r.populationRatio,
           }))}
           onJumpToType={onJumpToType}
-          emptyText="No drift — schema and data agree."
+          emptyText="No undeclared paths. Schema and data agree."
         />
       )}
 
       {isCancelled && (
         <p className="text-xs text-muted-foreground">
-          Scan was cancelled at {formatNumber(progress.scannedDocuments)} of {formatNumber(progress.totalDocuments)} documents — results above are based on a partial sample.
+          Scan was cancelled at {formatNumber(progress.scannedDocuments)} of {formatNumber(progress.totalDocuments)} documents. Results above are based on a partial sample.
         </p>
       )}
 
       {result.completedAt && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button"
             className="px-3 py-1.5 text-xs rounded border border-gray-950/15 hover:bg-gray-950/[0.03] dark:border-white/15 dark:hover:bg-white/[0.05] transition-colors"
@@ -160,8 +176,19 @@ export function RealDataPanel({progress, result, onRerun, schemaPaths, hasDeploy
           >
             Re-run scan
           </button>
+          <label className="inline-flex h-lh items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <Checkbox
+              checked={includeAllVersions}
+              onChange={onIncludeAllVersionsChange}
+              ariaLabel="Include drafts and release versions in the next scan"
+              tone="emerald"
+            />
+            Include all versions
+          </label>
           <span className="text-xs text-muted-foreground">
-            Use the export menu in the header to download a Markdown report or CSV.
+            {result.options.includeAllVersions === includeAllVersions
+              ? 'Use the export menu in the header to download a Markdown report or CSV.'
+              : 'Toggle changed. Re-run the scan to apply.'}
           </span>
         </div>
       )}
@@ -208,7 +235,7 @@ function PathTable({title, description, rows, onJumpToType, emptyText}: PathTabl
                   <th className="whitespace-nowrap py-2 px-3">Datatype</th>
                   <th
                     className="whitespace-nowrap py-2 px-3 text-right"
-                    title="Documents (of this doc type) that populate this path. The path counts as a single attribute regardless — doc count tells you migration scope."
+                    title="Documents (of this doc type) that populate this path. The path counts as a single attribute regardless; doc count tells you migration scope."
                   >Docs</th>
                   <th className="whitespace-nowrap py-2 pl-3 sr-only">Actions</th>
                 </tr>

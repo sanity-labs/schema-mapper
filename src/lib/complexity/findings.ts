@@ -54,10 +54,14 @@ export interface FindingsSummary {
     docTypesScanned: number
     docsScanned: number
   }
-  /** Doc types where >50% of schema paths are dead — strong candidates for cleanup. */
+  /** Doc types where >50% of schema paths are dead — strong candidates for cleanup.
+   *  Excludes types with zero scanned docs (those go in `unscannedDocTypes`). */
   cleanupCandidates: DocTypeFinding[]
   /** Doc types with significant drift — paths populated in data but missing from schema. */
   driftCandidates: DocTypeFinding[]
+  /** Doc types declared in the schema but never seen in the scan — the schema may still be in use,
+   *  we just didn't scan any documents of this type (filtered, empty, or new). */
+  unscannedDocTypes: DocTypeFinding[]
 }
 
 const CLEANUP_DEAD_RATIO = 0.5
@@ -155,8 +159,16 @@ export function synthesizeFindings({schema, data, scannedByDocType}: SynthesizeI
   // Sort by attribute contribution (populated paths) descending — most impactful first.
   byDocType.sort((a, b) => b.populatedPathCount - a.populatedPathCount || a.docType.localeCompare(b.docType))
 
+  // Cleanup candidates: only types we actually scanned. Without scanned docs we
+  // can't assert "unused" — the schema fields may still be populated; we just
+  // didn't sample. Those go in `unscannedDocTypes` instead.
   const cleanupCandidates = byDocType
-    .filter((f) => f.schemaPathCount >= 5 && f.deadPathCount / f.schemaPathCount >= CLEANUP_DEAD_RATIO)
+    .filter(
+      (f) =>
+        f.docCount > 0 &&
+        f.schemaPathCount >= 5 &&
+        f.deadPathCount / f.schemaPathCount >= CLEANUP_DEAD_RATIO,
+    )
     .slice()
     .sort((a, b) => b.deadPathCount - a.deadPathCount)
 
@@ -164,6 +176,11 @@ export function synthesizeFindings({schema, data, scannedByDocType}: SynthesizeI
     .filter((f) => f.driftPathCount > 0)
     .slice()
     .sort((a, b) => b.driftPathCount - a.driftPathCount)
+
+  const unscannedDocTypes = byDocType
+    .filter((f) => f.docCount === 0 && f.schemaPathCount > 0)
+    .slice()
+    .sort((a, b) => b.schemaPathCount - a.schemaPathCount || a.docType.localeCompare(b.docType))
 
   return {
     byDocType,
@@ -177,5 +194,6 @@ export function synthesizeFindings({schema, data, scannedByDocType}: SynthesizeI
     },
     cleanupCandidates,
     driftCandidates,
+    unscannedDocTypes,
   }
 }

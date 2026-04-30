@@ -23,44 +23,51 @@ export interface HotPath extends DataPathRecord {
   populationRatio: number
 }
 
-export interface DeadPath {
+export interface UnusedField {
   path: string
   docType: string
   datatype: string
   depth: number
 }
 
-export interface DriftPath extends DataPathRecord {
+export interface UndeclaredPath extends DataPathRecord {
   populationRatio: number
 }
 
+/** @deprecated Renamed to {@link UnusedField}. Kept for backwards compatibility. */
+export type DeadPath = UnusedField
+/** @deprecated Renamed to {@link UndeclaredPath}. Kept for backwards compatibility. */
+export type DriftPath = UndeclaredPath
+
 export interface PathStatsResult {
   hot: HotPath[]
-  dead: DeadPath[]
-  drift: DriftPath[]
+  /** Declared schema fields that no scanned document populates. */
+  dead: UnusedField[]
+  /** Populated paths that no deployed schema declares. */
+  drift: UndeclaredPath[]
   totals: {
     /** Schema-defined (path, datatype) pairs, counted per doc type. */
     schemaPaths: number
     /** Populated (path, datatype) pairs, counted per doc type. */
     dataPaths: number
-    /** Schema-side per-doctype paths not populated by any doc. */
+    /** Per-doctype declared fields not populated by any doc (unused fields). */
     deadCount: number
-    /** Per-doctype populated paths the schema doesn't declare. */
+    /** Per-doctype populated paths the schema doesn't declare (undeclared paths). */
     driftCount: number
     /**
-     * Estimated attributes Sanity is billing you for: unique (path, datatype)
-     * pairs across the dataset, ignoring doc type. This is what the stats API
-     * reports — it should be very close to that number.
+     * Counted attributes from the scan: unique (path, datatype) pairs across
+     * the dataset, ignoring doc type. This is what the `/stats` endpoint
+     * reports, modulo lag and minor counting differences.
      *
      * Sanity attributes are dataset-global: `lessons` as `array` is one
      * attribute whether it appears on one doc type or ten.
      */
     estimatedAttributes: number
     /**
-     * The subset of estimated attributes that come from populated paths the
-     * deployed schema does NOT declare anywhere. Removing these via document
-     * migrations (unset across all docs that populate them) is the most
-     * direct lever to reduce your attribute count.
+     * The subset of counted attributes that come from populated paths the
+     * deployed schema does NOT declare anywhere (the global undeclared-path
+     * count). Removing these via document migrations (unset across all docs
+     * that populate them) is the most direct lever to reduce attribute count.
      */
     driftAttributesGlobal: number
   }

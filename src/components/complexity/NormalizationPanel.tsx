@@ -19,7 +19,7 @@ export function NormalizationPanel({paths, onJumpToType}: NormalizationPanelProp
       <h3 className="text-sm font-normal mb-1">Field name consistency</h3>
       <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-3xl">
         Two ways your schema can drift over time. Naming inconsistency mostly hurts editors and code
-        clarity — but type collisions (the same name with different primitive types) <em>can</em> nudge
+        clarity, but type collisions (the same name with different primitive types) <em>can</em> nudge
         billing up: Sanity counts attributes by <code className="font-mono text-xs">(path, datatype)</code>,
         so each datatype variant of the same path counts separately.
       </p>
@@ -35,12 +35,12 @@ export function NormalizationPanel({paths, onJumpToType}: NormalizationPanelProp
           <h4 className="text-sm font-normal mb-1">Type collisions</h4>
           <p className="text-xs text-muted-foreground mb-2 leading-relaxed max-w-3xl">
             The <em>same field name</em> is declared with <em>different primitive types</em> on at least two
-            different document types. This is usually accidental — pick one type and refactor the others, or
+            different document types. This is usually accidental. Pick one type and refactor the others, or
             rename one so the names don't collide.
             <br />
             <span className="text-muted-foreground/80">
               (Polymorphic array members like a page builder's <code className="font-mono text-xs">content[]</code>{' '}
-              with many block types are <em>not</em> shown here — those are valid array members, not collisions.)
+              with many block types are <em>not</em> shown here. Those are valid array members, not collisions.)
             </span>
           </p>
           <div className="-mx-4 -my-2 overflow-x-auto whitespace-nowrap sm:-mx-0">
@@ -114,9 +114,9 @@ export function NormalizationPanel({paths, onJumpToType}: NormalizationPanelProp
           <p className="text-xs text-muted-foreground mb-2 leading-relaxed max-w-3xl">
             Two or more names that probably mean the same thing are used across the schema. Picking one and
             renaming the others reduces editor confusion. <em>Skip if the names mean genuinely different
-            things in your domain</em> — this is a heuristic, not a rule.
+            things in your domain</em>. This is a heuristic, not a rule.
           </p>
-          <ul className="space-y-1 text-sm">
+          <ul role="list" className="space-y-1 text-sm">
             {result.nearDuplicates.map((g) => (
               <li key={g.canonical} className="flex items-baseline gap-3">
                 <span className="text-muted-foreground text-xs w-24 shrink-0">{g.canonical}</span>
