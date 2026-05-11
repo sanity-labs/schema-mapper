@@ -457,6 +457,89 @@ function parseStudioSchema(
       .map((entry: any) => entry.name),
   )
 
+  // Build a map of named non-document object types → their raw field defs.
+  // This is what makes nested types like `productCore` see-through: when a
+  // document field has `type: 'productCore'`, we expand the productCore's
+  // own reference-bearing fields and surface them on the parent document.
+  const objectTypeFields = new Map<string, any[]>()
+  for (const entry of schema) {
+    if (
+      entry &&
+      entry.type !== 'document' &&
+      Array.isArray(entry.fields) &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.')
+    ) {
+      objectTypeFields.set(entry.name, entry.fields)
+    }
+  }
+
+  /**
+   * Recursively walk a named object type's fields and return only the
+   * reference-bearing ones (direct refs, array-of-refs, cross-dataset refs,
+   * inline object refs). Field names are prefixed with the parent path so
+   * each entry shows up as e.g. `productCore.productCategories` on the
+   * containing document.
+   *
+   * Recursion guard: if an object type transitively contains itself
+   * (productA→productB→productA), the cycle is broken via `visiting`.
+   */
+  function flattenObjectTypeRefs(
+    typeName: string,
+    pathPrefix: string,
+    visiting: Set<string>,
+  ): DiscoveredField[] {
+    if (visiting.has(typeName)) return []
+    const typeFields = objectTypeFields.get(typeName)
+    if (!typeFields) return []
+
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(typeName)
+
+    const out: DiscoveredField[] = []
+    for (const raw of typeFields) {
+      if (SYSTEM_ATTRIBUTES.has(raw.name)) continue
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
+
+      const isRef =
+        mapped.isReference || mapped.isCrossDatasetReference || mapped.isInlineObject
+
+      if (isRef) {
+        out.push({...mapped, name: qualifiedName})
+        continue
+      }
+
+      // Object field that's itself a named object type → recurse.
+      // `mapStudioField`'s `default` branch returns `type:'object'` for unknown
+      // type names, so we re-check the raw type here.
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        out.push(...flattenObjectTypeRefs(raw.type, qualifiedName, nextVisiting))
+        continue
+      }
+
+      // Array whose `of` is itself a named object type → recurse with [] suffix.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        for (const member of raw.of) {
+          if (
+            member?.type &&
+            objectTypeFields.has(member.type) &&
+            !documentTypeNames.has(member.type)
+          ) {
+            out.push(
+              ...flattenObjectTypeRefs(member.type, `${qualifiedName}[]`, nextVisiting),
+            )
+          }
+        }
+      }
+    }
+    return out
+  }
+
   const documentTypes = schema.filter(
     (entry: any) =>
       entry.type === 'document' &&
@@ -467,7 +550,42 @@ function parseStudioSchema(
   return documentTypes.map((docType: any) => {
     const rawFields = docType.fields || []
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
-    const fields: DiscoveredField[] = filtered.map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
+
+    const fields: DiscoveredField[] = []
+    for (const raw of filtered) {
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      fields.push(mapped)
+
+      // If this field is typed as a named non-document object type
+      // (e.g. `type: 'productCore'`), expand its nested ref-bearing fields
+      // onto this document so edges are drawn correctly. The plain object
+      // field itself stays in the row list (so the user can still see it).
+      const visiting = new Set<string>([docType.name])
+
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
+        continue
+      }
+
+      // Array of named non-document object types.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        for (const member of raw.of) {
+          if (
+            member?.type &&
+            objectTypeFields.has(member.type) &&
+            !documentTypeNames.has(member.type)
+          ) {
+            fields.push(
+              ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
+            )
+          }
+        }
+      }
+    }
 
     return {
       name: docType.name,
