@@ -157,6 +157,31 @@ function resolveField(
       // Check for union inside array
       if (ofValue.type === 'union') {
         const unionItems = ofValue.of || []
+
+        // Multi-target reference array: union of inline .reference types
+        // (Sanity's GROQ-type schema representation of `of: [{type:'reference', to:[A,B,C]}]`)
+        const referenceItems = unionItems.filter(
+          (item: SchemaValue) =>
+            item.type === 'inline' && item.name?.endsWith('.reference'),
+        )
+        if (referenceItems.length > 0 && referenceItems.length === unionItems.length) {
+          const targets: string[] = []
+          for (const item of referenceItems) {
+            const t = refMap.get((item as any).name)
+            if (t && !targets.includes(t)) targets.push(t)
+          }
+          if (targets.length > 0) {
+            return {
+              name: fieldName,
+              type: 'reference',
+              isReference: true,
+              isArray: true,
+              referenceTo: targets[0],
+              ...(targets.length > 1 ? {referenceTargets: targets} : {}),
+            }
+          }
+        }
+
         const hasBlock = unionItems.some(
           (item: SchemaValue) =>
             item.type === 'object' &&
@@ -172,8 +197,31 @@ function resolveField(
     }
 
     case 'union': {
-      // String enums: union of string values → treat as string
+      // Multi-target reference (non-array): union of inline .reference types
+      // (Sanity's GROQ-type schema representation of `{type:'reference', to:[A,B,C]}`)
       const unionItems = value.of || []
+      const referenceItems = unionItems.filter(
+        (item: SchemaValue) =>
+          item.type === 'inline' && item.name?.endsWith('.reference'),
+      )
+      if (referenceItems.length > 0 && referenceItems.length === unionItems.length) {
+        const targets: string[] = []
+        for (const item of referenceItems) {
+          const t = refMap.get((item as any).name)
+          if (t && !targets.includes(t)) targets.push(t)
+        }
+        if (targets.length > 0) {
+          return {
+            name: fieldName,
+            type: 'reference',
+            isReference: true,
+            referenceTo: targets[0],
+            ...(targets.length > 1 ? {referenceTargets: targets} : {}),
+          }
+        }
+      }
+
+      // String enums: union of string values → treat as string
       const allStrings = unionItems.every(
         (item: SchemaValue) => item.type === 'string',
       )
@@ -246,15 +294,24 @@ function mapStudioField(
       return {name, title: field.title || undefined, type: 'image'}
     case 'geopoint':
       return {name, title: field.title || undefined, type: 'object'}
-    case 'reference':
+    case 'reference': {
+      const targets: string[] = Array.isArray(field.to)
+        ? field.to.map((t: any) => t?.type).filter((t: any): t is string => !!t)
+        : []
       return {
         name,
         title: field.title || undefined,
         type: 'reference',
         isReference: true,
-        referenceTo: field.to?.[0]?.type,
+        referenceTo: targets[0],
+        ...(targets.length > 1 ? {referenceTargets: targets} : {}),
       }
-    case 'crossDatasetReference':
+    }
+    case 'crossDatasetReference': {
+      const targets: string[] = Array.isArray(field.to)
+        ? field.to.map((t: any) => t?.type).filter((t: any): t is string => !!t)
+        : []
+      const firstTarget = targets[0] || 'unknown'
       return {
         name,
         title: field.title || undefined,
@@ -262,14 +319,19 @@ function mapStudioField(
         isReference: true,
         isCrossDatasetReference: true,
         crossDatasetName: field.dataset || undefined,
-        crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#0d9488">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#0d9488">${field.dataset || 'unknown dataset'}</strong>`,
-        referenceTo: field.to?.[0]?.type,
+        crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#0d9488">${targets.length > 1 ? targets.join(', ') : firstTarget}</strong> in <strong style="color:#0d9488">${field.dataset || 'unknown dataset'}</strong>`,
+        referenceTo: targets[0],
+        ...(targets.length > 1 ? {referenceTargets: targets} : {}),
       }
+    }
     case 'globalDocumentReference': {
       const resType = field.resourceType || 'dataset'
       const isMediaLib = resType === 'media-library'
       const displayName = isMediaLib ? 'Media Library' : (field.resourceId || field.resourceType || 'external')
-      const tooltipTarget = field.to?.[0]?.type || 'unknown'
+      const targets: string[] = Array.isArray(field.to)
+        ? field.to.map((t: any) => t?.type).filter((t: any): t is string => !!t)
+        : []
+      const tooltipTarget = targets.length > 1 ? targets.join(', ') : (targets[0] || 'unknown')
       const tooltipLocation = isMediaLib ? 'Media Library' : (field.resourceId || field.resourceType || 'external resource')
       return {
         name,
@@ -283,7 +345,8 @@ function mapStudioField(
         crossDatasetTooltip: isMediaLib
           ? `Media Library asset reference (<strong style="color:#6b7280">${tooltipTarget}</strong>)`
           : `Global Document Reference to <strong style="color:#7c3aed">${tooltipTarget}</strong> in <strong style="color:#7c3aed">${tooltipLocation}</strong>`,
-        referenceTo: field.to?.[0]?.type,
+        referenceTo: targets[0],
+        ...(targets.length > 1 ? {referenceTargets: targets} : {}),
       }
     }
     case 'array': {
@@ -300,6 +363,16 @@ function mapStudioField(
         const resType = isGlobal ? (refItem?.resourceType || 'dataset') : undefined
         const isMediaLib = resType === 'media-library'
         const targetName = isMediaLib ? 'Media Library' : (refItem?.dataset || refItem?.resourceId || refItem?.resourceType || 'external')
+        // Union targets across all cross-dataset ref array members
+        const targets: string[] = []
+        for (const o of ofTypes) {
+          if (o?.type === 'crossDatasetReference' || o?.type === 'globalDocumentReference') {
+            for (const t of (Array.isArray(o.to) ? o.to : [])) {
+              if (t?.type && !targets.includes(t.type)) targets.push(t.type)
+            }
+          }
+        }
+        const tooltipTarget = targets.length > 1 ? targets.join(', ') : (targets[0] || 'unknown')
         return {
           name,
           title: field.title || undefined,
@@ -311,23 +384,40 @@ function mapStudioField(
           crossDatasetResourceType: resType,
           crossDatasetName: targetName,
           crossDatasetTooltip: isMediaLib
-            ? `Media Library asset reference (<strong style="color:#6b7280">${refItem?.to?.[0]?.type || 'unknown'}</strong>)`
+            ? `Media Library asset reference (<strong style="color:#6b7280">${tooltipTarget}</strong>)`
             : isGlobal
-              ? `Global Document Reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
-              : `Cross-dataset reference to <strong style="color:#0d9488">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#0d9488">${targetName}</strong>`,
-          referenceTo: refItem?.to?.[0]?.type,
+              ? `Global Document Reference to <strong style="color:#7c3aed">${tooltipTarget}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
+              : `Cross-dataset reference to <strong style="color:#0d9488">${tooltipTarget}</strong> in <strong style="color:#0d9488">${targetName}</strong>`,
+          referenceTo: targets[0],
+          ...(targets.length > 1 ? {referenceTargets: targets} : {}),
         }
       }
       if (hasReferences) {
-        const refItem = ofTypes.find((o: any) => o.type === 'reference')
-        const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
+        // Union all target types across every reference member in `of`
+        // (handles both `of: [{type:'reference', to:[A,B,C]}]` and
+        // `of: [{type:'reference', to:[A]}, {type:'reference', to:[B]}]`)
+        const targets: string[] = []
+        for (const o of ofTypes) {
+          if (o?.type === 'reference') {
+            for (const t of (Array.isArray(o.to) ? o.to : [])) {
+              if (t?.type && !targets.includes(t.type)) targets.push(t.type)
+            }
+          }
+        }
+        // Legacy fallback: some inputs put `to` on the array field itself.
+        if (targets.length === 0 && Array.isArray(field.to)) {
+          for (const t of field.to) {
+            if (t?.type && !targets.includes(t.type)) targets.push(t.type)
+          }
+        }
         return {
           name,
           title: field.title || undefined,
           type: 'reference',
           isReference: true,
           isArray: true,
-          referenceTo,
+          referenceTo: targets[0],
+          ...(targets.length > 1 ? {referenceTargets: targets} : {}),
         }
       }
       if (hasBlocks) {
@@ -367,6 +457,89 @@ function parseStudioSchema(
       .map((entry: any) => entry.name),
   )
 
+  // Build a map of named non-document object types → their raw field defs.
+  // This is what makes nested types like `productCore` see-through: when a
+  // document field has `type: 'productCore'`, we expand the productCore's
+  // own reference-bearing fields and surface them on the parent document.
+  const objectTypeFields = new Map<string, any[]>()
+  for (const entry of schema) {
+    if (
+      entry &&
+      entry.type !== 'document' &&
+      Array.isArray(entry.fields) &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.')
+    ) {
+      objectTypeFields.set(entry.name, entry.fields)
+    }
+  }
+
+  /**
+   * Recursively walk a named object type's fields and return only the
+   * reference-bearing ones (direct refs, array-of-refs, cross-dataset refs,
+   * inline object refs). Field names are prefixed with the parent path so
+   * each entry shows up as e.g. `productCore.productCategories` on the
+   * containing document.
+   *
+   * Recursion guard: if an object type transitively contains itself
+   * (productA→productB→productA), the cycle is broken via `visiting`.
+   */
+  function flattenObjectTypeRefs(
+    typeName: string,
+    pathPrefix: string,
+    visiting: Set<string>,
+  ): DiscoveredField[] {
+    if (visiting.has(typeName)) return []
+    const typeFields = objectTypeFields.get(typeName)
+    if (!typeFields) return []
+
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(typeName)
+
+    const out: DiscoveredField[] = []
+    for (const raw of typeFields) {
+      if (SYSTEM_ATTRIBUTES.has(raw.name)) continue
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
+
+      const isRef =
+        mapped.isReference || mapped.isCrossDatasetReference || mapped.isInlineObject
+
+      if (isRef) {
+        out.push({...mapped, name: qualifiedName})
+        continue
+      }
+
+      // Object field that's itself a named object type → recurse.
+      // `mapStudioField`'s `default` branch returns `type:'object'` for unknown
+      // type names, so we re-check the raw type here.
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        out.push(...flattenObjectTypeRefs(raw.type, qualifiedName, nextVisiting))
+        continue
+      }
+
+      // Array whose `of` is itself a named object type → recurse with [] suffix.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        for (const member of raw.of) {
+          if (
+            member?.type &&
+            objectTypeFields.has(member.type) &&
+            !documentTypeNames.has(member.type)
+          ) {
+            out.push(
+              ...flattenObjectTypeRefs(member.type, `${qualifiedName}[]`, nextVisiting),
+            )
+          }
+        }
+      }
+    }
+    return out
+  }
+
   const documentTypes = schema.filter(
     (entry: any) =>
       entry.type === 'document' &&
@@ -377,7 +550,42 @@ function parseStudioSchema(
   return documentTypes.map((docType: any) => {
     const rawFields = docType.fields || []
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
-    const fields: DiscoveredField[] = filtered.map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
+
+    const fields: DiscoveredField[] = []
+    for (const raw of filtered) {
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      fields.push(mapped)
+
+      // If this field is typed as a named non-document object type
+      // (e.g. `type: 'productCore'`), expand its nested ref-bearing fields
+      // onto this document so edges are drawn correctly. The plain object
+      // field itself stays in the row list (so the user can still see it).
+      const visiting = new Set<string>([docType.name])
+
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
+        continue
+      }
+
+      // Array of named non-document object types.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        for (const member of raw.of) {
+          if (
+            member?.type &&
+            objectTypeFields.has(member.type) &&
+            !documentTypeNames.has(member.type)
+          ) {
+            fields.push(
+              ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
+            )
+          }
+        }
+      }
+    }
 
     return {
       name: docType.name,
