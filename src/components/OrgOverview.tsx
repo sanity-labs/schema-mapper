@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { ResourceProvider } from '@sanity/sdk-react'
+import { AnalyzeExportMenu } from './complexity/AnalyzeExportMenu'
+import { walkSchema } from '../lib/complexity/walkSchema'
+import { computePathStats } from '../lib/complexity/pathStats'
+import { useCachedScan } from '../hooks/useDatasetScan'
+import { useDatasetStats } from '../hooks/useDatasetStats'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
@@ -12,6 +18,10 @@ import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+
+const ComplexityView = lazy(() => import('./complexity/ComplexityView'))
+
+export type ViewMode = 'visualize' | 'analyze'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -113,6 +123,9 @@ interface OrgOverviewProps {
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
   schemasCache?: Map<string, DiscoveredType[]>
   deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  // View mode (visualize ↔ analyze) — controlled by parent so it can be URL-backed
+  viewMode?: ViewMode
+  onViewModeChange?: (mode: ViewMode) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +180,8 @@ function OrgOverview({
   onSchemaSelect,
   schemasCache,
   deployedSchemasCache,
+  viewMode: viewModeProp,
+  onViewModeChange,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -178,6 +193,23 @@ function OrgOverview({
 
   // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)
+
+  // ---- View mode (visualizer ↔ complexity analyzer) ----
+  // Controlled by parent (URL-backed). Falls back to local state when the
+  // parent doesn't provide a value (e.g. tests, isolated rendering).
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>('visualize')
+  const viewMode = viewModeProp ?? localViewMode
+  const setViewMode = useCallback(
+    (mode: ViewMode) => {
+      if (onViewModeChange) onViewModeChange(mode)
+      else setLocalViewMode(mode)
+    },
+    [onViewModeChange],
+  )
+  // When the user clicks "show in visualizer" inside the analyzer, we switch
+  // back and pass this through to SchemaGraph as a focus target. Cleared after
+  // the graph applies it so subsequent renders aren't pinned.
+  const [analyzeFocusType, setAnalyzeFocusType] = useState<string | null>(null)
 
   // ---- Dialog state ----
   const [showLockedDialog, setShowLockedDialog] = useState(false)
@@ -315,6 +347,21 @@ function OrgOverview({
     onPendingDataset?.(pendingNavTarget?.datasetName ?? null)
   }, [pendingNavTarget?.datasetName, onPendingDataset])
 
+  // The URL is the source of truth for viewMode (LiveOrgOverview reads/writes
+  // ?mode=analyze). We deliberately do NOT reset viewMode when the dataset or
+  // workspace changes — that would clobber a deep-linked ?mode=analyze on
+  // initial hydration and also fights the user's last-chosen tab as they
+  // switch datasets. If a dataset switch should drop the mode param, that's
+  // the parent navigate()'s job, not a state reset here.
+
+  // After SchemaGraph picks up a jump-to-type focus, release it so future renders
+  // aren't pinned and the user can navigate freely.
+  useEffect(() => {
+    if (!analyzeFocusType) return
+    const t = setTimeout(() => setAnalyzeFocusType(null), 1200)
+    return () => clearTimeout(t)
+  }, [analyzeFocusType])
+
   // When datasets load after a cross-project navigation, select the target dataset
   useEffect(() => {
     if (!pendingNavTarget?.waitingForDatasets || datasets.length === 0 || !pendingNavTarget.datasetName) return
@@ -437,6 +484,16 @@ function OrgOverview({
   const selectedWorkspaceName = showSchemaRow && selectedSchemaId
     ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
     : undefined
+
+  // Active deployed schema (for Analyze mode — full nested raw schema lives here).
+  // Falls back to first entry when there is no explicit selection (single-workspace case).
+  const activeDeployedSchema = useMemo<DeployedSchemaEntry | null>(() => {
+    if (!deployedSchemas || deployedSchemas.length === 0) return null
+    if (selectedSchemaId) {
+      return deployedSchemas.find(s => s.id === selectedSchemaId) ?? deployedSchemas[0] ?? null
+    }
+    return deployedSchemas[0] ?? null
+  }, [deployedSchemas, selectedSchemaId])
 
   // ---- Linked schema status for cross-dataset/global refs ----
   const linkedSchemaStatus = useMemo(() => {
@@ -922,48 +979,120 @@ function OrgOverview({
               <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               )}
-              {/* Export dropdown — shown in both normal and navigation modes */}
-              {selectedProject && (
+              {/* View-mode toggle — Visualize ↔ Analyze (complexity).
+                  Hidden during cross-dataset navigation (Analyze is scoped to a single dataset). */}
+              {selectedProject && navigationStack.length === 0 && (
                 <>
                   <span className="flex-1" />
-                  <ExportDropdown
-                    graphRef={graphRef}
-                    extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
-                    onExport={(format) => trackEvent('export_triggered', {
-                      format,
-                      project_id: selectedProject.id,
-                      project_name: selectedProject.displayName,
-                      dataset_name: selectedDataset.name,
-                      type_count: effectiveTypes.length,
-                    })}
-                    types={effectiveTypes}
-                    context={{
-                      projectName: selectedProject.displayName,
-                      projectId: selectedProject.id,
-                      datasetName: selectedDataset.name,
-                      aclMode: selectedDataset.aclMode,
-                      totalDocuments: selectedDataset.totalDocuments,
-                      typeCount: effectiveTypes.length,
-                      schemaSource: effectiveSource,
-                      orgId: orgId,
-                      orgName: orgName,
-                      workspaceName: selectedWorkspaceName,
-                      focusedType: graphState.focusedType,
-                      focusDepth: graphState.focusDepth,
-                      totalTypeCount: effectiveTypes.length,
-                    }}
-                    disabled={graphState.isSearching}
-                  />
+                  <TabList space={1}>
+                    <Tab
+                      aria-controls="view-mode-panel-visualize"
+                      id="view-mode-tab-visualize"
+                      label="Visualize"
+                      selected={viewMode === 'visualize'}
+                      onClick={() => {
+                        if (viewMode === 'visualize') return
+                        setViewMode('visualize')
+                        trackEvent('mode_switched', {
+                          mode: 'visualize',
+                          org_id: orgId,
+                          project_id: selectedProject.id,
+                          dataset_name: selectedDataset.name,
+                        })
+                      }}
+                    />
+                    <Tab
+                      aria-controls="view-mode-panel-analyze"
+                      id="view-mode-tab-analyze"
+                      label="Analyze"
+                      selected={viewMode === 'analyze'}
+                      onClick={() => {
+                        if (viewMode === 'analyze') return
+                        setViewMode('analyze')
+                        trackEvent('mode_switched', {
+                          mode: 'analyze',
+                          org_id: orgId,
+                          project_id: selectedProject.id,
+                          dataset_name: selectedDataset.name,
+                          has_deployed_schema: effectiveSource === 'deployed',
+                          type_count: effectiveTypes.length,
+                        })
+                      }}
+                    />
+                  </TabList>
+                </>
+              )}
+              {/* Export — different surfaces per mode.
+                  - Visualize: graph PDF / PNG / SVG via the core ExportDropdown.
+                  - Analyze: complexity report (Markdown for AI, CSV for spreadsheets). */}
+              {selectedProject && (
+                <>
+                  {!(navigationStack.length === 0) && <span className="flex-1" />}
+                  {viewMode === 'analyze' ? (
+                    <AnalyzeExportSlot
+                      projectId={selectedProject.id}
+                      projectName={selectedProject.displayName}
+                      datasetName={selectedDataset.name}
+                      workspaceName={selectedWorkspaceName ?? null}
+                      schemaKey={`${selectedProject.id}::${selectedDataset.name}::${selectedSchemaId ?? ''}`}
+                      activeSchema={activeDeployedSchema}
+                      orgId={orgId}
+                      onExport={(kind) => trackEvent('analyze_export', {
+                        kind,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                      })}
+                    />
+                  ) : (
+                    <ExportDropdown
+                      graphRef={graphRef}
+                      extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
+                      onExport={(format) => trackEvent('export_triggered', {
+                        format,
+                        project_id: selectedProject.id,
+                        project_name: selectedProject.displayName,
+                        dataset_name: selectedDataset.name,
+                        type_count: effectiveTypes.length,
+                      })}
+                      types={effectiveTypes}
+                      context={{
+                        projectName: selectedProject.displayName,
+                        projectId: selectedProject.id,
+                        datasetName: selectedDataset.name,
+                        aclMode: selectedDataset.aclMode,
+                        totalDocuments: selectedDataset.totalDocuments,
+                        typeCount: effectiveTypes.length,
+                        schemaSource: effectiveSource,
+                        orgId: orgId,
+                        orgName: orgName,
+                        workspaceName: selectedWorkspaceName,
+                        focusedType: graphState.focusedType,
+                        focusDepth: graphState.focusDepth,
+                        totalTypeCount: effectiveTypes.length,
+                      }}
+                      disabled={graphState.isSearching}
+                    />
+                  )}
                 </>
               )}
             </div>
           )}
 
-          {/* ---- Schema Graph Area ---- */}
-          {/* Cross-dataset navigation bar */}
+          {/* ---- Schema Graph / Analyze Area ----
+              The visualizer needs a fixed-height frame with overflow:hidden so the
+              graph can pan inside it. Analyze mode is a vertical document — letting
+              it flow with the page (no min-height, no inner overflow) avoids the
+              double-scroll quirk. */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? (" border-2 border-dashed " + (isGlobalNav ? "border-purple-300 dark:border-purple-700" : "border-teal-300 dark:border-teal-700")) : " border")}
+            className={
+              (viewMode === 'analyze'
+                ? 'mb-[30px] rounded-lg'
+                : 'flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden')
+              + (navigationStack.length > 0
+                ? ' border-2 border-dashed ' + (isGlobalNav ? 'border-purple-300 dark:border-purple-700' : 'border-teal-300 dark:border-teal-700')
+                : ' border')
+            }
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
@@ -992,20 +1121,71 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph
-                types={effectiveTypes}
-                onStateChange={setGraphState}
-                onViewportChange={handleViewportChange}
-                fitViewTrigger={fitViewTrigger}
-                onCrossDatasetNavigate={handleCrossDatasetNavigate}
-                accessibleProjectIds={accessibleProjectIds}
-                onMediaLibraryClick={handleMediaLibraryClick}
-                onInaccessibleClick={handleInaccessibleClick}
-                pendingFocusType={pendingNavTarget?.typeName}
-                pendingFocusDepth={pendingNavTarget?.focusDepth}
-                restoreViewport={pendingRestoreViewport}
-                viewportNudge={viewportNudge}
-              />
+              viewMode === 'analyze' && selectedProject && selectedDataset ? (
+                <Suspense
+                  fallback={
+                    <div className="flex flex-col items-center justify-center h-full gap-3">
+                      <Spinner muted />
+                      <p className="text-sm text-muted-foreground">Loading complexity analysis…</p>
+                    </div>
+                  }
+                >
+                  {/* Scope useClient() inside the analyzer to the active project/dataset.
+                      Without this wrapper, hooks like useDatasetStats/useDatasetScan
+                      inherit the SanityApp bootstrap config and hit the placeholder
+                      project, causing "Dataset 'production' not found for project ID
+                      'bootstrap'". */}
+                  <ResourceProvider
+                    projectId={selectedProject.id}
+                    dataset={selectedDataset.name}
+                    fallback={null}
+                  >
+                  <ComplexityView
+                    projectId={selectedProject.id}
+                    datasetName={selectedDataset.name}
+                    workspaceName={selectedWorkspaceName ?? null}
+                    schemaKey={`${selectedProject.id}::${selectedDataset.name}::${selectedSchemaId ?? ''}`}
+                    types={effectiveTypes}
+                    activeSchema={activeDeployedSchema}
+                    onJumpToType={(typeName) => {
+                      setAnalyzeFocusType(typeName)
+                      setViewMode('visualize')
+                      trackEvent('complexity_action_taken', {
+                        action: 'jump_to_visualizer',
+                        org_id: orgId,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                        type_name: typeName,
+                      })
+                    }}
+                    onScanLifecycle={(event, payload) => {
+                      trackEvent(`complexity_scan_${event}`, {
+                        org_id: orgId,
+                        project_id: selectedProject.id,
+                        dataset_name: selectedDataset.name,
+                        type_count: effectiveTypes.length,
+                        ...payload,
+                      })
+                    }}
+                  />
+                  </ResourceProvider>
+                </Suspense>
+              ) : (
+                <SchemaGraph
+                  types={effectiveTypes}
+                  onStateChange={setGraphState}
+                  onViewportChange={handleViewportChange}
+                  fitViewTrigger={fitViewTrigger}
+                  onCrossDatasetNavigate={handleCrossDatasetNavigate}
+                  accessibleProjectIds={accessibleProjectIds}
+                  onMediaLibraryClick={handleMediaLibraryClick}
+                  onInaccessibleClick={handleInaccessibleClick}
+                  pendingFocusType={pendingNavTarget?.typeName ?? analyzeFocusType ?? undefined}
+                  pendingFocusDepth={pendingNavTarget?.focusDepth}
+                  restoreViewport={pendingRestoreViewport}
+                  viewportNudge={viewportNudge}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>
@@ -1154,6 +1334,73 @@ function OrgOverview({
         </Stack>
       </InfoDialog>
     </div>
+  )
+}
+
+/**
+ * Renders the Analyze-mode export menu in the dataset header. Reads scan
+ * result from the module-level cache (so we don't need to plumb the hook's
+ * progress/start/cancel up here) and pulls plan limit + live attribute count
+ * from the stats endpoint. The dropdown is disabled until a scan exists.
+ */
+function AnalyzeExportSlot({
+  projectId,
+  projectName,
+  datasetName,
+  workspaceName,
+  schemaKey,
+  activeSchema,
+  orgId,
+  onExport,
+}: {
+  projectId: string
+  projectName: string
+  datasetName: string
+  workspaceName: string | null
+  schemaKey: string
+  activeSchema: DeployedSchemaEntry | null
+  orgId?: string
+  onExport?: (kind: 'markdown_copy' | 'markdown_download' | 'csv_download') => void
+}) {
+  const {stats} = useDatasetStats(projectId, datasetName)
+  const scanResult = useCachedScan(schemaKey)
+  const schemaPaths = useMemo(() => walkSchema(activeSchema?.rawSchema), [activeSchema?.rawSchema])
+  const pathStats = useMemo(
+    () =>
+      scanResult
+        ? computePathStats({
+            schema: schemaPaths,
+            data: scanResult.data,
+            scannedByDocType: scanResult.scannedByDocType,
+          })
+        : null,
+    [schemaPaths, scanResult],
+  )
+  const planLimit = (() => {
+    const v = stats?.fields?.count?.limit
+    return typeof v === 'number' && v > 0 ? v : null
+  })()
+  const liveAttributeCount = (() => {
+    const v = stats?.fields?.count?.value
+    return typeof v === 'number' ? v : null
+  })()
+
+  return (
+    <AnalyzeExportMenu
+      projectId={projectId}
+      projectName={projectName}
+      datasetName={datasetName}
+      workspaceName={workspaceName}
+      schemaPaths={schemaPaths}
+      scanResult={scanResult}
+      pathStats={pathStats}
+      liveAttributeCount={liveAttributeCount}
+      planLimit={planLimit}
+      docsScanned={scanResult?.scannedDocuments ?? 0}
+      hasDeployedSchema={schemaPaths.length > 0}
+      systemPathsCount={scanResult?.systemPaths.length ?? 0}
+      onExport={onExport}
+    />
   )
 }
 

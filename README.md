@@ -9,6 +9,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 ## Features
 
 - **Schema graph** — Document types as nodes, references as colored edges, inline objects as dotted edges
+- **Complexity analysis** — Per-dataset Analyze mode that surfaces schema-defined paths, deepest paths per type, arrays-of-objects fanout, polymorphic unions, field-name collisions across types, and a live document scan that reports hot/dead/drift paths against your deployed schema
 - **Deployed + inferred schemas** — Uses your Studio's deployed schema when available, infers from documents as fallback
 - **4 layouts** — Dagre, ELK Layered, Force, Clustered — with per-layout spacing control
 - **3 edge styles** — Bezier, Step (rounded corners, sibling offset), Straight — animated transitions
@@ -43,10 +44,9 @@ pnpm install
 
 Then configure your IDs:
 
-1. In `sanity.cli.ts` — set your **organization ID** and **project ID**
-2. In `src/App.tsx` — set the same **project ID**
+1. In `sanity.cli.ts` — set your **organization ID**
 
-This can be any project in your org — the App SDK uses it for authentication only. Schema Mapper discovers all projects in your organization automatically.
+That's it. `src/App.tsx` reads the org ID from the dashboard URL context at runtime, and Schema Mapper discovers all projects in your organization automatically.
 
 ```bash
 npx sanity dev
@@ -70,7 +70,7 @@ git stash pop            # restores your project/org IDs
 pnpm install
 ```
 
-> **Note:** `sanity.cli.ts` and `src/App.tsx` contain your project and org IDs. The stash/pop preserves these across updates.
+> **Note:** `sanity.cli.ts` contains your org ID. The stash/pop preserves it across updates.
 
 ## Permissions
 
