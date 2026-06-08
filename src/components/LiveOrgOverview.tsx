@@ -424,12 +424,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
         })
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
-          // Fallback to production dataset
-          dispatch({
-            type: 'DATASETS_LOADED',
-            projectId,
-            datasets: [{name: 'production', aclMode: 'public', totalDocuments: 0, types: []}],
-          })
+          // Don't invent a 'production' dataset — surface the error and show
+          // an empty dataset list. Inventing a dataset that may not exist would
+          // trigger spurious 404 queries against the project.
+          dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
           dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
         })
     },

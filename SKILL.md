@@ -206,7 +206,7 @@ Schema Mapper is a standalone Sanity App SDK app. It uses:
 
 3. **useDatasets() per-project error handling** — `useDatasets()` throws for projects where the user isn't a member. Each call is wrapped in an `ErrorBoundary` that falls back to assuming a `production` dataset.
 
-4. **SanityApp needs explicit config prop** — `SanityApp` from `@sanity/sdk-react` requires `config` with at least one `{ projectId, dataset }` entry. Without it, hooks like `useProjects()` won't work.
+4. **SanityApp needs explicit config prop with projectId only** — `SanityApp` from `@sanity/sdk-react` requires `config` with at least one entry providing `projectId` for auth context. **Do NOT specify a `dataset`** — the SDK opens a real-time listen stream against it on mount, which fires spurious 404s if the project doesn't have a dataset by that name. The actual dataset to render is derived from `useProjects()` / URL params at runtime.
 
 5. **ResourceProvider needs fallback={null}** — Without `fallback={null}`, `ResourceProvider` shows a loading flash. Always pass it for background data fetching.
 

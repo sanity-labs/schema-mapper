@@ -30,10 +30,14 @@ const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organizat
 // When populated, only projects whose id is in this list will appear in the UI.
 const allowedProjectIds: string[] = []
 
+// SDK bootstrap config — only projectId is needed for auth context.
+// We intentionally DO NOT specify a dataset here: the SDK would open a
+// real-time `listen` stream against it on mount, which 404s if the project
+// doesn't have a dataset by that name. The actual dataset to render is
+// derived from useProjects() / URL params at runtime.
 const config: SanityConfig[] = [
   {
     projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your Sanity project ID
-    dataset: 'production',
   },
 ]
 
