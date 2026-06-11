@@ -43,8 +43,9 @@ export function identifyOrg(orgId: string, orgName?: string) {
       org_name: orgName,
       app_version: pkg.version,
     })
-  } catch (e) {
-    // Silent fail — analytics should never break the app
+  } catch (err) {
+    // Analytics must never break the app — log for debugging only
+    console.debug('[analytics] identifyOrg failed:', err)
   }
 }
 
@@ -53,8 +54,8 @@ export function setEnterprise(isEnterprise: boolean) {
   if (!initialized) return
   try {
     posthog.register({ is_enterprise: isEnterprise })
-  } catch (e) {
-    // Silent fail
+  } catch (err) {
+    console.debug('[analytics] setEnterprise failed:', err)
   }
 }
 
@@ -66,7 +67,7 @@ export function trackEvent(event: string, properties?: Record<string, unknown>) 
       ...properties,
       app_version: pkg.version,
     })
-  } catch (e) {
-    // Silent fail
+  } catch (err) {
+    console.debug('[analytics] trackEvent failed:', err)
   }
 }

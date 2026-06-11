@@ -1,7 +1,7 @@
 import { FcFlowChart } from 'react-icons/fc'
 
 interface NotInDashboardProps {
-  organizationId?: string
+  readonly organizationId?: string
 }
 
 export function NotInDashboard({ organizationId }: NotInDashboardProps) {

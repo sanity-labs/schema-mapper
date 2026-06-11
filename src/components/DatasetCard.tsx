@@ -5,9 +5,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@sanity-labs/schema-mapper-core';
+import { Badge, SchemaGraph } from '@sanity-labs/schema-mapper-core';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SchemaGraph } from '@sanity-labs/schema-mapper-core';
 import type { DatasetInfo } from './types';
 
 // --- Helpers ---
@@ -19,7 +18,7 @@ function formatNumber(n: number): string {
 // --- Component ---
 
 interface DatasetCardProps {
-  dataset: DatasetInfo;
+  readonly dataset: DatasetInfo;
 }
 
 export function DatasetCard({ dataset }: DatasetCardProps) {

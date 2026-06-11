@@ -12,8 +12,8 @@ import type { ProjectInfo } from './types';
 // --- Component ---
 
 interface ProjectCardProps {
-  project: ProjectInfo;
-  children?: ReactNode;
+  readonly project: ProjectInfo;
+  readonly children?: ReactNode;
 }
 
 export function ProjectCard({ project, children }: ProjectCardProps) {
@@ -25,7 +25,7 @@ export function ProjectCard({ project, children }: ProjectCardProps) {
   const hasAccess = project.hasAccess !== false;
 
   return (
-    <Card className={`w-full${!hasAccess ? ' opacity-50 border-dashed' : ''}`}>
+    <Card className={`w-full${hasAccess ? '' : ' opacity-50 border-dashed'}`}>
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
@@ -46,7 +46,7 @@ export function ProjectCard({ project, children }: ProjectCardProps) {
           ) : (
             <Badge variant="outline" className="shrink-0 border-dashed text-muted-foreground">
               <span aria-hidden="true" className="mr-1">🚫</span>
-              No access
+              {' '}No access
             </Badge>
           )}
         </div>

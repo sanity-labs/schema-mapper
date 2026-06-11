@@ -28,6 +28,30 @@ function getStatusCode(err: unknown): number | null {
   return null
 }
 
+type AccessOutcome =
+  | {hasAccess: boolean | null; error: string | null}
+
+function classifyAccessError(err: unknown): AccessOutcome {
+  const statusCode = getStatusCode(err)
+  if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+    // No access — not an error, just no permission.
+    // 401 = unauthorized (token doesn't grant project access),
+    // 403 = forbidden, 404 = project not visible to this token.
+    return {hasAccess: false, error: null}
+  }
+  if (statusCode === 429) {
+    // Rate limited — don't mark as no access, let caller retry
+    return {hasAccess: null, error: 'rate_limited'}
+  }
+  return {hasAccess: null, error: extractErrorMessage(err)}
+}
+
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Unknown error checking project access'
+}
+
 /**
  * Hook that checks whether the current user has access to a Sanity project.
  *
@@ -67,7 +91,7 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
           signal: abortController.signal,
         })
         if (!res.ok) {
-          const err: any = new Error(`${res.status}`)
+          const err = new Error(`${res.status}`) as Error & {statusCode: number}
           err.statusCode = res.status
           throw err
         }
@@ -80,33 +104,10 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
         }
       } catch (err: unknown) {
         if (abortController.signal.aborted) return
-
-        const statusCode = getStatusCode(err)
-
-        if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
-          // No access — not an error, just no permission.
-          // 401 = unauthorized (token doesn't grant project access),
-          // 403 = forbidden, 404 = project not visible to this token.
-          setHasAccess(false)
-          setIsChecking(false)
-          setError(null)
-        } else if (statusCode === 429) {
-          // Rate limited — don't mark as no access, let caller retry
-          setHasAccess(null)
-          setIsChecking(false)
-          setError('rate_limited')
-        } else {
-          // Network error or unexpected status
-          const message =
-            err instanceof Error
-              ? err.message
-              : typeof err === 'string'
-                ? err
-                : 'Unknown error checking project access'
-          setHasAccess(null)
-          setIsChecking(false)
-          setError(message)
-        }
+        const outcome = classifyAccessError(err)
+        setHasAccess(outcome.hasAccess)
+        setIsChecking(false)
+        setError(outcome.error)
       }
     }
 

@@ -1,12 +1,12 @@
 import {useState, useEffect, useCallback, useMemo} from 'react'
-import {Dialog, Box, Text, Stack, Flex, Spinner, Button} from '@sanity/ui'
+import {Dialog, Box, Text, Stack, Flex, Button} from '@sanity/ui'
 import {GoStarFill, GoCheckCircleFill, GoAlertFill} from 'react-icons/go'
 
 interface SendToSanityDialogProps {
-  open: boolean
-  onClose: () => void
-  onSend: (excludedLinkedSchemas?: Set<string>) => Promise<{success: boolean; error?: string; status?: number}>
-  context: {
+  readonly open: boolean
+  readonly onClose: () => void
+  readonly onSend: (excludedLinkedSchemas?: Set<string>) => Promise<{success: boolean; error?: string; status?: number}>
+  readonly context: {
     orgName?: string
     projectName: string
     datasetName: string
@@ -15,7 +15,7 @@ interface SendToSanityDialogProps {
     schemaSource: 'deployed' | 'inferred' | null
     workspaceName?: string
   }
-  linkedSchemaStatus?: Array<{
+  readonly linkedSchemaStatus?: Array<{
     projectName: string
     datasetName: string
     schemaName?: string
@@ -81,23 +81,18 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
         }
       }
     } catch (err) {
+      console.warn('[SendToSanityDialog] send failed:', err)
       setState('error')
       setErrorMessage('Something went wrong — please try again.')
     }
-  }, [onSend])
-
-  if (!open) return null
-
-  const schemaSourceLabel =
-    context.schemaSource === 'deployed'
-      ? 'Deployed schema'
-      : context.schemaSource === 'inferred'
-        ? 'Inferred from content'
-        : 'Unknown'
+  }, [onSend, excludedKeys])
 
   const handleClickOutside = useCallback(() => {
     if (state !== 'sending') onClose()
   }, [state, onClose])
+
+  if (!open) return null
+
 
   return (
     <>
@@ -157,11 +152,11 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                 </Flex>
 
                 {/* Linked schemas that are included — toggleable */}
-                {includedLinked.map((item, i) => {
+                {includedLinked.map((item) => {
                   const key = `${item.projectName}::${item.datasetName}`
                   const isExcluded = excludedKeys.has(key)
                   return (
-                    <Flex key={`inc-${i}`} gap={2} align="center">
+                    <Flex key={`inc-${key}`} gap={2} align="center">
                       <button
                         type="button"
                         onClick={() => {
@@ -190,8 +185,8 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                 })}
 
                 {/* Linked schemas not visited — not toggleable */}
-                {missingLinked.map((item, i) => (
-                  <Flex key={`miss-${i}`} gap={2} align="center">
+                {missingLinked.map((item) => (
+                  <Flex key={`miss-${item.projectName}::${item.datasetName}`} gap={2} align="center">
                     <GoAlertFill size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
                     <Text size={1}>
                       <span className={`font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
@@ -253,7 +248,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                   {state === 'sending' ? (
                     <>
                       <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      Sending…
+                      {' '}Sending…
                     </>
                   ) : (
                     <>

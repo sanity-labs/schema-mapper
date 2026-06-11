@@ -3,15 +3,14 @@ import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
-import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
-import { Skeleton } from '@/components/ui/skeleton'
+import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
-import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -36,14 +35,13 @@ function useLatestVersion() {
     })
       .then(r => r.json())
       .then(pkg => setLatest(pkg.version))
-      .catch(() => {}) // silent fail
+      .catch((err) => { console.debug('[VersionBadge] latest-version check failed:', err) })
   }, [])
   return latest
 }
 
 function VersionBadge() {
   const latest = useLatestVersion()
-  const isUpToDate = !latest || latest === version || !isNewer(latest, version)
   const hasUpdate = !!latest && isNewer(latest, version)
 
   const tooltipContent = (
@@ -86,33 +84,33 @@ function VersionBadge() {
 // ---------------------------------------------------------------------------
 
 interface OrgOverviewProps {
-  orgId?: string
-  orgName?: string
-  projects: ProjectInfo[]           // accessible projects, each may have isProjectLoading flag
-  lockedProjects: ProjectInfo[]     // confirmed no-access
+  readonly orgId?: string
+  readonly orgName?: string
+  readonly projects: ProjectInfo[]           // accessible projects, each may have isProjectLoading flag
+  readonly lockedProjects: ProjectInfo[]     // confirmed no-access
   // Currently selected
-  selectedProjectId: string | null
-  selectedDatasetName: string | null
+  readonly selectedProjectId: string | null
+  readonly selectedDatasetName: string | null
   // Data for selected project/dataset
-  datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
-  types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
-  schemaSource: 'deployed' | 'inferred' | null
+  readonly datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
+  readonly types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
+  readonly schemaSource: 'deployed' | 'inferred' | null
   // Loading states
-  isCheckingAccess: boolean         // still checking which projects user can access
-  isDatasetsLoading: boolean        // selected project's datasets are loading
-  isSchemasLoading: boolean         // selected dataset's schema is loading
+  readonly isCheckingAccess: boolean         // still checking which projects user can access
+  readonly isDatasetsLoading: boolean        // selected project's datasets are loading
+  readonly isSchemasLoading: boolean         // selected dataset's schema is loading
   // Callbacks — these trigger lazy loading in parent
-  onProjectSelect: (projectId: string) => void
-  onDatasetSelect: (datasetName: string) => void
+  readonly onProjectSelect: (projectId: string) => void
+  readonly onDatasetSelect: (datasetName: string) => void
   // Pending dataset override — tells parent to use this dataset instead of auto-selecting "production"
-  onPendingDataset?: (datasetName: string | null) => void
+  readonly onPendingDataset?: (datasetName: string | null) => void
   // Multi-schema (workspace) support
-  deployedSchemas?: DeployedSchemaEntry[]
-  selectedSchemaId?: string | null
-  onSchemaSelect?: (schemaId: string) => void
+  readonly deployedSchemas?: DeployedSchemaEntry[]
+  readonly selectedSchemaId?: string | null
+  readonly onSchemaSelect?: (schemaId: string) => void
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
-  schemasCache?: Map<string, DiscoveredType[]>
-  deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  readonly schemasCache?: Map<string, DiscoveredType[]>
+  readonly deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +341,7 @@ function OrgOverview({
   // Only enabled when nav content exceeds ~2 rows of tabs
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [fitViewTrigger, setFitViewTrigger] = useState(0)
+  const [fitViewTrigger] = useState(0)
   const navRef = useRef<HTMLDivElement>(null)
   const navContentRef = useRef<HTMLDivElement>(null)
   const [navNaturalHeight, setNavNaturalHeight] = useState(0)
@@ -506,7 +504,7 @@ function OrgOverview({
         if (edgeStyle) displaySettings.edgeStyle = edgeStyle
         const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
         if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
-      } catch {}
+      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
 
       // Extract node positions from the graph
       const nodePositions: Record<string, { x: number; y: number }> = {}
@@ -514,19 +512,19 @@ function OrgOverview({
         const graphEl = graphRef.current
         if (graphEl) {
           const nodeEls = graphEl.querySelectorAll('.react-flow__node')
+          const translateRegex = /translate\(([^,]+)px,\s*([^)]+)px\)/
           nodeEls.forEach((el: Element) => {
             const htmlEl = el as HTMLElement
-            const nodeId = htmlEl.getAttribute('data-id')
+            const nodeId = htmlEl.dataset.id
             if (nodeId) {
-              const transform = htmlEl.style.transform
-              const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+              const match = translateRegex.exec(htmlEl.style.transform)
               if (match) {
-                nodePositions[nodeId] = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
+                nodePositions[nodeId] = { x: Number.parseFloat(match[1]), y: Number.parseFloat(match[2]) }
               }
             }
           })
         }
-      } catch {}
+      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
 
       // Collect linked schemas from cross-dataset/global references
       const linkedSchemas: Array<{
@@ -592,7 +590,7 @@ function OrgOverview({
             }
           }
         }
-      } catch {}
+      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
 
       const exportCtx = {
         projectName: selectedProject?.displayName ?? '',
@@ -660,6 +658,7 @@ function OrgOverview({
 
       return { success: true }
     } catch (err) {
+      console.warn('[OrgOverview] send to Sanity failed:', err)
       return { success: false, error: 'Network error — please check your connection and try again.' }
     }
   }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState])
@@ -723,6 +722,9 @@ function OrgOverview({
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Expand navigation"
               className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
               onMouseEnter={() => {
                 if (navigationStack.length > 0) return
@@ -730,6 +732,12 @@ function OrgOverview({
                 collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
               }}
               onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && navigationStack.length === 0) {
+                  e.preventDefault()
+                  setNavCollapsed(false)
+                }
+              }}
             >
 
               {selectedProject && (
@@ -754,8 +762,7 @@ function OrgOverview({
           ) : (
           <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
-            <>
-              <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
+            <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
               <div className="flex items-start gap-2">
                 <TabList space={1}>
                   {projects.map(project => {
@@ -806,7 +813,6 @@ function OrgOverview({
                   </button>
                 )}
               </div>
-            </>
 
             {/* ---- Dataset Tabs ---- */}
             {selectedProjectId && (
@@ -950,7 +956,6 @@ function OrgOverview({
                       workspaceName: selectedWorkspaceName,
                       focusedType: graphState.focusedType,
                       focusDepth: graphState.focusDepth,
-                      totalTypeCount: effectiveTypes.length,
                     }}
                     disabled={graphState.isSearching}
                   />
@@ -970,6 +975,9 @@ function OrgOverview({
             {/* Back bar for cross-dataset navigation */}
             {navigationStack.length > 0 && (
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="Back to previous schema"
                 className={
                   'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer select-none transition-colors'
                   + (isGlobalNav
@@ -977,6 +985,12 @@ function OrgOverview({
                     : ' bg-teal-50 text-teal-700 border-b border-teal-200 hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/70')
                 }
                 onClick={() => handleNavigateBack()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleNavigateBack()
+                  }
+                }}
               >
                 <GoArrowLeft className="text-base" />
                 <span>Back to {navigationStack[navigationStack.length - 1].projectName} / {navigationStack[navigationStack.length - 1].datasetLabel}</span>

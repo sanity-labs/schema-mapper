@@ -13,6 +13,7 @@ import {
   useDashboardOrganizationId,
   useClient,
 } from '@sanity/sdk-react'
+import type {SanityClient} from '@sanity/client'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
@@ -23,7 +24,7 @@ import {identifyOrg, trackEvent} from '../lib/analytics'
 // Management API helper — uses fetch() directly to avoid client's project-scoped host
 // ---------------------------------------------------------------------------
 
-async function managementApiFetch<T>(path: string, client: any, signal?: AbortSignal): Promise<T> {
+async function managementApiFetch<T>(path: string, client: SanityClient, signal?: AbortSignal): Promise<T> {
   const config = client.config()
   const token = config.token
   const res = await fetch(`https://api.sanity.io/v2024-01-01${path}`, {
@@ -45,22 +46,30 @@ async function managementApiFetch<T>(path: string, client: any, signal?: AbortSi
 // ErrorBoundary — catches errors and reports them via onError callback
 // ---------------------------------------------------------------------------
 
+function coerceError(error: unknown): Error {
+  if (error instanceof Error) return error
+  if (typeof error === 'string') return new Error(error)
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as {message: unknown}).message === 'string') {
+    return new Error((error as {message: string}).message)
+  }
+  return new Error('Unknown error')
+}
+
 class ErrorBoundary extends React.Component<
   {children: React.ReactNode; fallback?: React.ReactNode; onError?: (error: Error) => void},
   {hasError: boolean; error: Error | null}
 > {
-  constructor(props: any) {
+  constructor(props: {children: React.ReactNode; fallback?: React.ReactNode; onError?: (error: Error) => void}) {
     super(props)
     this.state = {hasError: false, error: null}
   }
 
   static getDerivedStateFromError(error: unknown) {
-    return {hasError: true, error: error instanceof Error ? error : new Error(String(error ?? 'Unknown error'))}
+    return {hasError: true, error: coerceError(error)}
   }
 
   componentDidCatch(error: unknown) {
-    const err = error instanceof Error ? error : new Error(String(error ?? 'Unknown error'))
-    this.props.onError?.(err)
+    this.props.onError?.(coerceError(error))
   }
 
   render() {
@@ -243,11 +252,11 @@ function ProjectAccessChecker({
   projectId,
   client,
   onResult,
-}: {
+}: Readonly<{
   projectId: string
-  client: any
+  client: SanityClient
   onResult: (projectId: string, hasAccess: boolean) => void
-}) {
+}>) {
   const {hasAccess, isChecking} = useProjectAccess(projectId, client)
   const reportedRef = useRef(false)
 
@@ -271,7 +280,7 @@ function ActiveSchemaDiscovery({
   datasetName,
   onDiscovered,
   onError,
-}: {
+}: Readonly<{
   projectId: string
   datasetName: string
   onDiscovered: (
@@ -281,7 +290,7 @@ function ActiveSchemaDiscovery({
     deployedSchemas: DeployedSchemaEntry[],
   ) => void
   onError: (key: string, error: string) => void
-}) {
+}>) {
   const {types, isLoading, error, schemaSource, deployedSchemas} = useSchemaDiscovery()
   const reportedRef = useRef(false)
   const key = `${projectId}::${datasetName}`
@@ -310,7 +319,7 @@ function ActiveSchemaDiscovery({
 // progressive lazy loading across 3 phases
 // ---------------------------------------------------------------------------
 
-function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]}) {
+function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?: string[]}>) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
   // Optional config-level filter: when allowedProjectIds is non-empty,
@@ -344,9 +353,6 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
   }, [orgId, orgName])
 
   const [state, dispatch] = useReducer(reducer, initialState)
-
-  // Track which project IDs we've started access checks for (to avoid re-triggering)
-  const accessCheckStartedRef = useRef(new Set<string>())
 
   // Refs for state Maps/Sets used in callbacks (avoid stale closures)
   const datasetsRef = useRef(state.datasets)
@@ -462,7 +468,6 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
       const proj = (projects || []).find((p: any) => p.id === state.selectedProjectId)
       const cachedDatasets = datasetsRef.current.get(state.selectedProjectId) || []
       const ds = cachedDatasets.find((d: DatasetInfo) => d.name === datasetName)
-      const schemaKey = `${state.selectedProjectId}::${datasetName}`
       trackEvent('dataset_viewed', {
         org_id: orgId,
         project_id: state.selectedProjectId,

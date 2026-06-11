@@ -1,4 +1,5 @@
 import {useClient} from '@sanity/sdk-react'
+import type {SanityClient} from '@sanity/client'
 import {useState, useEffect, useRef} from 'react'
 import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry} from '../types'
 import {useDeployedSchema} from './useDeployedSchema'
@@ -7,6 +8,66 @@ import {useDeployedSchema} from './useDeployedSchema'
 // Inference-based schema discovery (original approach — used as fallback)
 // ============================================================================
 
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key) || key in value
+}
+
+function inferReference(value: Record<string, unknown>, key: string, isArray = false): DiscoveredField {
+  const hasCrossDataset = hasOwn(value, '_dataset') || hasOwn(value, '_projectRef')
+  const base: DiscoveredField = {
+    name: key,
+    type: 'reference',
+    isReference: true,
+  }
+  if (isArray) base.isArray = true
+  if (hasCrossDataset) {
+    base.isCrossDatasetReference = true
+    if (hasOwn(value, '_projectRef')) base.isGlobalReference = true
+    base.crossDatasetName = (value._dataset as string | undefined) ?? (value._projectRef as string | undefined) ?? 'external'
+  }
+  return base
+}
+
+function inferArrayField(value: unknown[], key: string): DiscoveredField {
+  const firstItem = value[0]
+  if (firstItem && typeof firstItem === 'object' && '_ref' in firstItem) {
+    return inferReference(firstItem as Record<string, unknown>, key, true)
+  }
+  if (firstItem && typeof firstItem === 'object' && '_type' in firstItem && (firstItem as Record<string, unknown>)._type === 'block') {
+    return {name: key, type: 'block', isArray: true}
+  }
+  return {name: key, type: 'array', isArray: true}
+}
+
+function inferObjectField(value: Record<string, unknown>, key: string): DiscoveredField {
+  // Image
+  const asset = value.asset
+  if (asset && typeof asset === 'object' && '_ref' in asset) {
+    return {name: key, type: 'image'}
+  }
+  // Slug
+  if (typeof value.current === 'string') {
+    return {name: key, type: 'slug'}
+  }
+  return {name: key, type: 'object'}
+}
+
+function inferStringField(value: string, key: string): DiscoveredField {
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    return {name: key, type: 'url'}
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return {name: key, type: 'datetime'}
+  }
+  return {name: key, type: 'string'}
+}
+
+function coerceDiscoveryError(err: unknown): Error {
+  if (err instanceof Error) return err
+  if (typeof err === 'string') return new Error(err)
+  return new Error('Schema discovery failed')
+}
+
 /**
  * Infer field type from a sample value
  */
@@ -14,76 +75,18 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
   if (value === null || value === undefined) {
     return {name: key, type: 'unknown'}
   }
-
-  // Reference detection
   if (typeof value === 'object' && value !== null && '_ref' in value) {
-    const hasCrossDataset = '_dataset' in value || '_projectRef' in value
-    return {
-      name: key,
-      type: 'reference',
-      isReference: true,
-      ...(hasCrossDataset ? {
-        isCrossDatasetReference: true,
-        isGlobalReference: '_projectRef' in value || undefined,
-        crossDatasetName: (value as any)._dataset || (value as any)._projectRef || 'external',
-      } : {}),
-    }
+    return inferReference(value as Record<string, unknown>, key)
   }
-
-  // Array detection
   if (Array.isArray(value)) {
-    const firstItem = value[0]
-    // Array of references
-    if (firstItem && typeof firstItem === 'object' && '_ref' in firstItem) {
-      const hasCrossDataset = '_dataset' in firstItem || '_projectRef' in firstItem
-      return {
-        name: key,
-        type: 'reference',
-        isReference: true,
-        isArray: true,
-        ...(hasCrossDataset ? {
-          isCrossDatasetReference: true,
-          isGlobalReference: '_projectRef' in firstItem || undefined,
-          crossDatasetName: (firstItem as any)._dataset || (firstItem as any)._projectRef || 'external',
-        } : {}),
-      }
-    }
-    // Array of blocks (portable text)
-    if (firstItem && typeof firstItem === 'object' && '_type' in firstItem && (firstItem as any)._type === 'block') {
-      return {name: key, type: 'block', isArray: true}
-    }
-    return {name: key, type: 'array', isArray: true}
+    return inferArrayField(value, key)
   }
-
-  // Object detection
   if (typeof value === 'object' && value !== null) {
-    // Image
-    if ('asset' in value && typeof (value as any).asset === 'object' && '_ref' in ((value as any).asset || {})) {
-      return {name: key, type: 'image'}
-    }
-    // Slug
-    if ('current' in value && typeof (value as any).current === 'string') {
-      return {name: key, type: 'slug'}
-    }
-    return {name: key, type: 'object'}
+    return inferObjectField(value as Record<string, unknown>, key)
   }
-
-  // Primitives
-  if (typeof value === 'string') {
-    // URL detection
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      return {name: key, type: 'url'}
-    }
-    // Datetime detection
-    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
-      return {name: key, type: 'datetime'}
-    }
-    return {name: key, type: 'string'}
-  }
-
+  if (typeof value === 'string') return inferStringField(value, key)
   if (typeof value === 'number') return {name: key, type: 'number'}
   if (typeof value === 'boolean') return {name: key, type: 'boolean'}
-
   return {name: key, type: 'unknown'}
 }
 
@@ -91,7 +94,7 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
  * Resolve reference targets by looking up what type the referenced document is
  */
 async function resolveReferenceTargets(
-  client: any,
+  client: SanityClient,
   types: DiscoveredType[]
 ): Promise<DiscoveredType[]> {
   const refFields: {typeName: string; fieldName: string; isArray: boolean}[] = []
@@ -221,7 +224,7 @@ function useSchemaDiscoveryInference(enabled: boolean = true): {
         setError(null)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err : new Error(String(err)))
+          setError(coerceDiscoveryError(err))
         }
       } finally {
         if (!cancelled) {

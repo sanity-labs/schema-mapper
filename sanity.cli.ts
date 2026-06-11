@@ -10,7 +10,7 @@ export default defineCliConfig({
   //   appId: 'YOUR_APP_ID', // Uncomment after first deploy
   // },
   vite: async (viteConfig) => {
-    const path = await import('path')
+    const path = await import('node:path')
     const {default: tailwindcss} = await import('@tailwindcss/vite')
     return {
       ...viteConfig,
@@ -21,7 +21,7 @@ export default defineCliConfig({
       resolve: {
         ...viteConfig.resolve,
         alias: {
-          ...((viteConfig.resolve?.alias as Record<string, string>) || {}),
+          ...(viteConfig.resolve?.alias ?? {}),
           '@': path.resolve(process.cwd(), './src'),
         },
       },

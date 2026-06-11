@@ -12,11 +12,10 @@ import {initAnalytics} from './lib/analytics'
 initAnalytics()
 
 // Suppress ResizeObserver loop errors — these fire with error=null and crash Vite's overlay
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
+if (typeof globalThis.window !== 'undefined') {
+  globalThis.addEventListener('error', (event) => {
     if (event.message?.includes?.('ResizeObserver') || event.error === null) {
       event.preventDefault()
-      return
     }
   })
 }
@@ -53,11 +52,11 @@ function LoadingScreen() {
 // Detect if running inside the Sanity dashboard iframe
 function useIsInDashboard(): boolean {
   const [isInDashboard] = useState(() => {
-    if (typeof window === 'undefined') return false
+    if (typeof globalThis.window === 'undefined') return false
     // Dashboard loads app in iframe with #token=… or _context param
-    const inIframe = window !== window.parent
-    const hasToken = window.location.hash.includes('token=')
-    const hasContext = window.location.search.includes('_context')
+    const inIframe = globalThis.window !== globalThis.window.parent
+    const hasToken = globalThis.location.hash.includes('token=')
+    const hasContext = globalThis.location.search.includes('_context')
     return inIframe || hasToken || hasContext
   })
   return isInDashboard
@@ -67,13 +66,13 @@ function useIsInDashboard(): boolean {
 function useIsDark(): boolean {
   const sanityPrefersDark = usePrefersDark()
   const [mediaDark, setMediaDark] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    typeof globalThis.window !== 'undefined'
+      ? globalThis.matchMedia('(prefers-color-scheme: dark)').matches
       : false
   )
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const mq = globalThis.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e: MediaQueryListEvent) => setMediaDark(e.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
