@@ -81,10 +81,11 @@ function isImageObject(value: SchemaValue): boolean {
 /**
  * Resolve a field's SchemaValue into a DiscoveredField.
  */
-// NOSONAR: Cognitive complexity is inherent — recursive resolution of GROQ type-schema
+// Rationale: Cognitive complexity is inherent — recursive resolution of GROQ type-schema
 // attribute trees. Each branch handles a distinct Sanity attribute shape (object,
 // array, union, inline, reference); flattening into separate helpers would obscure
 // the recursion pattern.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function resolveField(
   fieldName: string,
   value: SchemaValue,
@@ -270,9 +271,10 @@ function resolveField(
 // --- Studio Schema Format Parser ---
 // Studio format: { name, type, fields: [{ name, type, of?, to? }] }
 
-// NOSONAR: Cognitive complexity is inherent — this is a flat dispatch over Sanity's
+// Rationale: Cognitive complexity is inherent — this is a flat dispatch over Sanity's
 // schema field types. Splitting per-case helpers would fragment a single coherent
 // type-mapping table across the file with no readability gain.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function mapStudioField(
   field: any,
   allTypeNames?: Set<string>,
@@ -453,9 +455,10 @@ function mapStudioField(
   }
 }
 
-// NOSONAR: Cognitive complexity is inherent — recursive descent over Studio schema
+// Rationale: Cognitive complexity is inherent — recursive descent over Studio schema
 // with a cycle guard and per-field-type branching. Already factored into clear
 // `flattenObjectTypeRefs` inner helper; further extraction would hide the recursion.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function parseStudioSchema(
   schema: any[],
 ): {name: string; fields: DiscoveredField[]}[] {

@@ -150,11 +150,12 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
-// NOSONAR: Top-level render with many conditional UI branches (locked-projects
+// Rationale: Top-level render with many conditional UI branches (locked-projects
 // dialog, schema info, ACL info, media-library info, breadcrumb, project tabs,
 // dataset tabs, schema tabs, focus bar, graph, send dialog). Extracting sub-render
 // helpers per branch would not change the structural complexity — these branches
 // share refs/state and are clearer co-located.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function OrgOverview({
   orgId,
   orgName,
