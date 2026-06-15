@@ -90,8 +90,7 @@ function PermissionsBody() {
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
             The visualisation may look different from what a developer or
-            project admin sees, including missing field types, references,
-            and validation rules.
+            project admin sees, including missing field types and references.
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
             Ask the person who set up this project to grant you the
@@ -172,8 +171,8 @@ function NoSchemaBody() {
           <p className="text-sm text-muted-foreground leading-relaxed">
             No schema manifest has been deployed for this dataset yet, so
             we&apos;re showing types <strong>inferred from your documents</strong>.
-            Inferred schemas show roughly the right shape but miss field types,
-            references, and validation rules.
+            Inferred schemas show roughly the right shape but miss field types
+            and references.
           </p>
         </div>
 
