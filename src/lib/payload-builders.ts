@@ -26,7 +26,16 @@ export function readDisplaySettings(): Record<string, unknown> {
 // Node positions — extract from the React Flow DOM
 // ---------------------------------------------------------------------------
 
+// Parses a CSS transform value like "translate(123px, 456px)" or
+// "translate(123.4px,-56.7px)" — captures the x and y as strings.
+//
+// Rationale (Sonar): the negated character classes [^,]+ and [^)]+ are
+// linear because they cannot overlap with their delimiters, so this regex is
+// NOT vulnerable to catastrophic backtracking. The input comes from React
+// Flow's own computed transform style, never user input. We also cap the
+// candidate string length before matching as a defense in depth.
 const TRANSLATE_RE = /translate\(([^,]+)px,\s*([^)]+)px\)/
+const MAX_TRANSFORM_LEN = 256
 
 export function readNodePositions(
   graphEl: HTMLElement | null,
@@ -39,7 +48,12 @@ export function readNodePositions(
       const htmlEl = el as HTMLElement
       const nodeId = htmlEl.dataset.id
       if (!nodeId) return
-      const match = TRANSLATE_RE.exec(htmlEl.style.transform)
+      const transform = htmlEl.style.transform
+      // Defense in depth: bound input length before applying the regex.
+      // React Flow's transform string is short ("translate(X, Y)"); anything
+      // pathologically long is either a bug or an attack and not worth matching.
+      if (!transform || transform.length > MAX_TRANSFORM_LEN) return
+      const match = TRANSLATE_RE.exec(transform)
       if (match) {
         out[nodeId] = {
           x: Number.parseFloat(match[1]),
