@@ -49,8 +49,8 @@ async function managementApiFetch<T>(path: string, client: SanityClient, signal?
 function coerceError(error: unknown): Error {
   if (error instanceof Error) return error
   if (typeof error === 'string') return new Error(error)
-  if (error && typeof error === 'object' && 'message' in error && typeof (error as {message: unknown}).message === 'string') {
-    return new Error((error as {message: string}).message)
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return new Error(error.message)
   }
   return new Error('Unknown error')
 }
@@ -137,6 +137,10 @@ const initialState: State = {
   selectedDatasetName: null,
 }
 
+// Rationale: reducer handles 10+ action types each touching a small slice
+// of state. The branching count IS the action count — splitting into
+// per-action helpers would add noise without reducing the cognitive surface.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'ACCESS_CHECKED': {
@@ -535,35 +539,43 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     }
   }, [state.selectedProjectId, state.selectedDatasetName, state.datasets, state.datasetsLoading, state.schemas, state.schemasLoading])
 
+  // Helper: resolve cross-dataset/global reference project IDs to display names
+  // on a single field. Used to walk both `types` and `deployedSchemas` without
+  // duplicating the classification logic.
+  const resolveCrossDatasetField = useCallback(
+    (f: DiscoveredType['fields'][number], projectNameMap: Map<string, string>) => {
+      if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
+      // Media library GDRs don't need project name resolution
+      if (f.crossDatasetResourceType === 'media-library') return f
+      // resourceId format: "projectId.dataset" — resolve projectId to name
+      const parts = f.crossDatasetName.split('.')
+      if (parts.length === 2) {
+        const projName = projectNameMap.get(parts[0]) || parts[0]
+        const projId = parts[0]
+        return {
+          ...f,
+          crossDatasetProjectId: projId,
+          crossDatasetName: `${projName} / ${parts[1]}`,
+          crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
+        }
+      }
+      // crossDatasetReference — dataset name only, add project context
+      if (f.crossDatasetTooltip) return f
+      return {
+        ...f,
+        crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${f.crossDatasetName}</strong>`,
+      }
+    },
+    [],
+  )
+
   const handleSchemaDiscovered = useCallback(
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[], inferenceReason: InferenceReason) => {
       // Resolve cross-dataset/global reference project IDs to display names
       const projectNameMap = new Map(projects.map((p: any) => [p.id, (p as any).displayName || p.id]))
       const resolvedTypes = types.map(t => ({
         ...t,
-        fields: t.fields.map(f => {
-          if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
-          // Media library GDRs don't need project name resolution
-          if (f.crossDatasetResourceType === 'media-library') return f
-          // resourceId format: "projectId.dataset" — resolve projectId to name
-          const parts = f.crossDatasetName.split('.')
-          if (parts.length === 2) {
-            const projName = projectNameMap.get(parts[0]) || parts[0]
-            const projId = parts[0]
-            return {
-              ...f,
-              crossDatasetProjectId: projId,
-              crossDatasetName: `${projName} / ${parts[1]}`,
-              crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
-            }
-          }
-          // crossDatasetReference — dataset name only, add project context
-          if (f.crossDatasetTooltip) return f
-          return {
-            ...f,
-            crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${f.crossDatasetName}</strong>`,
-          }
-        }),
+        fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
       }))
       // Also resolve cross-dataset names in ALL deployed schema entries' types
       // so SELECT_SCHEMA (workspace switch) gets resolved types too
@@ -571,26 +583,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         ...entry,
         types: entry.types.map(t => ({
           ...t,
-          fields: t.fields.map(f => {
-            if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
-            if (f.crossDatasetResourceType === 'media-library') return f
-            const parts = f.crossDatasetName.split('.')
-            if (parts.length === 2) {
-              const projName = projectNameMap.get(parts[0]) || parts[0]
-              const projId = parts[0]
-              return {
-                ...f,
-                crossDatasetProjectId: projId,
-                crossDatasetName: `${projName} / ${parts[1]}`,
-                crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
-              }
-            }
-            if (f.crossDatasetTooltip) return f
-            return {
-              ...f,
-              crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${f.crossDatasetName}</strong>`,
-            }
-          }),
+          fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
         })),
       }))
       dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas, inferenceReason})

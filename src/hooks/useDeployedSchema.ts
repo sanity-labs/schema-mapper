@@ -497,6 +497,12 @@ function parseStudioSchema(
    * Recursion guard: if an object type transitively contains itself
    * (productA→productB→productA), the cycle is broken via `visiting`.
    */
+  // Rationale: recursive walker that surfaces nested-object refs as
+  // parent-prefixed fields. Each branch handles a different schema shape
+  // (named object, inline object, array of named, array of inline, scalars).
+  // The recursion is the point — extracting helpers would scatter the
+  // mutual-recursion call sites.
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   function flattenObjectTypeRefs(
     typeName: string,
     pathPrefix: string,
@@ -718,6 +724,11 @@ function classifyDeployedSchemaError(err: unknown): InferenceReason {
  *
  * Now also returns all workspace schemas as DeployedSchemaEntry[].
  */
+// Rationale: hook orchestrates fetch -> parse -> count-aggregate with error
+// classification feeding inferenceReason. The complexity is the orchestration;
+// per-step extraction would require either threading 6+ refs/setters around or
+// duplicating the useEffect cancellation guard everywhere.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function useDeployedSchema(projectId: string, dataset: string): {
   schemas: DeployedSchemaEntry[]
   types: DiscoveredType[]
@@ -748,6 +759,10 @@ export function useDeployedSchema(projectId: string, dataset: string): {
   useEffect(() => {
     let cancelled = false
 
+    // Rationale: inner async function carries cancellation guard + try/catch +
+    // multiple early-returns + per-step parsing. Each await is a real failure
+    // point that needs its own classification branch.
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     async function fetchDeployedSchema() {
       try {
         setIsLoading(true)

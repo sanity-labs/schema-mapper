@@ -125,6 +125,25 @@ interface OrgOverviewProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function computeNavMaxHeight(
+  navigationStackLength: number,
+  navCollapsed: boolean,
+  collapseEnabled: boolean,
+): number {
+  if (navigationStackLength > 0) return 0
+  if (navCollapsed && collapseEnabled) return 42
+  return 500
+}
+
+function computeGraphContainerClass(navigationStackLength: number, isGlobalNav: boolean): string {
+  const base = 'flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden'
+  if (navigationStackLength === 0) return `${base} border`
+  const accentColor = isGlobalNav
+    ? 'border-purple-300 dark:border-purple-700'
+    : 'border-teal-300 dark:border-teal-700'
+  return `${base} border-2 border-dashed ${accentColor}`
+}
+
 function formatNumber(n: number): string {
   return n.toLocaleString()
 }
@@ -249,6 +268,14 @@ function OrgOverview({
   } | null>(null)
   const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
 
+  // Rationale: handler interprets a click on a cross-dataset reference, which
+  // requires resolving the target project (explicit projectId vs display-name
+  // match), parsing the dataset name out of "Display / dataset" form, and
+  // routing to navigate / inaccessible-dialog / media-library based on what
+  // came back. The branching mirrors the reference variants (CDR same-project,
+  // GDR cross-project resolved/unresolved, media-library) — splitting helpers
+  // would obscure the lookup flow.
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string, sourceTypeName?: string, projectId?: string) => {
     // Save current view to stack
     if (selectedProjectId && selectedDatasetName) {
@@ -257,7 +284,14 @@ function OrgOverview({
       // When in full graph (no focus, no search), save undefined so back restores full graph
       const isSearching = graphStateRef.current.isSearching
       const savedFocusType = graphStateRef.current.focusedType || (isSearching ? sourceTypeName : undefined)
-      const savedFocusDepth = graphStateRef.current.focusedType ? (graphStateRef.current.focusDepth ?? 0) : (isSearching ? 0 : undefined)
+      let savedFocusDepth: 0 | 1 | 2 | undefined
+      if (graphStateRef.current.focusedType) {
+        savedFocusDepth = graphStateRef.current.focusDepth ?? 0
+      } else if (isSearching) {
+        savedFocusDepth = 0
+      } else {
+        savedFocusDepth = undefined
+      }
       setNavigationStack(prev => [...prev, {
         projectId: selectedProjectId,
         datasetName: selectedDatasetName,
@@ -272,8 +306,9 @@ function OrgOverview({
 
     // Parse target — extract dataset name and find target project
     const slashIdx = targetDatasetName.indexOf(' / ')
-    const dsName = slashIdx !== -1 ? targetDatasetName.slice(slashIdx + 3) : targetDatasetName
-    const isGlobal = slashIdx !== -1
+    const hasSlash = slashIdx >= 0
+    const dsName = hasSlash ? targetDatasetName.slice(slashIdx + 3) : targetDatasetName
+    const isGlobal = hasSlash
     setIsGlobalNav(isGlobal)
 
     // Find target project: prefer explicit projectId, fall back to display name match
@@ -282,11 +317,11 @@ function OrgOverview({
       targetProject = projects.find(p => p.id === projectId)
       if (!targetProject) {
         // Project not accessible — show inaccessible dialog
-        const projDisplay = slashIdx !== -1 ? targetDatasetName.slice(0, slashIdx) : projectId
+        const projDisplay = hasSlash ? targetDatasetName.slice(0, slashIdx) : projectId
         setInaccessibleInfo({ projectName: projDisplay, datasetName: dsName })
         return
       }
-    } else if (slashIdx !== -1) {
+    } else if (hasSlash) {
       const projDisplay = targetDatasetName.slice(0, slashIdx)
       targetProject = projects.find(p =>
         (p as any).displayName === projDisplay || p.id === projDisplay
@@ -476,6 +511,13 @@ function OrgOverview({
     : undefined
 
   // ---- Linked schema status for cross-dataset/global refs ----
+  // Rationale: builds the "Included schemas" list for the Send-to-Sanity dialog
+  // by walking every type's cross-dataset reference field and classifying each
+  // against (a) global vs. cross-dataset, (b) project resolution path,
+  // (c) included-in-export vs. not. The branching is inherent to the
+  // classification — fragmenting it across helpers would scatter related state
+  // without improving readability.
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   const linkedSchemaStatus = useMemo(() => {
     if (!effectiveTypes || effectiveTypes.length === 0) return undefined
     const seen = new Set<string>()
@@ -638,27 +680,20 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: navigationStack.length > 0 ? 0 : (navCollapsed && collapseEnabled ? 42 : 500) }}
+            style={{ maxHeight: computeNavMaxHeight(navigationStack.length, navCollapsed, collapseEnabled) }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               aria-label="Expand navigation"
-              className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
+              className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none bg-transparent border-0 text-left w-full"
               onMouseEnter={() => {
                 if (navigationStack.length > 0) return
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
                 collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
               }}
               onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
-              onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && navigationStack.length === 0) {
-                  e.preventDefault()
-                  setNavCollapsed(false)
-                }
-              }}
             >
 
               {selectedProject && (
@@ -679,7 +714,7 @@ function OrgOverview({
                 </>
               )}
               {!selectedProject && <span>Select a project…</span>}
-            </div>
+            </button>
           ) : (
           <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
@@ -899,33 +934,26 @@ function OrgOverview({
           {/* Cross-dataset navigation bar */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? (" border-2 border-dashed " + (isGlobalNav ? "border-purple-300 dark:border-purple-700" : "border-teal-300 dark:border-teal-700")) : " border")}
+            className={computeGraphContainerClass(navigationStack.length, isGlobalNav)}
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
             {/* Back bar for cross-dataset navigation */}
             {navigationStack.length > 0 && (
-              <div
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 aria-label="Back to previous schema"
                 className={
-                  'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer select-none transition-colors'
+                  'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer select-none transition-colors w-full text-left border-0'
                   + (isGlobalNav
                     ? ' bg-purple-50 text-purple-700 border-b border-purple-200 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800 dark:hover:bg-purple-950/70'
                     : ' bg-teal-50 text-teal-700 border-b border-teal-200 hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/70')
                 }
                 onClick={() => handleNavigateBack()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleNavigateBack()
-                  }
-                }}
               >
                 <GoArrowLeft className="text-base" />
                 <span>Back to {navigationStack[navigationStack.length - 1].projectName} / {navigationStack[navigationStack.length - 1].datasetLabel}</span>
-              </div>
+              </button>
             )}
             {!selectedDatasetName ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">

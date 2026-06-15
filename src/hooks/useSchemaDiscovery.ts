@@ -9,7 +9,7 @@ import {useDeployedSchema} from './useDeployedSchema'
 // ============================================================================
 
 function hasOwn(value: object, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key) || key in value
+  return Object.hasOwn(value, key) || key in value
 }
 
 function inferReference(value: Record<string, unknown>, key: string, isArray = false): DiscoveredField {
@@ -60,6 +60,13 @@ function inferStringField(value: string, key: string): DiscoveredField {
     return {name: key, type: 'datetime'}
   }
   return {name: key, type: 'string'}
+}
+
+function inferFieldsFromSample(sample: unknown): DiscoveredField[] {
+  if (!sample || typeof sample !== 'object') return []
+  return Object.entries(sample as Record<string, unknown>)
+    .filter(([key]) => !key.startsWith('_'))
+    .map(([key, value]) => inferFieldType(value, key))
 }
 
 function coerceDiscoveryError(err: unknown): Error {
@@ -200,11 +207,7 @@ function useSchemaDiscoveryInference(projectId: string, dataset: string, enabled
             ])
 
             // Step 3: Infer fields from sample
-            const fields: DiscoveredField[] = sample
-              ? Object.entries(sample)
-                  .filter(([key]) => !key.startsWith('_')) // Skip internal fields
-                  .map(([key, value]) => inferFieldType(value, key))
-              : []
+            const fields: DiscoveredField[] = inferFieldsFromSample(sample)
 
             return {
               name: typeName,
