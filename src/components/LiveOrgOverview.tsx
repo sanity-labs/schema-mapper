@@ -17,7 +17,7 @@ import type {SanityClient} from '@sanity/client'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
-import type {ProjectInfo, DatasetInfo, DiscoveredType, DeployedSchemaEntry} from '../types'
+import type {ProjectInfo, DatasetInfo, DiscoveredType, DeployedSchemaEntry, InferenceReason} from '../types'
 import {identifyOrg, trackEvent} from '../lib/analytics'
 
 // ---------------------------------------------------------------------------
@@ -97,6 +97,8 @@ interface State {
   schemas: Map<string, DiscoveredType[]>
   schemasLoading: Set<string> // "projectId::dataset" keys currently loading
   schemaSource: Map<string, 'deployed' | 'inferred'>
+  // Why a key is showing inferred schema (permissions vs no-schema vs error vs null)
+  inferenceReason: Map<string, InferenceReason>
   // Deployed schemas per "projectId::dataset" — all workspace entries
   deployedSchemas: Map<string, DeployedSchemaEntry[]>
   selectedSchemaId: string | null
@@ -112,7 +114,7 @@ type Action =
   | {type: 'DATASETS_LOADING'; projectId: string}
   | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
   | {type: 'SCHEMA_LOADING'; key: string}
-  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'; deployedSchemas?: DeployedSchemaEntry[]}
+  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'; deployedSchemas?: DeployedSchemaEntry[]; inferenceReason?: InferenceReason}
   | {type: 'ERROR'; key: string; error: string}
   | {type: 'SELECT_PROJECT'; projectId: string}
   | {type: 'SELECT_DATASET'; datasetName: string}
@@ -127,6 +129,7 @@ const initialState: State = {
   schemas: new Map(),
   schemasLoading: new Set(),
   schemaSource: new Map(),
+  inferenceReason: new Map(),
   deployedSchemas: new Map(),
   selectedSchemaId: null,
   errors: new Map(),
@@ -170,6 +173,8 @@ function reducer(state: State, action: Action): State {
       nextSchemas.set(action.key, action.types)
       const nextSource = new Map(state.schemaSource)
       nextSource.set(action.key, action.source)
+      const nextReason = new Map(state.inferenceReason)
+      nextReason.set(action.key, action.inferenceReason ?? null)
       const nextLoading = new Set(state.schemasLoading)
       nextLoading.delete(action.key)
       // Store deployed schemas if provided, auto-select default or first
@@ -187,6 +192,7 @@ function reducer(state: State, action: Action): State {
         ...state,
         schemas: nextSchemas,
         schemaSource: nextSource,
+        inferenceReason: nextReason,
         schemasLoading: nextLoading,
         deployedSchemas: nextDeployedSchemas,
         selectedSchemaId: nextSelectedSchemaId,
@@ -288,10 +294,11 @@ function ActiveSchemaDiscovery({
     types: DiscoveredType[],
     source: 'deployed' | 'inferred',
     deployedSchemas: DeployedSchemaEntry[],
+    inferenceReason: InferenceReason,
   ) => void
   onError: (key: string, error: string) => void
 }>) {
-  const {types, isLoading, error, schemaSource, deployedSchemas} = useSchemaDiscovery(projectId, datasetName)
+  const {types, isLoading, error, schemaSource, deployedSchemas, inferenceReason} = useSchemaDiscovery(projectId, datasetName)
   const reportedRef = useRef(false)
   const key = `${projectId}::${datasetName}`
 
@@ -306,10 +313,10 @@ function ActiveSchemaDiscovery({
       if (error) {
         onError(key, error?.message || 'Schema discovery failed')
       } else {
-        onDiscovered(key, types, schemaSource ?? 'inferred', deployedSchemas)
+        onDiscovered(key, types, schemaSource ?? 'inferred', deployedSchemas, inferenceReason)
       }
     }
-  }, [isLoading, types, error, schemaSource, deployedSchemas, key, onDiscovered, onError])
+  }, [isLoading, types, error, schemaSource, deployedSchemas, inferenceReason, key, onDiscovered, onError])
 
   return null
 }
@@ -529,7 +536,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   }, [state.selectedProjectId, state.selectedDatasetName, state.datasets, state.datasetsLoading, state.schemas, state.schemasLoading])
 
   const handleSchemaDiscovered = useCallback(
-    (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[]) => {
+    (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[], inferenceReason: InferenceReason) => {
       // Resolve cross-dataset/global reference project IDs to display names
       const projectNameMap = new Map(projects.map((p: any) => [p.id, (p as any).displayName || p.id]))
       const resolvedTypes = types.map(t => ({
@@ -586,7 +593,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
           }),
         })),
       }))
-      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas})
+      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas, inferenceReason})
 
       // Track schema discovery completion
       const [projectId, datasetName] = key.split('::')
@@ -695,6 +702,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
 
   const selectedSchemaSource = selectedSchemaKey
     ? state.schemaSource.get(selectedSchemaKey) || null
+    : null
+
+  const selectedInferenceReason: InferenceReason = selectedSchemaKey
+    ? state.inferenceReason.get(selectedSchemaKey) ?? null
     : null
 
   const selectedDatasets = useMemo(() => {
@@ -811,6 +822,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         datasets={selectedDatasets}
         types={selectedTypes}
         schemaSource={selectedSchemaSource}
+        inferenceReason={selectedInferenceReason}
         isCheckingAccess={isCheckingAccess}
         isDatasetsLoading={isDatasetsLoading}
         isSchemasLoading={isSchemasLoading}
