@@ -1,7 +1,7 @@
 import {useClient} from '@sanity/sdk-react'
 import type {SanityClient} from '@sanity/client'
 import {useState, useEffect, useRef} from 'react'
-import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry} from '../types'
+import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry, InferenceReason} from '../types'
 import {useDeployedSchema} from './useDeployedSchema'
 
 // ============================================================================
@@ -265,6 +265,7 @@ export function useSchemaDiscovery(projectId: string, dataset: string): {
   deployedTypes: DiscoveredType[] | null   // null = not available
   inferredTypes: DiscoveredType[] | null   // null = still loading
   deployedSchemas: DeployedSchemaEntry[]   // ALL parsed workspace schemas
+  inferenceReason: InferenceReason         // why we're inferring (null if not)
 } {
   const deployed = useDeployedSchema(projectId, dataset)
 
@@ -285,6 +286,7 @@ export function useSchemaDiscovery(projectId: string, dataset: string): {
       deployedTypes: null,
       inferredTypes: null,
       deployedSchemas: [],
+      inferenceReason: null,
     }
   }
 
@@ -299,6 +301,7 @@ export function useSchemaDiscovery(projectId: string, dataset: string): {
       deployedTypes,
       inferredTypes,
       deployedSchemas: deployed.schemas,
+      inferenceReason: null,
     }
   }
 
@@ -312,6 +315,7 @@ export function useSchemaDiscovery(projectId: string, dataset: string): {
     deployedTypes: null,
     inferredTypes,
     deployedSchemas: [],
+    inferenceReason: deployed.inferenceReason,
   }
 }
 

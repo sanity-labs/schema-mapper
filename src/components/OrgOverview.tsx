@@ -16,7 +16,8 @@ import {
   readNodePositions,
   serializeType,
 } from '../lib/payload-builders'
-import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry, InferenceReason } from './types'
+import { SchemaSourceExplainer } from './SchemaSourceExplainer'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -101,6 +102,7 @@ interface OrgOverviewProps {
   readonly datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
   readonly types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
   readonly schemaSource: 'deployed' | 'inferred' | null
+  readonly inferenceReason?: InferenceReason
   // Loading states
   readonly isCheckingAccess: boolean         // still checking which projects user can access
   readonly isDatasetsLoading: boolean        // selected project's datasets are loading
@@ -166,6 +168,7 @@ function OrgOverview({
   datasets,
   types,
   schemaSource,
+  inferenceReason = null,
   isCheckingAccess,
   isDatasetsLoading,
   isSchemasLoading,
@@ -194,6 +197,12 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
+  // Reason-specific explainer (click i-icon next to inferred badge, OR
+  // auto-popups once per dataset when reason === 'permissions').
+  const [showExplainerDialog, setShowExplainerDialog] = useState(false)
+  // Track which dataset keys we've already auto-popped, so users don't get
+  // hit with the same dialog every render.
+  const autoPoppedKeysRef = useRef<Set<string>>(new Set())
   const [mediaLibraryInfo, setMediaLibraryInfo] = useState<{ fieldName: string; typeName: string } | null>(null)
   const [inaccessibleInfo, setInaccessibleInfo] = useState<{ projectName: string; datasetName: string } | null>(null)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
@@ -431,6 +440,24 @@ function OrgOverview({
   // Use the schema source from props (parent controls deployed/inferred)
   const effectiveSource = schemaSource
   const effectiveTypes = types
+
+  // Auto-popup the explainer once per dataset when we discover that the
+  // schema is inferred specifically because of missing permissions.
+  // Other reasons (no-schema, error) get the badge + i-icon but no popup.
+  useEffect(() => {
+    if (
+      effectiveSource === 'inferred' &&
+      inferenceReason === 'permissions' &&
+      selectedProjectId &&
+      selectedDatasetName
+    ) {
+      const key = `${selectedProjectId}::${selectedDatasetName}`
+      if (!autoPoppedKeysRef.current.has(key)) {
+        autoPoppedKeysRef.current.add(key)
+        setShowExplainerDialog(true)
+      }
+    }
+  }, [effectiveSource, inferenceReason, selectedProjectId, selectedDatasetName])
 
   // ---- Compute aggregate stats (show what we know so far) ----
   const totalProjects = projects.length
@@ -803,6 +830,7 @@ function OrgOverview({
                     {selectedDataset.aclMode}
                   </Badge>
               {effectiveSource && (
+                <>
                 <Badge
                   variant="default"
                   className={
@@ -815,6 +843,15 @@ function OrgOverview({
                 >
                   {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema found</> : <><RiAlertFill className="inline-block mr-1 align-middle" />schema inferred from documents</>}
                 </Badge>
+                {effectiveSource === 'inferred' && (
+                  <SchemaSourceExplainer
+                    reason={inferenceReason}
+                    open={showExplainerDialog}
+                    onOpen={() => setShowExplainerDialog(true)}
+                    onClose={() => setShowExplainerDialog(false)}
+                  />
+                )}
+                </>
               )}
               <span className="text-muted-foreground">·</span>
               <span>{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>

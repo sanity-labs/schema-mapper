@@ -1,6 +1,6 @@
 import {useClient} from '@sanity/sdk-react'
 import {useState, useEffect, useRef} from 'react'
-import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry} from '../types'
+import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry, InferenceReason} from '../types'
 
 // --- GROQ Type Schema API response types ---
 
@@ -682,6 +682,36 @@ function extractSchemaData(entry: any): any[] {
 // --- Hook ---
 
 /**
+ * Extract HTTP status from a Sanity client error (mirrors useProjectAccess).
+ */
+function getStatusCode(err: unknown): number | null {
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>
+    if (typeof e.statusCode === 'number') return e.statusCode
+    if (typeof e.status === 'number') return e.status
+    if (e.response && typeof e.response === 'object') {
+      const resp = e.response as Record<string, unknown>
+      if (typeof resp.status === 'number') return resp.status
+      if (typeof resp.statusCode === 'number') return resp.statusCode
+    }
+  }
+  return null
+}
+
+/**
+ * Classify a deployed-schema fetch failure into an InferenceReason.
+ * 401/403 → 'permissions' (user lacks grant; we cannot tell whether deployed
+ * schema exists). 404 → 'no-schema' (endpoint says nothing's deployed).
+ * Anything else → 'error'.
+ */
+function classifyDeployedSchemaError(err: unknown): InferenceReason {
+  const statusCode = getStatusCode(err)
+  if (statusCode === 401 || statusCode === 403) return 'permissions'
+  if (statusCode === 404) return 'no-schema'
+  return 'error'
+}
+
+/**
  * Hook to fetch schema from Sanity's deployed schema API.
  * Returns parsed DiscoveredType[] with document counts.
  * Returns empty types array if no deployed schema is available (caller should fallback).
@@ -694,12 +724,14 @@ export function useDeployedSchema(projectId: string, dataset: string): {
   isLoading: boolean
   error: Error | null
   hasDeployedSchema: boolean
+  inferenceReason: InferenceReason
 } {
   const [schemas, setSchemas] = useState<DeployedSchemaEntry[]>([])
   const [types, setTypes] = useState<DiscoveredType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [hasDeployedSchema, setHasDeployedSchema] = useState(false)
+  const [inferenceReason, setInferenceReason] = useState<InferenceReason>(null)
 
   // CRITICAL: pass explicit projectId+dataset to every useClient call. Without
   // them, the SDK falls back to SanityConfig defaults or `undefined`, which
@@ -734,6 +766,7 @@ export function useDeployedSchema(projectId: string, dataset: string): {
           setHasDeployedSchema(false)
           setSchemas([])
           setTypes([])
+          setInferenceReason('no-schema')
           setIsLoading(false)
           return
         }
@@ -754,11 +787,13 @@ export function useDeployedSchema(projectId: string, dataset: string): {
           setHasDeployedSchema(false)
           setSchemas([])
           setTypes([])
+          setInferenceReason('no-schema')
           setIsLoading(false)
           return
         }
 
         setHasDeployedSchema(true)
+        setInferenceReason(null)
 
         // Fetch document counts once (shared across all workspace schemas — same dataset)
         // Collect all unique type names across all workspace schemas
@@ -810,11 +845,13 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         setError(null)
       } catch (err) {
         if (!cancelled) {
-          // Schema API failed — signal no deployed schema so caller can fallback
+          // Schema API failed — signal no deployed schema so caller can fallback.
+          // Classify so the UI can explain WHY to the user.
           console.warn('[Schema Mapper] Deployed schema API error:', err)
           setHasDeployedSchema(false)
           setSchemas([])
           setTypes([])
+          setInferenceReason(classifyDeployedSchemaError(err))
           setError(null) // Don't propagate — let fallback handle it
         }
       } finally {
@@ -830,6 +867,6 @@ export function useDeployedSchema(projectId: string, dataset: string): {
     }
   }, [projectId, dataset])
 
-  return {schemas, types, isLoading, error, hasDeployedSchema}
+  return {schemas, types, isLoading, error, hasDeployedSchema, inferenceReason}
 }
 
