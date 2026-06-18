@@ -461,7 +461,7 @@ function mapStudioField(
 // eslint-disable-next-line sonarjs/cognitive-complexity
 function parseStudioSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; studioTypeRaw?: unknown}[] {
   // Collect all type names for detecting inline object references
   const allTypeNames = new Set<string>(schema.map((entry: any) => entry.name))
   const documentTypeNames = new Set<string>(
@@ -573,7 +573,11 @@ function parseStudioSchema(
     const fields: DiscoveredField[] = []
     for (const raw of filtered) {
       const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
-      fields.push(mapped)
+      // Stamp the raw Studio shape on top-level fields so exporters can
+      // round-trip exactly what the customer's Studio defined. Flattened
+      // synthetic entries below intentionally do NOT carry this — they're
+      // already represented inside their parent's `of:`/`fields:`.
+      fields.push({...mapped, studioFieldRaw: raw})
 
       // If this field is typed as a named non-document object type
       // (e.g. `type: 'productCore'`), expand its nested ref-bearing fields
@@ -586,7 +590,8 @@ function parseStudioSchema(
         objectTypeFields.has(raw.type) &&
         !documentTypeNames.has(raw.type)
       ) {
-        fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
+        const flattened = flattenObjectTypeRefs(raw.type, raw.name, visiting)
+        for (const f of flattened) fields.push({...f, isFlattenedRef: true})
         continue
       }
 
@@ -598,9 +603,8 @@ function parseStudioSchema(
             objectTypeFields.has(member.type) &&
             !documentTypeNames.has(member.type)
           ) {
-            fields.push(
-              ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
-            )
+            const flattened = flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting)
+            for (const f of flattened) fields.push({...f, isFlattenedRef: true})
           }
         }
       }
@@ -610,6 +614,7 @@ function parseStudioSchema(
       name: docType.name,
       title: docType.title || undefined,
       fields,
+      studioTypeRaw: docType,
     }
   })
 }
@@ -618,7 +623,7 @@ function parseStudioSchema(
 
 function parseDeployedSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; studioTypeRaw?: unknown}[] {
   if (!schema || !Array.isArray(schema) || schema.length === 0) return []
 
   // Detect format: Studio schema has 'fields' arrays, GROQ type schema has 'attributes' objects
@@ -787,7 +792,7 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         }
 
         // Parse ALL workspace entries
-        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]}[] = []
+        const parsedEntries: {entry: any; parsedTypes: {name: string; title?: string; fields: DiscoveredField[]; studioTypeRaw?: unknown}[]}[] = []
 
         for (const entry of rawSchemas) {
           const schemaData = extractSchemaData(entry)
