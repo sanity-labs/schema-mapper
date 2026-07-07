@@ -436,7 +436,7 @@ function OrgOverview({
   // Only enabled when nav content exceeds ~2 rows of tabs
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [fitViewTrigger] = useState(0)
+  const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const navRef = useRef<HTMLDivElement>(null)
   const navContentRef = useRef<HTMLDivElement>(null)
   const [navNaturalHeight, setNavNaturalHeight] = useState(0)
