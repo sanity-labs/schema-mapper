@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
+import {Tab} from '@sanity/ui'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 interface CuratedLayoutDropdownProps {
@@ -116,20 +117,18 @@ export function CuratedLayoutDropdown({
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
+      <Tab
+        id="layout-tab-curated"
+        label={
+          <span className="flex items-center gap-1">
+            {tabLabel}
+            <span className={`text-[0.6rem] transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+          </span>
+        }
+        selected={tabSelected}
         onClick={() => setOpen((o) => !o)}
-        className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-          tabSelected
-            ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200'
-        }`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        {tabLabel}
-        <span className={`text-[0.6rem] transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
-      </button>
+        aria-controls="curated-layout-menu"
+      />
 
       {activeLayoutId && isUnlocked && savedIndicator && (
         <div className="absolute top-full right-0 mt-1 text-[0.65rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
@@ -139,6 +138,7 @@ export function CuratedLayoutDropdown({
 
       {open && (
         <div
+          id="curated-layout-menu"
           role="menu"
           className="absolute top-full right-0 mt-1 min-w-[240px] max-w-[360px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-30"
         >
@@ -285,7 +285,7 @@ export function CuratedLayoutDropdown({
             className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-t border-gray-200 dark:border-gray-700"
           >
             <GoPlus className="text-sm" />
-            Create new layout
+            Copy this view to a new layout
           </button>
         </div>
       )}

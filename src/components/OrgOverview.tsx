@@ -49,6 +49,19 @@ function useLatestVersion() {
   return latest
 }
 
+/** Display labels for the layout algorithms — mirrors core's layoutLabels. */
+const ALGO_DISPLAY_LABEL: Record<string, string> = {
+  dagre: 'Dagre',
+  layered: 'Layered',
+  force: 'Force',
+  stress: 'Clustered',
+}
+
+function algoDisplayLabel(algo: string | null | undefined): string {
+  if (!algo) return ''
+  return ALGO_DISPLAY_LABEL[algo] || algo
+}
+
 function VersionBadge() {
   const latest = useLatestVersion()
   const hasUpdate = !!latest && isNewer(latest, version)
@@ -1061,14 +1074,11 @@ function OrgOverview({
       <InfoDialog
         open={!!curatedSession.pendingAlgoOverwrite}
         onClose={curatedSession.dismissAlgoOverwrite}
-        title="Overwrite layout?"
+        title="Switch to algorithm?"
       >
         <Stack space={4}>
           <Text size={1}>
-            Running <strong>{curatedSession.pendingAlgoOverwrite}</strong> will replace the current positions in <strong>{curatedSession.activeLayout?.name}</strong>. This can't be undone.
-          </Text>
-          <Text size={1} muted>
-            You can instead leave <strong>{curatedSession.activeLayout?.name}</strong> alone and view <strong>{curatedSession.pendingAlgoOverwrite}</strong> as a temporary algorithm without saving to your layout.
+            You're currently editing the layout <strong>{curatedSession.activeLayout?.name}</strong>. Switching to <strong>{algoDisplayLabel(curatedSession.pendingAlgoOverwrite)}</strong> can either replace this layout's positions, or leave it as-is and view the algorithm on its own.
           </Text>
           <Flex gap={2} justify="flex-end">
             <Button
@@ -1077,24 +1087,24 @@ function OrgOverview({
               onClick={curatedSession.dismissAlgoOverwrite}
             />
             <Button
-              text={`Leave ${curatedSession.activeLayout?.name} — view ${curatedSession.pendingAlgoOverwrite}`}
+              text={`Leave ${curatedSession.activeLayout?.name} alone`}
               mode="ghost"
               onClick={() => {
-                // Exit curated mode entirely (view the algo standalone)
+                const algo = curatedSession.pendingAlgoOverwrite
+                // Write the chosen algo BEFORE clearing curated so the
+                // SchemaGraph deactivation effect picks it up from localStorage.
+                if (algo) {
+                  try { localStorage.setItem('schema-mapper:layoutType', algo) } catch {}
+                }
                 curatedSession.clearSelection()
                 curatedSession.dismissAlgoOverwrite()
-                // Note: SchemaGraph will re-render without curatedActive on
-                // the next tick. The layoutType inside remains whatever it
-                // was — the user can now click their algo of choice freely.
               }}
             />
             <Button
-              text={`Overwrite with ${curatedSession.pendingAlgoOverwrite}`}
+              text={`Overwrite with ${algoDisplayLabel(curatedSession.pendingAlgoOverwrite)}`}
               tone="critical"
               onClick={() => {
                 // Not wired yet — v1 requires the user to clear+re-run.
-                // TODO: implement in-place algo overwrite (compute algo
-                // positions and PATCH to the current viewKey).
                 curatedSession.dismissAlgoOverwrite()
               }}
               disabled
