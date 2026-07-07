@@ -120,9 +120,13 @@ export function CuratedLayoutDropdown({
       <Tab
         id="layout-tab-curated"
         label={
-          <span className="flex items-center gap-1">
-            {tabLabel}
-            <span className={`text-[0.6rem] transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+          <span className="flex items-center gap-1.5">
+            {activeLayout && (
+              isUnlocked
+                ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" aria-label="Editing" />
+                : <GoLock className="text-sm opacity-70" aria-label="Locked" />
+            )}
+            <span>{tabLabel}</span>
           </span>
         }
         selected={tabSelected}
