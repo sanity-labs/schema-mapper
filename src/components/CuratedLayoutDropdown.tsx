@@ -138,9 +138,28 @@ export function CuratedLayoutDropdown({
         }`}
       >
         {activeLayout && (
-          isUnlocked
-            ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" aria-label="Editing" />
-            : <GoLock className="text-sm opacity-70" aria-label="Locked" />
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={isUnlocked ? 'Lock layout' : 'Unlock to edit'}
+            title={isUnlocked ? 'Lock layout' : 'Unlock to edit'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleLock()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleLock()
+              }
+            }}
+            className="inline-flex p-0.5 rounded hover:bg-gray-200/70 dark:hover:bg-gray-700/70 cursor-pointer"
+          >
+            {isUnlocked
+              ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" />
+              : <GoLock className="text-sm opacity-70" />}
+          </span>
         )}
         <span>{tabLabel}</span>
       </button>
