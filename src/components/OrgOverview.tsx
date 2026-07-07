@@ -1064,13 +1064,13 @@ function OrgOverview({
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
                 curatedActive={
-                  curatedSession.activeLayout && curatedSession.activeView
+                  curatedSession.activeLayout
                     ? {
                         id: curatedSession.activeLayout._id,
                         viewKey: curatedSession.viewKey,
-                        positions: curatedSession.activeView.nodePositions,
-                        edgeStyle: curatedSession.activeView.edgeStyle,
-                        spacing: curatedSession.activeView.spacing,
+                        positions: curatedSession.activeView?.nodePositions ?? {},
+                        edgeStyle: curatedSession.activeView?.edgeStyle ?? (graphState.edgeStyle || 'bezier'),
+                        spacing: curatedSession.activeView?.spacing ?? (graphState.spacing ?? 1),
                       }
                     : null
                 }
