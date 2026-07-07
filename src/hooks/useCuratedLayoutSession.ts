@@ -198,14 +198,6 @@ export function useCuratedLayoutSession({
   // onAlgoOverwriteRequest instead of applying. We hold that pending choice
   // here and expose it for the parent to render the confirm dialog.
 
-  const [pendingAlgoOverwrite, setPendingAlgoOverwrite] = useState<'dagre' | 'layered' | 'force' | 'stress' | null>(null)
-
-  const requestAlgoOverwrite = useCallback((algo: 'dagre' | 'layered' | 'force' | 'stress') => {
-    setPendingAlgoOverwrite(algo)
-  }, [])
-
-  const dismissAlgoOverwrite = useCallback(() => setPendingAlgoOverwrite(null), [])
-
   // --- Active view (positions to apply) ---
 
   const activeView: CuratedView | null = useMemo(() => {
@@ -236,9 +228,5 @@ export function useCuratedLayoutSession({
     lastSavedAt,
     handleDrag,
     flushSave,
-    // Algo overwrite
-    pendingAlgoOverwrite,
-    requestAlgoOverwrite,
-    dismissAlgoOverwrite,
   }
 }

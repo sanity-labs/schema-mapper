@@ -1080,7 +1080,7 @@ function OrgOverview({
                   const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1
                   curatedSession.handleDrag(positions, edgeStyle, spacing)
                 }}
-                onAlgoOverwriteRequest={curatedSession.requestAlgoOverwrite}
+                onCuratedExitForAlgo={curatedSession.clearSelection}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -1092,49 +1092,6 @@ function OrgOverview({
 
         </>
       )}
-
-      {/* ---- Curated Layout: algo-overwrite confirm ---- */}
-      <InfoDialog
-        open={!!curatedSession.pendingAlgoOverwrite}
-        onClose={curatedSession.dismissAlgoOverwrite}
-        title="Switch to algorithm?"
-      >
-        <Stack space={4}>
-          <Text size={1}>
-            You're currently editing the layout <strong>{curatedSession.activeLayout?.name}</strong>. Switching to <strong>{algoDisplayLabel(curatedSession.pendingAlgoOverwrite)}</strong> can either replace this layout's positions, or leave it as-is and view the algorithm on its own.
-          </Text>
-          <Flex gap={2} justify="flex-end">
-            <Button
-              text="Cancel"
-              mode="bleed"
-              onClick={curatedSession.dismissAlgoOverwrite}
-            />
-            <Button
-              text={`Leave ${curatedSession.activeLayout?.name} alone`}
-              mode="ghost"
-              onClick={() => {
-                const algo = curatedSession.pendingAlgoOverwrite
-                // Write the chosen algo BEFORE clearing curated so the
-                // SchemaGraph deactivation effect picks it up from localStorage.
-                if (algo) {
-                  try { localStorage.setItem('schema-mapper:layoutType', algo) } catch {}
-                }
-                curatedSession.clearSelection()
-                curatedSession.dismissAlgoOverwrite()
-              }}
-            />
-            <Button
-              text={`Overwrite with ${algoDisplayLabel(curatedSession.pendingAlgoOverwrite)}`}
-              tone="critical"
-              onClick={() => {
-                // Not wired yet — v1 requires the user to clear+re-run.
-                curatedSession.dismissAlgoOverwrite()
-              }}
-              disabled
-            />
-          </Flex>
-        </Stack>
-      </InfoDialog>
 
       {/* ---- Schema Info Dialog ---- */}
       <InfoDialog open={showSchemaInfoDialog} onClose={() => setShowSchemaInfoDialog(false)} title="Schema sources">
