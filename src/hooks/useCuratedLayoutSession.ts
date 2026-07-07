@@ -3,6 +3,7 @@ import {
   fetchCuratedLayout,
   makeViewKey,
   saveCuratedLayoutView,
+  saveCuratedLayoutMeta,
   useCuratedLayouts,
   type CuratedLayout,
   type CuratedScope,
@@ -52,8 +53,36 @@ export function useCuratedLayoutSession({
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  /**
+   * Increment each time the session selects a layout that has a stored
+   * `lastFocus`. The consuming component reads `pendingFocusRestore` and
+   * dispatches an imperative focus; the version number just forces the
+   * effect to re-fire when re-selecting the SAME layout.
+   */
+  const [focusRestoreVersion, setFocusRestoreVersion] = useState(0)
+  const [pendingFocusRestore, setPendingFocusRestore] = useState<{typeName: string; depth: 0 | 1 | 2} | null>(null)
 
   const viewKey: ViewKey = useMemo(() => makeViewKey(focusState), [focusState])
+
+  // Persist lastFocus on the layout whenever it changes while active+unlocked.
+  // This is what makes re-selecting a layout land back in the sub-view the
+  // user was editing.
+  const focusStateSig = focusState ? `${focusState.typeName}:${focusState.depth}` : ''
+  useEffect(() => {
+    if (!activeLayout || !isUnlocked) return
+    const target = focusState || null
+    const current = activeLayout.lastFocus || null
+    const same =
+      (!target && !current) ||
+      (target && current && target.typeName === current.typeName && target.depth === current.depth)
+    if (same) return
+    // Optimistic local update
+    setActiveLayout((prev) => (prev ? {...prev, lastFocus: target} : prev))
+    saveCuratedLayoutMeta(activeLayout._id, {lastFocus: target}).catch((err) => {
+      console.warn('[curatedSession] save lastFocus failed:', err)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStateSig, activeLayout?._id, isUnlocked])
 
   // Deselect + lock when scope changes
   useEffect(() => {
@@ -72,9 +101,14 @@ export function useCuratedLayoutSession({
     try {
       const layout = await fetchCuratedLayout(id)
       setActiveLayout(layout)
+      // If the layout remembers a last-active focus, dispatch a restore.
+      // Version bump forces re-fire when re-selecting the same layout.
+      setPendingFocusRestore(layout?.lastFocus ?? null)
+      setFocusRestoreVersion((v) => v + 1)
     } catch (err) {
       console.warn('[curatedSession] load failed:', err)
       setActiveLayout(null)
+      setPendingFocusRestore(null)
     }
   }, [])
 
@@ -228,5 +262,8 @@ export function useCuratedLayoutSession({
     lastSavedAt,
     handleDrag,
     flushSave,
+    // Focus restore (populated after selectLayout when the layout has a saved lastFocus)
+    pendingFocusRestore,
+    focusRestoreVersion,
   }
 }

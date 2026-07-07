@@ -178,10 +178,18 @@ async function createCuratedLayout(body, token) {
 
 async function patchCuratedLayout(id, patch, token) {
   const set = {updatedAt: new Date().toISOString()}
+  const unset = []
   // Whitelist of mutable fields
   if (typeof patch.name === 'string') set.name = patch.name
   if (patch.views && typeof patch.views === 'object') set.views = patch.views
-  await sanityMutate([{patch: {id, set}}], token)
+  // lastFocus: object to set, null to clear
+  if (patch.lastFocus === null) {
+    unset.push('lastFocus')
+  } else if (patch.lastFocus && typeof patch.lastFocus === 'object') {
+    set.lastFocus = patch.lastFocus
+  }
+  const mutation = unset.length > 0 ? {patch: {id, set, unset}} : {patch: {id, set}}
+  await sanityMutate([mutation], token)
   return {id, ...set}
 }
 

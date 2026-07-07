@@ -25,6 +25,12 @@ export type CuratedLayout = CuratedLayoutSummary & {
   dataset: string
   workspace: string
   views: Record<string, CuratedView>
+  /**
+   * Last-active focus for this layout. When the user re-selects the layout,
+   * we restore this focus so the layout resumes in the sub-view they left
+   * it in. null means the layout was last viewed in full (__full) mode.
+   */
+  lastFocus?: { typeName: string; depth: 0 | 1 | 2 } | null
 }
 
 export type CuratedScope = {
@@ -193,4 +199,23 @@ export async function saveCuratedLayoutView(
     },
   )
   if (!res.ok) throw new Error(`Save view failed: ${res.status}`)
+}
+
+/**
+ * Patch top-level metadata on a curated layout (e.g. lastFocus). Uses the
+ * same PATCH endpoint as rename — worker merges shallow.
+ */
+export async function saveCuratedLayoutMeta(
+  id: string,
+  patch: Partial<Pick<CuratedLayout, 'name' | 'lastFocus'>>,
+): Promise<void> {
+  const res = await fetch(
+    `${WORKER_URL}/curated-layouts/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(patch),
+    },
+  )
+  if (!res.ok) throw new Error(`Save meta failed: ${res.status}`)
 }

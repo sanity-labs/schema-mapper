@@ -1081,6 +1081,8 @@ function OrgOverview({
                   curatedSession.handleDrag(positions, edgeStyle, spacing)
                 }}
                 onCuratedExitForAlgo={curatedSession.clearSelection}
+                restoreFocus={curatedSession.pendingFocusRestore}
+                restoreFocusVersion={curatedSession.focusRestoreVersion}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
