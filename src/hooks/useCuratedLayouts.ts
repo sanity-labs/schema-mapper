@@ -105,13 +105,19 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
   }, [scope, refresh])
 
   const create = useCallback(
-    async (name: string, initialView: {viewKey: ViewKey; view: CuratedView}, createdBy?: string) => {
+    async (
+      name: string,
+      initialView: {viewKey: ViewKey; view: CuratedView},
+      createdBy?: string,
+      lastFocus?: {typeName: string; depth: 0 | 1 | 2} | null,
+    ) => {
       if (!scope) throw new Error('No scope')
       const body = {
         ...scope,
         name,
         createdBy,
         views: {[initialView.viewKey]: initialView.view},
+        ...(lastFocus ? {lastFocus} : {}),
       }
       const res = await fetch(`${WORKER_URL}/curated-layouts`, {
         method: 'POST',

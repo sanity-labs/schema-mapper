@@ -189,7 +189,7 @@ export function useCuratedLayoutSession({
     setSaveState('saved')
     setLastSavedAt(Date.now())
     return created
-  }, [list, viewKey, currentUserId])
+  }, [list, viewKey, currentUserId, focusState])
 
   // --- Debounced auto-save on drag ---
 
