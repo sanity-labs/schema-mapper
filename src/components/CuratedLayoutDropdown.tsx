@@ -210,7 +210,7 @@ export function CuratedLayoutDropdown({
             )}
             {!loading && layouts.length === 0 && (
               <div className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-                No curated layouts yet
+                No saved layouts yet
               </div>
             )}
             {layouts.map((l) => {
