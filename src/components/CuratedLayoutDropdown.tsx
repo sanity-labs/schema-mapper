@@ -1,6 +1,7 @@
+import type {ReactNode} from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
-import {Save} from 'lucide-react'
+import {Save, Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 interface CuratedLayoutDropdownProps {
@@ -113,18 +114,44 @@ export function CuratedLayoutDropdown({
   const tabLabel = activeLayout ? `Layout: ${activeLayout.name}` : 'Saved Layouts'
   const tabSelected = Boolean(activeLayoutId)
 
-  const savedIndicator = renderSavedIndicator(saveState, lastSavedAt)
-  const statusText = activeLayoutId
-    ? (isUnlocked
-        ? (savedIndicator || 'Editing (drag nodes to save)')
-        : 'Locked · click the lock icon to edit')
-    : ''
+  const savedIndicatorText = renderSavedIndicator(saveState, lastSavedAt)
+
+  // Build the status JSX (icon + text) for the space to the left of the button
+  let statusNode: ReactNode = null
+  if (activeLayoutId) {
+    if (!isUnlocked) {
+      statusNode = <span>Locked · click the lock icon to edit</span>
+    } else if (saveState === 'saving') {
+      statusNode = (
+        <>
+          <Loader2 className="w-3 h-3 animate-spin text-gray-500 dark:text-gray-400" aria-hidden="true" />
+          <span>Saving…</span>
+        </>
+      )
+    } else if (saveState === 'error') {
+      statusNode = (
+        <>
+          <XCircle className="w-3 h-3 text-red-500 dark:text-red-400" aria-hidden="true" />
+          <span>Save failed</span>
+        </>
+      )
+    } else if (saveState === 'saved' && lastSavedAt) {
+      statusNode = (
+        <>
+          <CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" aria-hidden="true" />
+          <span>{savedIndicatorText}</span>
+        </>
+      )
+    } else {
+      statusNode = <span>Editing (drag nodes to save)</span>
+    }
+  }
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-2">
-      {statusText && (
-        <span className="text-[0.65rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
-          {statusText}
+      {statusNode && (
+        <span className="flex items-center gap-1 text-[0.7rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
+          {statusNode}
         </span>
       )}
       <button
@@ -178,10 +205,10 @@ export function CuratedLayoutDropdown({
         >
           <div className="max-h-72 overflow-y-auto">
             {loading && layouts.length === 0 && (
-              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Loading…</div>
+              <div className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">Loading…</div>
             )}
             {!loading && layouts.length === 0 && (
-              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
                 No curated layouts yet
               </div>
             )}
@@ -193,7 +220,7 @@ export function CuratedLayoutDropdown({
               return (
                 <div
                   key={l._id}
-                  className={`group flex items-center gap-1.5 px-2 py-1.5 text-xs cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0 ${
+                  className={`group flex items-center gap-1.5 px-2.5 py-2 text-sm cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-b-0 ${
                     isActive
                       ? 'bg-blue-50 dark:bg-blue-900/30'
                       : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -316,9 +343,9 @@ export function CuratedLayoutDropdown({
               setOpen(false)
               onCreate()
             }}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-t border-gray-200 dark:border-gray-700"
+            className="w-full flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-t border-gray-200 dark:border-gray-700"
           >
-            <GoPlus className="text-sm" />
+            <GoPlus className="text-base" />
             Copy this view to a new layout
           </button>
         </div>

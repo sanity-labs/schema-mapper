@@ -229,6 +229,7 @@ function OrgOverview({
   // ---- Dialog state ----
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   // Reason-specific explainer (click i-icon next to inferred badge, OR
@@ -1081,6 +1082,7 @@ function OrgOverview({
                   curatedSession.handleDrag(positions, edgeStyle, spacing)
                 }}
                 onCuratedExitForAlgo={curatedSession.clearSelection}
+                onLockedInteraction={() => setShowUnlockPrompt(true)}
                 restoreFocus={curatedSession.pendingFocusRestore}
                 restoreFocusVersion={curatedSession.focusRestoreVersion}
               />
@@ -1229,6 +1231,29 @@ function OrgOverview({
           <p className="text-xs text-muted-foreground/70 font-mono">
             {inaccessibleInfo?.datasetName}
           </p>
+        </Stack>
+      </InfoDialog>
+
+      <InfoDialog open={showUnlockPrompt} onClose={() => setShowUnlockPrompt(false)} title="Unlock this layout?">
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This layout is locked to protect its arrangement. Unlock it to focus on types, drag nodes, or change the layout — your changes will be saved automatically.
+          </p>
+          <Flex gap={2} justify="flex-end">
+            <Button
+              text="Cancel"
+              mode="ghost"
+              onClick={() => setShowUnlockPrompt(false)}
+            />
+            <Button
+              text="Unlock"
+              tone="primary"
+              onClick={() => {
+                curatedSession.toggleLock()
+                setShowUnlockPrompt(false)
+              }}
+            />
+          </Flex>
         </Stack>
       </InfoDialog>
     </div>
