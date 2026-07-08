@@ -233,6 +233,17 @@ function OrgOverview({
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
   const [showCreateLayoutPrompt, setShowCreateLayoutPrompt] = useState(false)
   const [newLayoutName, setNewLayoutName] = useState('')
+  const newLayoutInputRef = useRef<HTMLInputElement>(null)
+  // Autofocus doesn't stick when the dialog mounts (portal steals focus).
+  // Do it imperatively after the dialog is fully open.
+  useEffect(() => {
+    if (!showCreateLayoutPrompt) return
+    const t = setTimeout(() => {
+      newLayoutInputRef.current?.focus()
+      newLayoutInputRef.current?.select()
+    }, 50)
+    return () => clearTimeout(t)
+  }, [showCreateLayoutPrompt])
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   // Reason-specific explainer (click i-icon next to inferred badge, OR
@@ -1287,10 +1298,10 @@ function OrgOverview({
             Give this layout a name so you can find it again.
           </p>
           <TextInput
+            ref={newLayoutInputRef}
             value={newLayoutName}
             onChange={(e) => setNewLayoutName((e.target as HTMLInputElement).value)}
             placeholder="e.g. Customer view"
-            autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newLayoutName.trim()) {
                 const positions = readNodePositions(graphRef.current)

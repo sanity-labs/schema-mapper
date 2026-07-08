@@ -183,11 +183,21 @@ export function useCuratedLayoutSession({
       name,
       {viewKey, view},
       currentUserId,
+      focusState,
     )
     setActiveLayout(created)
     setIsUnlocked(true) // newly-created starts editable
     setSaveState('saved')
     setLastSavedAt(Date.now())
+    // Belt-and-braces: force focus to persist across the create transition.
+    // Without this, effect ordering in the child + emit-up race on parent's
+    // graphState can lose focus even though the doc was created with the
+    // right lastFocus. Bumping restoreFocusVersion re-fires handleFocus
+    // imperatively after the new activeLayout has propagated.
+    if (focusState) {
+      setPendingFocusRestore(focusState)
+      setFocusRestoreVersion((v) => v + 1)
+    }
     return created
   }, [list, viewKey, currentUserId, focusState])
 
