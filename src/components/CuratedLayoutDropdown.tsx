@@ -1,7 +1,8 @@
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
-import {Save, Loader2, CheckCircle2, XCircle} from 'lucide-react'
+import {PiTreeStructure} from 'react-icons/pi'
+import {Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 interface CuratedLayoutDropdownProps {
@@ -192,7 +193,7 @@ export function CuratedLayoutDropdown({
           </span>
         )}
         {!activeLayout && (
-          <Save className="w-3.5 h-3.5 opacity-70" strokeWidth={2} aria-hidden="true" />
+          <PiTreeStructure className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
         )}
         <span>{tabLabel}</span>
       </button>
