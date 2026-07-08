@@ -6,8 +6,8 @@ import {Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 /**
- * SA-owned layouts shared with the customer render as read-only.
- * A layout is "SA-shared" when scope === 'internal' AND sharedWithCustomer === true.
+ * Layouts shared by your Sanity team (scope === 'internal' &&
+ * sharedWithCustomer === true) render as read-only.
  * The customer app filters these via the worker but we double-check here.
  */
 function isSAShared(l: CuratedLayoutSummary): boolean {
@@ -123,6 +123,8 @@ export function CuratedLayoutDropdown({
   // Selected: active layout wins; otherwise show "Saved Layouts"
   const tabLabel = activeLayout ? `Layout: ${activeLayout.name}` : 'Saved Layouts'
   const tabSelected = Boolean(activeLayoutId)
+  const layoutCount = layouts.length
+  const hasTeamShared = layouts.some(isSAShared)
 
   const savedIndicatorText = renderSavedIndicator(saveState, lastSavedAt)
 
@@ -205,6 +207,23 @@ export function CuratedLayoutDropdown({
           <PiTreeStructure className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
         )}
         <span>{tabLabel}</span>
+        {/* Count badge — only when not showing a specific active layout */}
+        {!activeLayout && layoutCount > 0 && (
+          <span
+            className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[0.65rem] font-medium rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+            aria-label={`${layoutCount} saved layout${layoutCount === 1 ? '' : 's'}`}
+          >
+            {layoutCount}
+          </span>
+        )}
+        {/* Team-shared indicator — always shown when any layout is shared, so users know something's waiting */}
+        {!activeLayout && hasTeamShared && (
+          <GoGift
+            className="ml-0.5 text-sm text-purple-600 dark:text-purple-400"
+            aria-label="Shared by your Sanity team"
+            title="Something has been shared with you by your Sanity team"
+          />
+        )}
       </button>
 
       {open && (
@@ -242,13 +261,13 @@ export function CuratedLayoutDropdown({
                     if ((e.target as HTMLElement).closest('.dropdown-action')) return
                     onSelect(l._id)
                   }}
-                  title={saShared ? 'Shared by your Sanity SA — read-only' : undefined}
+                  title={saShared ? 'Shared by your Sanity team — read-only' : undefined}
                 >
-                  {/* Lock/unlock icon (SA-shared: purple gift icon instead) */}
+                  {/* Lock/unlock icon (team-shared: purple gift icon instead) */}
                   {saShared ? (
                     <span
                       className="p-0.5 flex-shrink-0 text-purple-600 dark:text-purple-400"
-                      aria-label="Shared by your Sanity SA"
+                      aria-label="Shared by your Sanity team"
                     >
                       <GoGift className="text-sm" />
                     </span>
@@ -271,7 +290,7 @@ export function CuratedLayoutDropdown({
                     </button>
                   )}
 
-                  {/* Name (or rename input). SA-shared: no rename. */}
+                  {/* Name (or rename input). Team-shared: no rename. */}
                   {isRenaming && !saShared ? (
                     <input
                       autoFocus
@@ -287,7 +306,7 @@ export function CuratedLayoutDropdown({
                   ) : (
                     <div
                       className="flex-1 min-w-0 truncate select-none"
-                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}${saShared ? ' (shared by your Sanity SA)' : ''}`}
+                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}${saShared ? ' (shared by your Sanity team)' : ''}`}
                       onDoubleClick={(e) => {
                         if (saShared) return
                         e.stopPropagation()
@@ -297,13 +316,13 @@ export function CuratedLayoutDropdown({
                       {l.name}
                       {saShared && (
                         <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-medium">
-                          SA
+                          Team
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Row action icons — hidden for SA-shared layouts */}
+                  {/* Row action icons — hidden for team-shared layouts (customer can't edit) */}
                   {!saShared && (isConfirmingDelete ? (
                     <div className="flex items-center gap-0.5 dropdown-action">
                       <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
