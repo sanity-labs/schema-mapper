@@ -261,6 +261,14 @@ function OrgOverview({
   // ---- Curated Layouts session ----
   const curatedScope = useMemo(() => {
     if (!orgId || !selectedProjectId || !selectedDatasetName) return null
+    // Resolve the workspace label (matches what's sent in submission payloads
+    // and what shows in the "Schema:" tab row) from the selected manifest doc
+    // id. The customer app tracks selection by manifest _id (like
+    // "_.schemas.atlas") but the scope key uses the display name (like "Atlas")
+    // so it matches the internal app's submission.payload.workspace.
+    const selectedSchemaWorkspace = selectedSchemaId
+      ? deployedSchemas?.find((s) => s.id === selectedSchemaId)?.name ?? undefined
+      : undefined
     return {
       orgId,
       projectId: selectedProjectId,
@@ -271,9 +279,9 @@ function OrgOverview({
       // matching. Multi-schema datasets get proper per-schema isolation and
       // ignore legacy schemaId-less docs — no way to know which workspace they
       // belonged to.
-      schemaId: selectedSchemaId ?? undefined,
+      schemaId: selectedSchemaWorkspace,
     }
-  }, [orgId, selectedProjectId, selectedDatasetName, selectedSchemaId])
+  }, [orgId, selectedProjectId, selectedDatasetName, selectedSchemaId, deployedSchemas])
 
   const focusStateForCurated = useMemo(() => {
     if (!graphState.focusedType) return null
