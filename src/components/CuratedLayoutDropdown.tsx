@@ -219,7 +219,7 @@ export function CuratedLayoutDropdown({
         {!activeLayout && (
           <PiTreeStructure className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
         )}
-        <span>{tabLabel}</span>
+        <span className="truncate max-w-[220px]" title={tabLabel}>{tabLabel}</span>
         {/* Count badge — only when not showing a specific active layout */}
         {!activeLayout && layoutCount > 0 && (
           <span
