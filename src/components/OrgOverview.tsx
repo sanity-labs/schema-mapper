@@ -1006,6 +1006,7 @@ function OrgOverview({
                       onToggleLock={curatedSession.toggleLock}
                       saveState={curatedSession.saveState}
                       lastSavedAt={curatedSession.lastSavedAt}
+                      onRefresh={curatedSession.refresh}
                     />
                   )}
                   <ExportDropdown

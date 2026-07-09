@@ -28,6 +28,10 @@ interface CuratedLayoutDropdownProps {
   /** Save state indicator shown when active + unlocked */
   readonly saveState?: 'idle' | 'saving' | 'saved' | 'error'
   readonly lastSavedAt?: number | null
+  /** Optional: refresh the layouts list from the server. Called when the
+   *  user opens the dropdown so they see anything shared/renamed/deleted
+   *  by other users (e.g. an SA sharing a team layout) without a page reload. */
+  readonly onRefresh?: () => void | Promise<void>
 }
 
 /**
@@ -55,6 +59,7 @@ export function CuratedLayoutDropdown({
   onToggleLock,
   saveState = 'idle',
   lastSavedAt,
+  onRefresh,
 }: CuratedLayoutDropdownProps) {
   const [open, setOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -172,7 +177,13 @@ export function CuratedLayoutDropdown({
       )}
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen((o) => {
+          const next = !o
+          // Refresh on OPEN — background fire-and-forget so the dropdown
+          // opens instantly and the list refreshes as state updates.
+          if (next && onRefresh) void onRefresh()
+          return next
+        })}
         aria-controls="curated-layout-menu"
         aria-expanded={open}
         className={`flex items-center gap-1.5 pl-2 pr-2.5 py-1 text-sm rounded-md transition-colors ${
