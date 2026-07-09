@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex, TextInput } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
+import { Badge, SchemaGraph, ExportDropdown, InfoDialog, SanityLogoIcon } from '@sanity-labs/schema-mapper-core'
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { useCuratedLayoutSession } from '../hooks/useCuratedLayoutSession'
@@ -721,7 +721,7 @@ function OrgOverview({
   // ---- Export menu items (enterprise Send to Sanity) ----
   const exportMenuItems: ExportMenuItem[] | undefined = isEnterprise ? [{
     key: 'send-to-sanity',
-    label: <><GoStarFill /> Send to Sanity →</>,
+    label: <><SanityLogoIcon className="w-3.5 h-3.5" /> Send to Sanity →</>,
     onClick: () => setShowSendDialog(true),
     className: 'w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors',
     dividerBefore: true,
@@ -735,7 +735,7 @@ function OrgOverview({
           <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300"><GoStarFill />Enterprise</span>}<span>·</span></>}
+          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300"><SanityLogoIcon className="w-3 h-3" />Enterprise</span>}<span>·</span></>}
           <span>
             {formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}
             {isCheckingAccess && '…'}

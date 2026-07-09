@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useMemo} from 'react'
 import {Dialog, Box, Text, Stack, Flex, Button} from '@sanity/ui'
-import {GoStarFill, GoCheckCircleFill, GoAlertFill} from 'react-icons/go'
+import {GoCheckCircleFill, GoAlertFill} from 'react-icons/go'
+import {SanityLogoIcon} from '@sanity-labs/schema-mapper-core'
 
 interface SendToSanityDialogProps {
   readonly open: boolean
@@ -236,7 +237,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                   onClick={handleSend}
                   className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
-                  <GoStarFill size={14} />
+                  <SanityLogoIcon className="w-3.5 h-3.5" />
                   Try Again
                 </button>
               ) : (
