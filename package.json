@@ -1,7 +1,7 @@
 {
   "name": "schema-mapper",
   "private": true,
-  "version": "1.30.5",
+  "version": "1.30.6",
   "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",
@@ -16,7 +16,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^1.1.0",
     "@react-pdf/renderer": "^4.3.2",
-    "@sanity-labs/schema-mapper-core": "github:sanity-labs/schema-mapper-core#1fa1b464a431f60d9cef5ea3bfdf279bc984dd33",
+    "@sanity-labs/schema-mapper-core": "github:sanity-labs/schema-mapper-core#ef31a40d394caf3e2faeb69d9fe7bcacf16c964b",
     "@sanity/icons": "^3.7.4",
     "@sanity/sdk": "^2.5.0",
     "@sanity/sdk-react": "^2.5.0",

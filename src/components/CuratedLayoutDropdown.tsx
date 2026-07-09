@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX, GoGift} from 'react-icons/go'
+import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
+import {SanityLogoIcon} from '@sanity-labs/schema-mapper-core'
 import {PiTreeStructure} from 'react-icons/pi'
 import {Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
@@ -188,7 +189,7 @@ export function CuratedLayoutDropdown({
             aria-label="Shared by your Sanity team"
             title="Shared by your Sanity team — read-only"
           >
-            <GoGift className="text-sm" />
+            <SanityLogoIcon className="w-3.5 h-3.5" />
           </span>
         )}
         {activeLayout && !activeIsTeamShared && (
@@ -230,8 +231,8 @@ export function CuratedLayoutDropdown({
         )}
         {/* Team-shared indicator — always shown when any layout is shared, so users know something's waiting */}
         {!activeLayout && hasTeamShared && (
-          <GoGift
-            className="ml-0.5 text-sm text-purple-600 dark:text-purple-400"
+          <SanityLogoIcon
+            className="ml-0.5 w-3.5 h-3.5 text-purple-600 dark:text-purple-400"
             aria-label="Shared by your Sanity team"
             title="Something has been shared with you by your Sanity team"
           />
@@ -281,7 +282,7 @@ export function CuratedLayoutDropdown({
                       className="p-0.5 flex-shrink-0 text-purple-600 dark:text-purple-400"
                       aria-label="Shared by your Sanity team"
                     >
-                      <GoGift className="text-sm" />
+                      <SanityLogoIcon className="w-3.5 h-3.5" />
                     </span>
                   ) : (
                     <button
