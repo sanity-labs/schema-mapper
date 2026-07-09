@@ -99,7 +99,7 @@ export function useCuratedLayoutSession({
     setPendingFocusRestore(null)
     setFocusRestoreVersion((v) => v + 1)
     setCuratedRestoreVersion((v) => v + 1)
-  }, [scope?.orgId, scope?.projectId, scope?.dataset])
+  }, [scope?.orgId, scope?.projectId, scope?.dataset, scope?.schemaId])
 
   // --- Selection ---
 

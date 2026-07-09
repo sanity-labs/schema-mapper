@@ -265,11 +265,15 @@ function OrgOverview({
       orgId,
       projectId: selectedProjectId,
       dataset: selectedDatasetName,
+      // When the dataset has multiple deployed schemas (multi-workspace deploys),
+      // scope layouts to the currently-selected one. Single-schema datasets pass
+      // undefined, so their existing legacy docs (saved without schemaId) keep
+      // matching. Multi-schema datasets get proper per-schema isolation and
+      // ignore legacy schemaId-less docs — no way to know which workspace they
+      // belonged to.
+      schemaId: selectedSchemaId ?? undefined,
     }
-    // Workspace intentionally NOT in the scope key. Sanity workspaces are
-    // Studio config only; the deployed schema manifest is per (project, dataset).
-    // One curated-layouts list per (org, project, dataset).
-  }, [orgId, selectedProjectId, selectedDatasetName])
+  }, [orgId, selectedProjectId, selectedDatasetName, selectedSchemaId])
 
   const focusStateForCurated = useMemo(() => {
     if (!graphState.focusedType) return null
