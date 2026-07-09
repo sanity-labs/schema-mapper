@@ -145,14 +145,18 @@ function computeNavMaxHeight(
   navigationStackLength: number,
   navCollapsed: boolean,
   collapseEnabled: boolean,
-): number {
-  if (navigationStackLength > 0) return 0
-  if (navCollapsed && collapseEnabled) return 42
-  return 500
+): string {
+  if (navigationStackLength > 0) return '0px'
+  if (navCollapsed && collapseEnabled) return '42px'
+  // Expanded: cap at viewport height so the collapse animation still works,
+  // but nav gets whatever it actually needs. Sanity org has dozens of
+  // projects that wrap to many rows. Graph below is flex-1 min-h-0 and
+  // shrinks accordingly.
+  return '100vh'
 }
 
 function computeGraphContainerClass(navigationStackLength: number, isGlobalNav: boolean): string {
-  const base = 'flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden'
+  const base = 'flex-1 min-h-0 mb-[30px] rounded-lg overflow-hidden'
   if (navigationStackLength === 0) return `${base} border`
   const accentColor = isGlobalNav
     ? 'border-purple-300 dark:border-purple-700'
@@ -261,15 +265,27 @@ function OrgOverview({
   // ---- Curated Layouts session ----
   const curatedScope = useMemo(() => {
     if (!orgId || !selectedProjectId || !selectedDatasetName) return null
+    // Resolve the workspace label (matches what's sent in submission payloads
+    // and what shows in the "Schema:" tab row) from the selected manifest doc
+    // id. The customer app tracks selection by manifest _id (like
+    // "_.schemas.atlas") but the scope key uses the display name (like "Atlas")
+    // so it matches the internal app's submission.payload.workspace.
+    const selectedSchemaWorkspace = selectedSchemaId
+      ? deployedSchemas?.find((s) => s.id === selectedSchemaId)?.name ?? undefined
+      : undefined
     return {
       orgId,
       projectId: selectedProjectId,
       dataset: selectedDatasetName,
+      // When the dataset has multiple deployed schemas (multi-workspace deploys),
+      // scope layouts to the currently-selected one. Single-schema datasets pass
+      // undefined, so their existing legacy docs (saved without schemaId) keep
+      // matching. Multi-schema datasets get proper per-schema isolation and
+      // ignore legacy schemaId-less docs — no way to know which workspace they
+      // belonged to.
+      schemaId: selectedSchemaWorkspace,
     }
-    // Workspace intentionally NOT in the scope key. Sanity workspaces are
-    // Studio config only; the deployed schema manifest is per (project, dataset).
-    // One curated-layouts list per (org, project, dataset).
-  }, [orgId, selectedProjectId, selectedDatasetName])
+  }, [orgId, selectedProjectId, selectedDatasetName, selectedSchemaId, deployedSchemas])
 
   const focusStateForCurated = useMemo(() => {
     if (!graphState.focusedType) return null
@@ -755,7 +771,7 @@ function OrgOverview({
           {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
           <div
             ref={navRef}
-            className="overflow-hidden transition-all duration-300 ease-in-out"
+            className="overflow-hidden transition-all duration-300 ease-in-out flex-shrink-0"
             style={{ maxHeight: computeNavMaxHeight(navigationStack.length, navCollapsed, collapseEnabled) }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (
@@ -1087,6 +1103,10 @@ function OrgOverview({
                     : null
                 }
                 curatedEditable={curatedSession.isUnlocked}
+                curatedReadOnly={
+                  curatedSession.activeLayout?.scope === 'internal' &&
+                  curatedSession.activeLayout?.sharedWithCustomer === true
+                }
                 onCuratedDrag={(positions) => {
                   const edgeStyle = graphState.edgeStyle || curatedSession.activeView?.edgeStyle || 'bezier'
                   const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1

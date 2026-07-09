@@ -27,6 +27,12 @@ export type CuratedLayout = CuratedLayoutSummary & {
   orgId: string
   projectId: string
   dataset: string
+  /**
+   * When the dataset has multiple deployed schemas (multi-workspace deploys),
+   * this pins the layout to one specific schema. Absent for single-schema
+   * datasets and for legacy docs saved before this field existed.
+   */
+  schemaId?: string
   views: Record<string, CuratedView>
   /**
    * Last-active focus for this layout. When the user re-selects the layout,
@@ -40,6 +46,12 @@ export type CuratedScope = {
   orgId: string
   projectId: string
   dataset: string
+  /**
+   * When set, layouts are scoped to a specific deployed schema (workspace).
+   * When null/undefined, only schemaId-less legacy docs are matched — used
+   * for single-schema datasets where there's no ambiguity.
+   */
+  schemaId?: string | null
 }
 
 /**
@@ -62,7 +74,7 @@ type State = {
 }
 
 const scopeKey = (s: CuratedScope) =>
-  `${s.orgId}::${s.projectId}::${s.dataset}`
+  `${s.orgId}::${s.projectId}::${s.dataset}::${s.schemaId ?? '_'}`
 
 /**
  * List curated layouts for the given scope. Also exposes CRUD helpers that
@@ -82,6 +94,7 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
       url.searchParams.set('orgId', scope.orgId)
       url.searchParams.set('projectId', scope.projectId)
       url.searchParams.set('dataset', scope.dataset)
+      if (scope.schemaId) url.searchParams.set('schemaId', scope.schemaId)
       // Explicit — matches the worker default but insulates against later drift.
       url.searchParams.set('scope', 'customer')
       const res = await fetch(url.toString())
@@ -113,7 +126,10 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
     ) => {
       if (!scope) throw new Error('No scope')
       const body = {
-        ...scope,
+        orgId: scope.orgId,
+        projectId: scope.projectId,
+        dataset: scope.dataset,
+        ...(scope.schemaId ? {schemaId: scope.schemaId} : {}),
         name,
         createdBy,
         views: {[initialView.viewKey]: initialView.view},
