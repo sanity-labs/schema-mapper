@@ -348,23 +348,29 @@ function OrgOverview({
     return [...frequent, ...rest]
   }, [projects, isFrequent, visits])
 
-  // ---- Projects-section expand/collapse (when >2 rows) ----
+  // ---- Projects-section expand/collapse (when >3 rows) ----
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [projectsOverflow, setProjectsOverflow] = useState(false)
   const projectsRowRef = useRef<HTMLDivElement>(null)
+  // Recompute on nav open/close, list length, and expansion toggle.
+  // ResizeObserver alone doesn't cover the "same-size remount" case
+  // (re-entering after visiting a project), so we also measure on
+  // relevant deps.
   useEffect(() => {
     const el = projectsRowRef.current
     if (!el) return
-    // Only relevant when the section is collapsed — measure to decide
-    // whether "Show all" is worth showing.
     let raf: number | null = null
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       if (raf !== null) cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // scrollHeight > clientHeight means content is clipped by max-height
+        // clientHeight=0 means the container is currently collapsed;
+        // ignore that measurement — it will re-fire when it opens.
+        if (el.clientHeight === 0) return
         setProjectsOverflow(el.scrollHeight > el.clientHeight + 2)
       })
-    })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => {
       observer.disconnect()
@@ -856,13 +862,14 @@ function OrgOverview({
           <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
             <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
-              <div className="flex items-start gap-2">
-                <div
-                  ref={projectsRowRef}
-                  className="flex-1 min-w-0 overflow-hidden transition-[max-height] duration-200"
-                  style={{ maxHeight: showAllProjects ? '100vh' : 'calc(2 * (28px + 4px) + 2px)' }}
-                >
-                <TabList space={1}>
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <div
+                    ref={projectsRowRef}
+                    className="overflow-hidden transition-[max-height] duration-200"
+                    style={{ maxHeight: showAllProjects ? '100vh' : 'calc(3 * (28px + 4px) + 2px)' }}
+                  >
+                    <TabList space={1}>
                   {orderedProjects.map((project, idx) => {
                     const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     const isFreq = isFrequent(project.id)
@@ -883,8 +890,8 @@ function OrgOverview({
                         >
                           {isFreq && (
                             <GoStarFill
-                              className="absolute left-1.5 top-1/2 -translate-y-1/2 text-amber-500 dark:text-amber-400 pointer-events-none"
-                              style={{ fontSize: 12 }}
+                              className="mr-1 shrink-0"
+                              style={{ fontSize: 13, color: '#f59e0b' /* amber-500 */ }}
                               aria-hidden="true"
                             />
                           )}
@@ -919,14 +926,15 @@ function OrgOverview({
                   })}
                 </TabList>
                 </div>
-                {(projectsOverflow || showAllProjects) && (
-                  <button
-                    onClick={() => setShowAllProjects(v => !v)}
-                    className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    {showAllProjects ? 'Show fewer' : 'Show all'}
-                  </button>
-                )}
+                  {(projectsOverflow || showAllProjects) && (
+                    <button
+                      onClick={() => setShowAllProjects(v => !v)}
+                      className="self-start mt-1 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      {showAllProjects ? 'Show fewer' : 'Show all'}
+                    </button>
+                  )}
+                </div>
                 {isCheckingAccess && projects.length === 0 && (
                   <div className="flex items-center gap-2 mt-[3px]">
                     <Spinner muted style={{width: 14, height: 14}} />
