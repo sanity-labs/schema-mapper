@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft, GoStarFill } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft, GoStarFill, GoChevronDown, GoChevronUp } from 'react-icons/go'
 import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
@@ -352,10 +352,8 @@ function OrgOverview({
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [projectsOverflow, setProjectsOverflow] = useState(false)
   const projectsRowRef = useRef<HTMLDivElement>(null)
-  // Recompute on nav open/close, list length, and expansion toggle.
-  // ResizeObserver alone doesn't cover the "same-size remount" case
-  // (re-entering after visiting a project), so we also measure on
-  // relevant deps.
+  // Row height: 28px tab + 4px vertical gap. 3-row cap:
+  const PROJECTS_COLLAPSED_MAX_PX = 3 * (28 + 4) + 2
   useEffect(() => {
     const el = projectsRowRef.current
     if (!el) return
@@ -363,10 +361,11 @@ function OrgOverview({
     const measure = () => {
       if (raf !== null) cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // clientHeight=0 means the container is currently collapsed;
-        // ignore that measurement — it will re-fire when it opens.
-        if (el.clientHeight === 0) return
-        setProjectsOverflow(el.scrollHeight > el.clientHeight + 2)
+        // scrollHeight is full content height regardless of max-height,
+        // so we can measure against the fixed collapsed cap directly.
+        // This avoids the mid-transition ResizeObserver loop that
+        // comparing scrollHeight to clientHeight would cause.
+        setProjectsOverflow(el.scrollHeight > PROJECTS_COLLAPSED_MAX_PX + 2)
       })
     }
     measure()
@@ -376,7 +375,7 @@ function OrgOverview({
       observer.disconnect()
       if (raf !== null) cancelAnimationFrame(raf)
     }
-  }, [orderedProjects.length, showAllProjects])
+  }, [orderedProjects.length])
 
   // ---- Media library / inaccessible project handlers ----
   const handleMediaLibraryClick = useCallback((fieldName: string, typeName: string) => {
@@ -867,7 +866,7 @@ function OrgOverview({
                   <div
                     ref={projectsRowRef}
                     className="overflow-hidden transition-[max-height] duration-200"
-                    style={{ maxHeight: showAllProjects ? '100vh' : 'calc(3 * (28px + 4px) + 2px)' }}
+                    style={{ maxHeight: showAllProjects ? '100vh' : `${PROJECTS_COLLAPSED_MAX_PX}px` }}
                   >
                     <TabList space={1}>
                   {orderedProjects.map((project, idx) => {
@@ -888,13 +887,6 @@ function OrgOverview({
                           className="relative inline-flex items-center"
                           data-frequent={isFreq ? 'true' : undefined}
                         >
-                          {isFreq && (
-                            <GoStarFill
-                              className="mr-1 shrink-0"
-                              style={{ fontSize: 13, color: '#f59e0b' /* amber-500 */ }}
-                              aria-hidden="true"
-                            />
-                          )}
                           {!isLoading ? (
                             <Tooltip
                               content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
@@ -903,6 +895,9 @@ function OrgOverview({
                               <Tab
                                 aria-controls={`project-panel-${project.id}`}
                                 id={`project-tab-${project.id}`}
+                                icon={isFreq ? (
+                                  <GoStarFill style={{ color: '#f59e0b' /* amber-500 */ }} aria-hidden="true" />
+                                ) : undefined}
                                 label={project.displayName}
                                 selected={selectedProjectId === project.id}
                                 onClick={() => handleProjectSelect(project.id)}
@@ -912,6 +907,9 @@ function OrgOverview({
                             <Tab
                               aria-controls={`project-panel-${project.id}`}
                               id={`project-tab-${project.id}`}
+                              icon={isFreq ? (
+                                <GoStarFill style={{ color: '#f59e0b' }} aria-hidden="true" />
+                              ) : undefined}
                               label={project.displayName}
                               selected={selectedProjectId === project.id}
                               disabled
@@ -929,9 +927,10 @@ function OrgOverview({
                   {(projectsOverflow || showAllProjects) && (
                     <button
                       onClick={() => setShowAllProjects(v => !v)}
-                      className="self-start mt-1 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="self-start mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
-                      {showAllProjects ? 'Show fewer' : 'Show all'}
+                      {showAllProjects ? <GoChevronUp aria-hidden="true" /> : <GoChevronDown aria-hidden="true" />}
+                      {showAllProjects ? 'Collapse' : 'Expand'}
                     </button>
                   )}
                 </div>
