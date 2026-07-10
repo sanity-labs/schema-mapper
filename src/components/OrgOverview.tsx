@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft, GoStarFill, GoChevronDown, GoChevronUp } from 'react-icons/go'
 import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
@@ -10,6 +10,7 @@ import { Badge, SchemaGraph, ExportDropdown, InfoDialog, SanityLogoIcon } from '
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { useCuratedLayoutSession } from '../hooks/useCuratedLayoutSession'
+import { useProjectVisits } from '../hooks/useProjectVisits'
 import { CuratedLayoutDropdown } from './CuratedLayoutDropdown'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
@@ -135,6 +136,10 @@ interface OrgOverviewProps {
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
   readonly schemasCache?: Map<string, DiscoveredType[]>
   readonly deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  // Dataset counts per project (populated by useProjectAccess) — used to
+  // sort the non-frequent block in the sidebar by count DESC. Projects
+  // without a count yet fall back to alphabetical order.
+  readonly datasetCounts?: Map<string, number>
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +224,7 @@ function OrgOverview({
   onSchemaSelect,
   schemasCache,
   deployedSchemasCache,
+  datasetCounts,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -326,6 +332,77 @@ function OrgOverview({
 
   // ---- Accessible project IDs for cross-dataset lozenge rendering ----
   const accessibleProjectIds = useMemo(() => new Set(projects.map(p => p.id)), [projects])
+
+  // ---- Project visit frequency (for pinning frequent projects) ----
+  const { recordVisit, isFrequent, visits } = useProjectVisits()
+  const handleProjectSelect = useCallback((projectId: string) => {
+    recordVisit(projectId)
+    onProjectSelect(projectId)
+  }, [recordVisit, onProjectSelect])
+
+  // Frequent projects at the top (by visit count desc), rest keeps its
+  // upstream alphabetical order.
+  const orderedProjects = useMemo(() => {
+    const frequent: typeof projects = []
+    const rest: typeof projects = []
+    for (const p of projects) {
+      if (isFrequent(p.id)) frequent.push(p)
+      else rest.push(p)
+    }
+    frequent.sort((a, b) => (visits[b.id]?.count ?? 0) - (visits[a.id]?.count ?? 0))
+    // Sort the non-frequent block by dataset count DESC, alphabetical tiebreak.
+    // Projects without a count yet (still checking, or /datasets 403'd) fall
+    // through to alphabetical — their sort key is -1 which slots them AFTER
+    // any project with 0 datasets (which is still a valid answer).
+    if (datasetCounts && datasetCounts.size > 0) {
+      rest.sort((a, b) => {
+        const ca = datasetCounts.has(a.id) ? datasetCounts.get(a.id)! : -1
+        const cb = datasetCounts.has(b.id) ? datasetCounts.get(b.id)! : -1
+        if (ca !== cb) return cb - ca
+        return a.displayName.localeCompare(b.displayName)
+      })
+    }
+    return [...frequent, ...rest]
+  }, [projects, isFrequent, visits, datasetCounts])
+
+  // ---- Projects-section expand/collapse (when >3 rows) ----
+  const [showAllProjects, setShowAllProjects] = useState(false)
+  const [projectsOverflow, setProjectsOverflow] = useState(false)
+  const projectsRowRef = useRef<HTMLDivElement>(null)
+  // Row: 28px tab + 4px vertical gap. Show 3 full rows + peek at the 4th
+  // (which is fully rendered but covered by a fade-out overlay).
+  const PROJECTS_ROW_PX = 28 + 4
+  const PROJECTS_VISIBLE_ROWS = 3 // 3 full rows + a peek row fully rendered but faded out
+  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 12
+  // Threshold for "there IS more content below" — if scrollHeight exceeds
+  // the room a 3-row cap would give, we have overflow worth expanding.
+  const PROJECTS_OVERFLOW_THRESHOLD_PX = 3 * PROJECTS_ROW_PX + 2
+  useEffect(() => {
+    const el = projectsRowRef.current
+    if (!el) return
+    let raf: number | null = null
+    let retryTimeouts: ReturnType<typeof setTimeout>[] = []
+    const measure = () => {
+      if (raf !== null) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const currentEl = projectsRowRef.current
+        if (!currentEl) return
+        setProjectsOverflow(currentEl.scrollHeight > PROJECTS_OVERFLOW_THRESHOLD_PX + 2)
+      })
+    }
+    measure()
+    // Retry after nav-collapse animation settles — the element can be
+    // observable but not yet laid out (scrollHeight=0) on mount / re-open.
+    retryTimeouts.push(setTimeout(measure, 60))
+    retryTimeouts.push(setTimeout(measure, 200))
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (raf !== null) cancelAnimationFrame(raf)
+      retryTimeouts.forEach(clearTimeout)
+    }
+  }, [orderedProjects.length])
 
   // ---- Media library / inaccessible project handlers ----
   const handleMediaLibraryClick = useCallback((fieldName: string, typeName: string) => {
@@ -811,41 +888,91 @@ function OrgOverview({
           <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
             <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
-              <div className="flex items-start gap-2">
-                <TabList space={1}>
-                  {projects.map(project => {
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div
+                    ref={projectsRowRef}
+                    className="relative overflow-hidden transition-[max-height] duration-200"
+                    style={{ maxHeight: showAllProjects ? '100vh' : `${PROJECTS_COLLAPSED_MAX_PX}px` }}
+                  >
+                    <TabList space={1}>
+                  {orderedProjects.map((project, idx) => {
                     const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
+                    const isFreq = isFrequent(project.id)
+                    // Separator between the pinned frequent block and the rest.
+                    const prev = idx > 0 ? orderedProjects[idx - 1] : null
+                    const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq
                     return (
-                      <span key={project.id} className="relative inline-flex">
-                        {!isLoading ? (
-                          <Tooltip
-                            content={<Text size={1} muted>{project.id}</Text>}
-                            placement="bottom"
-                          >
+                      <span key={project.id} className="inline-flex items-center gap-2">
+                        {showSeparator && (
+                          <span
+                            className="inline-block w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500 mx-1 shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span
+                          className="relative inline-flex items-center"
+                          data-frequent={isFreq ? 'true' : undefined}
+                        >
+                          {!isLoading ? (
+                            <Tooltip
+                              content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
+                              placement="bottom"
+                            >
+                              <Tab
+                                aria-controls={`project-panel-${project.id}`}
+                                id={`project-tab-${project.id}`}
+                                icon={isFreq ? (
+                                  <GoStarFill style={{ color: '#f59e0b' /* amber-500 */ }} aria-hidden="true" />
+                                ) : undefined}
+                                label={project.displayName}
+                                selected={selectedProjectId === project.id}
+                                onClick={() => handleProjectSelect(project.id)}
+                              />
+                            </Tooltip>
+                          ) : (
                             <Tab
                               aria-controls={`project-panel-${project.id}`}
                               id={`project-tab-${project.id}`}
+                              icon={isFreq ? (
+                                <GoStarFill style={{ color: '#f59e0b' }} aria-hidden="true" />
+                              ) : undefined}
                               label={project.displayName}
                               selected={selectedProjectId === project.id}
-                              onClick={() => onProjectSelect(project.id)}
+                              disabled
                             />
-                          </Tooltip>
-                        ) : (
-                          <Tab
-                            aria-controls={`project-panel-${project.id}`}
-                            id={`project-tab-${project.id}`}
-                            label={project.displayName}
-                            selected={selectedProjectId === project.id}
-                            disabled
-                          />
-                        )}
-                        {isLoading && (
-                          <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
-                        )}
+                          )}
+                          {isLoading && (
+                            <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
+                          )}
+                        </span>
                       </span>
                     )
                   })}
                 </TabList>
+                {/* Fade-out overlay covering the peek row when collapsed
+                    and there's more below. Also blocks pointer events on
+                    the peek row so users can't click a half-hidden tab. */}
+                {!showAllProjects && projectsOverflow && (
+                  <div
+                    className="pointer-events-auto absolute left-0 right-0 z-[5] bg-gradient-to-b from-white/30 to-white dark:from-[#101112]/30 dark:to-[#101112]"
+                    style={{ bottom: 0, height: '25px' }}
+                    aria-hidden="true"
+                  />
+                )}
+                </div>
+                  {(projectsOverflow || showAllProjects) && (
+                    <div className="pt-2 pb-2">
+                      <button
+                        onClick={() => setShowAllProjects(v => !v)}
+                        className="self-start inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        {showAllProjects ? <GoChevronUp aria-hidden="true" /> : <GoChevronDown aria-hidden="true" />}
+                        {showAllProjects ? 'Show fewer' : 'Show more'}
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {isCheckingAccess && projects.length === 0 && (
                   <div className="flex items-center gap-2 mt-[3px]">
                     <Spinner muted style={{width: 14, height: 14}} />

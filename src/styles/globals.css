@@ -38,3 +38,6 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   z-index: 1;
 }
+
+/* Frequent-project tab star sits inline before the Tab component
+   via an inline-flex wrapper (no CSS needed for positioning). */

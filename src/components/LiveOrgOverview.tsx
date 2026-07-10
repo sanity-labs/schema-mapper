@@ -90,6 +90,10 @@ interface State {
   phase: LoadingPhase
   // Access results per project
   accessResults: Map<string, {hasAccess: boolean | null; isChecking: boolean}>
+  // Dataset counts per project (for sidebar ordering — populated by
+  // useProjectAccess's parallel /datasets fetch). null / missing => still
+  // pending, sort falls back to alphabetical for that project.
+  datasetCounts: Map<string, number>
   // Datasets per project (loaded on demand when project tab clicked)
   datasets: Map<string, DatasetInfo[]>
   datasetsLoading: Set<string> // project IDs currently loading datasets
@@ -111,6 +115,7 @@ interface State {
 
 type Action =
   | {type: 'ACCESS_CHECKED'; projectId: string; hasAccess: boolean}
+  | {type: 'DATASET_COUNT_RESOLVED'; projectId: string; count: number}
   | {type: 'DATASETS_LOADING'; projectId: string}
   | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
   | {type: 'SCHEMA_LOADING'; key: string}
@@ -124,6 +129,7 @@ type Action =
 const initialState: State = {
   phase: 'checking_access',
   accessResults: new Map(),
+  datasetCounts: new Map(),
   datasets: new Map(),
   datasetsLoading: new Set(),
   schemas: new Map(),
@@ -147,6 +153,12 @@ function reducer(state: State, action: Action): State {
       const next = new Map(state.accessResults)
       next.set(action.projectId, {hasAccess: action.hasAccess, isChecking: false})
       return {...state, accessResults: next}
+    }
+
+    case 'DATASET_COUNT_RESOLVED': {
+      const next = new Map(state.datasetCounts)
+      next.set(action.projectId, action.count)
+      return {...state, datasetCounts: next}
     }
 
     case 'PHASE_READY':
@@ -407,6 +419,13 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   const handleAccessResult = useCallback(
     (projectId: string, hasAccess: boolean) => {
       dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess})
+    },
+    [],
+  )
+
+  const handleDatasetCount = useCallback(
+    (projectId: string, count: number) => {
+      dispatch({type: 'DATASET_COUNT_RESOLVED', projectId, count})
     },
     [],
   )
@@ -694,6 +713,36 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     return {accessibleProjects: accessible, lockedProjects: locked}
   }, [projects, state.accessResults, state.datasets, state.schemas, state.schemaSource, state.datasetsLoading])
 
+  // ---- Eager dataset-count fetch (for sidebar ordering) ----
+  // Runs a lightweight /projects/{id}/datasets fetch per accessible project
+  // so the sidebar can sort by dataset count. This is decoupled from the
+  // ProjectAccessChecker (which unmounts once /projects/{id} succeeds) and
+  // from the lazy fetchDatasetsForProject (which only fires on click).
+  const datasetCountFetchedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!client) return
+    const token = client.config().token
+    if (!token) return
+    for (const p of accessibleProjects) {
+      if (datasetCountFetchedRef.current.has(p.id)) continue
+      if (state.datasetCounts.has(p.id)) continue
+      datasetCountFetchedRef.current.add(p.id)
+      fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
+        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((datasets) => {
+          if (!Array.isArray(datasets)) return
+          const count = datasets.filter((d: {name?: string}) => d.name && !d.name.endsWith('-comments')).length
+          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
+        })
+        .catch(() => {
+          // Silent — /datasets can 401/403/404 (different ACL grants than
+          // /projects/{id}). Project falls back to alphabetical ordering.
+        })
+    }
+  }, [accessibleProjects, client, state.datasetCounts])
+
   // Derive loading states for the currently selected project/dataset
   const isDatasetsLoading = state.selectedProjectId
     ? state.datasetsLoading.has(state.selectedProjectId)
@@ -846,6 +895,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         onSchemaSelect={handleSchemaSelect}
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
+        datasetCounts={state.datasetCounts}
       />
     </>
   )
