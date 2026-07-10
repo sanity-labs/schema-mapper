@@ -293,16 +293,13 @@ function ProjectAccessChecker({
   projectId,
   client,
   onResult,
-  onDatasetCount,
 }: Readonly<{
   projectId: string
   client: SanityClient
   onResult: (projectId: string, hasAccess: boolean) => void
-  onDatasetCount: (projectId: string, count: number) => void
 }>) {
-  const {hasAccess, isChecking, datasetCount} = useProjectAccess(projectId, client)
+  const {hasAccess, isChecking} = useProjectAccess(projectId, client)
   const reportedRef = useRef(false)
-  const datasetCountReportedRef = useRef(false)
 
   useEffect(() => {
     if (!isChecking && hasAccess !== null && !reportedRef.current) {
@@ -310,13 +307,6 @@ function ProjectAccessChecker({
       onResult(projectId, hasAccess)
     }
   }, [isChecking, hasAccess, projectId, onResult])
-
-  useEffect(() => {
-    if (datasetCount !== null && !datasetCountReportedRef.current) {
-      datasetCountReportedRef.current = true
-      onDatasetCount(projectId, datasetCount)
-    }
-  }, [datasetCount, projectId, onDatasetCount])
 
   return null
 }
@@ -723,6 +713,36 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     return {accessibleProjects: accessible, lockedProjects: locked}
   }, [projects, state.accessResults, state.datasets, state.schemas, state.schemaSource, state.datasetsLoading])
 
+  // ---- Eager dataset-count fetch (for sidebar ordering) ----
+  // Runs a lightweight /projects/{id}/datasets fetch per accessible project
+  // so the sidebar can sort by dataset count. This is decoupled from the
+  // ProjectAccessChecker (which unmounts once /projects/{id} succeeds) and
+  // from the lazy fetchDatasetsForProject (which only fires on click).
+  const datasetCountFetchedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!client) return
+    const token = client.config().token
+    if (!token) return
+    for (const p of accessibleProjects) {
+      if (datasetCountFetchedRef.current.has(p.id)) continue
+      if (state.datasetCounts.has(p.id)) continue
+      datasetCountFetchedRef.current.add(p.id)
+      fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
+        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((datasets) => {
+          if (!Array.isArray(datasets)) return
+          const count = datasets.filter((d: {name?: string}) => d.name && !d.name.endsWith('-comments')).length
+          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
+        })
+        .catch(() => {
+          // Silent — /datasets can 401/403/404 (different ACL grants than
+          // /projects/{id}). Project falls back to alphabetical ordering.
+        })
+    }
+  }, [accessibleProjects, client, state.datasetCounts])
+
   // Derive loading states for the currently selected project/dataset
   const isDatasetsLoading = state.selectedProjectId
     ? state.datasetsLoading.has(state.selectedProjectId)
@@ -810,7 +830,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             >
               <Suspense fallback={null}>
                 <ResourceProvider projectId={p.id} fallback={null}>
-                  <ProjectAccessChecker projectId={p.id} client={client} onResult={handleAccessResult} onDatasetCount={handleDatasetCount} />
+                  <ProjectAccessChecker projectId={p.id} client={client} onResult={handleAccessResult} />
                 </ResourceProvider>
               </Suspense>
             </ErrorBoundary>

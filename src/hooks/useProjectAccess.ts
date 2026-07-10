@@ -8,8 +8,6 @@ interface ProjectAccessState {
   isChecking: boolean
   /** Error string if something went wrong. 'rate_limited' for 429s, descriptive string for network errors. `null` if no error. */
   error: string | null
-  /** Number of datasets on the project (used for sidebar ordering). `null` until the /datasets fetch resolves or if it fails. */
-  datasetCount: number | null
 }
 
 /**
@@ -69,7 +67,6 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [isChecking, setIsChecking] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [datasetCount, setDatasetCount] = useState<number | null>(null)
 
   // Store client in a ref to avoid it being an unstable dependency
   const clientRef = useRef(client)
@@ -80,7 +77,6 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
     setHasAccess(null)
     setIsChecking(true)
     setError(null)
-    setDatasetCount(null)
 
     const abortController = new AbortController()
 
@@ -106,31 +102,6 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
           setIsChecking(false)
           setError(null)
         }
-
-        // Kick off a parallel /datasets fetch to get the count for sidebar
-        // ordering. This is best-effort — failure or 401/403/404 (dataset-list
-        // permission denied even though project-read succeeded) simply leaves
-        // datasetCount as null, and the project falls through to alphabetical
-        // ordering in the sidebar.
-        try {
-          const dsRes = await fetch(`https://api.sanity.io/v2024-01-01/projects/${projectId}/datasets`, {
-            headers: {
-              Authorization: `Bearer ${config.token}`,
-              'Content-Type': 'application/json',
-            },
-            signal: abortController.signal,
-          })
-          if (!abortController.signal.aborted && dsRes.ok) {
-            const datasets = await dsRes.json()
-            if (Array.isArray(datasets)) {
-              // Filter out -comments datasets to match LiveOrgOverview's fetch
-              const count = datasets.filter((d: {name?: string}) => d.name && !d.name.endsWith('-comments')).length
-              setDatasetCount(count)
-            }
-          }
-        } catch {
-          // Silent — sort falls back to alphabetical for this project.
-        }
       } catch (err: unknown) {
         if (abortController.signal.aborted) return
         const outcome = classifyAccessError(err)
@@ -147,7 +118,7 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
     }
   }, [projectId])
 
-  return {hasAccess, isChecking, error, datasetCount}
+  return {hasAccess, isChecking, error}
 }
 
 export default useProjectAccess
