@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft, GoStarFill } from 'react-icons/go'
 import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
@@ -863,40 +863,57 @@ function OrgOverview({
                   style={{ maxHeight: showAllProjects ? '100vh' : 'calc(2 * (28px + 4px) + 2px)' }}
                 >
                 <TabList space={1}>
-                  {orderedProjects.map(project => {
+                  {orderedProjects.map((project, idx) => {
                     const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     const isFreq = isFrequent(project.id)
+                    // Separator between the pinned frequent block and the rest.
+                    const prev = idx > 0 ? orderedProjects[idx - 1] : null
+                    const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq
                     return (
-                      <span
-                        key={project.id}
-                        className="relative inline-flex"
-                        data-frequent={isFreq ? 'true' : undefined}
-                      >
-                        {!isLoading ? (
-                          <Tooltip
-                            content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
-                            placement="bottom"
-                          >
+                      <span key={project.id} className="inline-flex items-center gap-2">
+                        {showSeparator && (
+                          <span
+                            className="inline-block w-1 h-1 rounded-full bg-gray-400 dark:bg-gray-500 mx-1 shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span
+                          className="relative inline-flex items-center"
+                          data-frequent={isFreq ? 'true' : undefined}
+                        >
+                          {isFreq && (
+                            <GoStarFill
+                              className="absolute left-1.5 top-1/2 -translate-y-1/2 text-amber-500 dark:text-amber-400 pointer-events-none"
+                              style={{ fontSize: 12 }}
+                              aria-hidden="true"
+                            />
+                          )}
+                          {!isLoading ? (
+                            <Tooltip
+                              content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
+                              placement="bottom"
+                            >
+                              <Tab
+                                aria-controls={`project-panel-${project.id}`}
+                                id={`project-tab-${project.id}`}
+                                label={project.displayName}
+                                selected={selectedProjectId === project.id}
+                                onClick={() => handleProjectSelect(project.id)}
+                              />
+                            </Tooltip>
+                          ) : (
                             <Tab
                               aria-controls={`project-panel-${project.id}`}
                               id={`project-tab-${project.id}`}
                               label={project.displayName}
                               selected={selectedProjectId === project.id}
-                              onClick={() => handleProjectSelect(project.id)}
+                              disabled
                             />
-                          </Tooltip>
-                        ) : (
-                          <Tab
-                            aria-controls={`project-panel-${project.id}`}
-                            id={`project-tab-${project.id}`}
-                            label={project.displayName}
-                            selected={selectedProjectId === project.id}
-                            disabled
-                          />
-                        )}
-                        {isLoading && (
-                          <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
-                        )}
+                          )}
+                          {isLoading && (
+                            <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
+                          )}
+                        </span>
                       </span>
                     )
                   })}
