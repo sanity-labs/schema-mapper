@@ -13,7 +13,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 - **4 layouts** — Dagre, ELK Layered, Force, Clustered — with per-layout spacing control
 - **3 edge styles** — Bezier, Step (rounded corners, sibling offset), Straight — animated transitions
 - **Focus Mode** — Click any type to isolate its connections (1-hop) or expand to 2-hop. Orphaned references show clickable lozenges to navigate deeper. Back button retraces your path.
-- **Saved Layouts** — Name and save arrangements of the graph. Each layout captures positions, edge style, spacing, and remembers per-focus sub-views (so `customer:1` and `__full` have independent positions). Locked by default with an unlock prompt; auto-saves on drag while unlocked. Great for curating a story you can walk someone through.
+- **Saved Layouts** — Name and save arrangements of the graph. Each layout captures positions, edge style, spacing, and remembers per-focus sub-views (each focused view keeps its own positions, separate from the full graph). Locked by default with an unlock prompt; auto-saves on drag while unlocked. Great for curating a story you can walk someone through.
 - **Cross-dataset references** — Clickable lozenges for cross-dataset and global document references. Navigate to linked schemas across projects and datasets with full back-navigation.
 - **Search** — Live filter by type or field name
 - **Export** — Vector PDF (react-pdf), PNG (3x resolution), SVG — PDF includes structured metadata header with org, project, dataset info. PDF shows focus context when focused.
