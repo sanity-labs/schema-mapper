@@ -10,6 +10,7 @@ import { Badge, SchemaGraph, ExportDropdown, InfoDialog, SanityLogoIcon } from '
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { useCuratedLayoutSession } from '../hooks/useCuratedLayoutSession'
+import { useProjectVisits } from '../hooks/useProjectVisits'
 import { CuratedLayoutDropdown } from './CuratedLayoutDropdown'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
@@ -326,6 +327,50 @@ function OrgOverview({
 
   // ---- Accessible project IDs for cross-dataset lozenge rendering ----
   const accessibleProjectIds = useMemo(() => new Set(projects.map(p => p.id)), [projects])
+
+  // ---- Project visit frequency (for pinning frequent projects) ----
+  const { recordVisit, isFrequent, visits } = useProjectVisits()
+  const handleProjectSelect = useCallback((projectId: string) => {
+    recordVisit(projectId)
+    onProjectSelect(projectId)
+  }, [recordVisit, onProjectSelect])
+
+  // Frequent projects at the top (by visit count desc), rest keeps its
+  // upstream alphabetical order.
+  const orderedProjects = useMemo(() => {
+    const frequent: typeof projects = []
+    const rest: typeof projects = []
+    for (const p of projects) {
+      if (isFrequent(p.id)) frequent.push(p)
+      else rest.push(p)
+    }
+    frequent.sort((a, b) => (visits[b.id]?.count ?? 0) - (visits[a.id]?.count ?? 0))
+    return [...frequent, ...rest]
+  }, [projects, isFrequent, visits])
+
+  // ---- Projects-section expand/collapse (when >2 rows) ----
+  const [showAllProjects, setShowAllProjects] = useState(false)
+  const [projectsOverflow, setProjectsOverflow] = useState(false)
+  const projectsRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = projectsRowRef.current
+    if (!el) return
+    // Only relevant when the section is collapsed — measure to decide
+    // whether "Show all" is worth showing.
+    let raf: number | null = null
+    const observer = new ResizeObserver(() => {
+      if (raf !== null) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // scrollHeight > clientHeight means content is clipped by max-height
+        setProjectsOverflow(el.scrollHeight > el.clientHeight + 2)
+      })
+    })
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      if (raf !== null) cancelAnimationFrame(raf)
+    }
+  }, [orderedProjects.length, showAllProjects])
 
   // ---- Media library / inaccessible project handlers ----
   const handleMediaLibraryClick = useCallback((fieldName: string, typeName: string) => {
@@ -812,14 +857,24 @@ function OrgOverview({
             {/* ---- Project Tabs ---- */}
             <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
               <div className="flex items-start gap-2">
+                <div
+                  ref={projectsRowRef}
+                  className="flex-1 min-w-0 overflow-hidden transition-[max-height] duration-200"
+                  style={{ maxHeight: showAllProjects ? '100vh' : 'calc(2 * (28px + 4px) + 2px)' }}
+                >
                 <TabList space={1}>
-                  {projects.map(project => {
+                  {orderedProjects.map(project => {
                     const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
+                    const isFreq = isFrequent(project.id)
                     return (
-                      <span key={project.id} className="relative inline-flex">
+                      <span
+                        key={project.id}
+                        className="relative inline-flex"
+                        data-frequent={isFreq ? 'true' : undefined}
+                      >
                         {!isLoading ? (
                           <Tooltip
-                            content={<Text size={1} muted>{project.id}</Text>}
+                            content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
                             placement="bottom"
                           >
                             <Tab
@@ -827,7 +882,7 @@ function OrgOverview({
                               id={`project-tab-${project.id}`}
                               label={project.displayName}
                               selected={selectedProjectId === project.id}
-                              onClick={() => onProjectSelect(project.id)}
+                              onClick={() => handleProjectSelect(project.id)}
                             />
                           </Tooltip>
                         ) : (
@@ -846,6 +901,15 @@ function OrgOverview({
                     )
                   })}
                 </TabList>
+                </div>
+                {(projectsOverflow || showAllProjects) && (
+                  <button
+                    onClick={() => setShowAllProjects(v => !v)}
+                    className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    {showAllProjects ? 'Show fewer' : 'Show all'}
+                  </button>
+                )}
                 {isCheckingAccess && projects.length === 0 && (
                   <div className="flex items-center gap-2 mt-[3px]">
                     <Spinner muted style={{width: 14, height: 14}} />

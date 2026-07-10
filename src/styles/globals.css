@@ -38,3 +38,27 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   z-index: 1;
 }
+
+/* Frequent-project tabs: amber background to signal habitual use */
+[data-frequent="true"] button[data-ui="Tab"] {
+  background: rgb(255 251 235); /* amber-50 */
+  color: rgb(180 83 9); /* amber-700 */
+}
+[data-frequent="true"] button[data-ui="Tab"]:hover {
+  background: rgb(254 243 199); /* amber-100 */
+}
+[data-frequent="true"] button[data-ui="Tab"][data-selected] {
+  background: rgb(253 230 138); /* amber-200 */
+  color: rgb(146 64 14); /* amber-800 */
+}
+.dark [data-frequent="true"] button[data-ui="Tab"] {
+  background: rgb(69 26 3 / 0.35);
+  color: rgb(252 211 77); /* amber-300 */
+}
+.dark [data-frequent="true"] button[data-ui="Tab"]:hover {
+  background: rgb(69 26 3 / 0.55);
+}
+.dark [data-frequent="true"] button[data-ui="Tab"][data-selected] {
+  background: rgb(146 64 14 / 0.6);
+  color: rgb(254 243 199);
+}
