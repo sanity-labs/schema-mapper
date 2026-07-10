@@ -953,7 +953,7 @@ function OrgOverview({
                         className="self-start inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                       >
                         {showAllProjects ? <GoChevronUp aria-hidden="true" /> : <GoChevronDown aria-hidden="true" />}
-                        {showAllProjects ? 'Collapse' : 'Expand'}
+                        {showAllProjects ? 'Show fewer' : 'Show more'}
                       </button>
                     </div>
                   )}
