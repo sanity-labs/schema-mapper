@@ -539,9 +539,37 @@ function parseStudioSchema(
       }
 
       // Portable text field → leaf with friendly badge (see note in
-      // processFields for the same branch).
+      // processFields for the same branch). Also surface embed targets so
+      // the graph shows what the portable-text can include.
       if (raw.type && portableTextTypes.has(raw.type)) {
-        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
+        const ptEntry = schema.find((e: any) => e?.name === raw.type)
+        const ptOf: any[] = Array.isArray(ptEntry?.of) ? ptEntry.of : []
+        const embedTargets: string[] = []
+        for (const m of ptOf) {
+          if (!m || typeof m !== 'object') continue
+          if (m.type === 'reference' && Array.isArray(m.to)) {
+            for (const t of m.to) {
+              if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+            }
+            continue
+          }
+          if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+            if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+          }
+        }
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
+        }
         continue
       }
 
@@ -627,12 +655,41 @@ function parseStudioSchema(
 
       // Portable text field → leaf row with a friendly type label. These
       // are named types like `blockContent` / `simpleBlockContent` that have
-      // top-level `of: [...]` (array of blocks) and no `fields`. Without
-      // this branch they fall through to the named-object detection which
-      // fails (no fields map), then to the raw emit which shows the
-      // opaque type name as the badge.
+      // top-level `of: [...]` (array of blocks) and no `fields`. If the
+      // portable-text type's `of` also embeds references or named object
+      // types, we surface those as reference targets so the graph still
+      // shows the polymorphic connections (e.g. blockContent embedding
+      // reusableContentBlock, protip, gotcha etc). The badge stays
+      // 'portable text' — orphan lozenges + edges convey the embeds.
       if (raw.type && portableTextTypes.has(raw.type)) {
-        out.push({...mapped, type: 'portableText'})
+        const ptEntry = schema.find((e: any) => e?.name === raw.type)
+        const ptOf: any[] = Array.isArray(ptEntry?.of) ? ptEntry.of : []
+        const embedTargets: string[] = []
+        for (const m of ptOf) {
+          if (!m || typeof m !== 'object') continue
+          // Reference member: reference type with to: [{type: X}, ...]
+          if (m.type === 'reference' && Array.isArray(m.to)) {
+            for (const t of m.to) {
+              if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+            }
+            continue
+          }
+          // Named object member (e.g. protip, gotcha)
+          if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+            if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+          }
+        }
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, type: 'portableText'})
+        }
         continue
       }
 
