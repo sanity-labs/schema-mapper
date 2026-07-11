@@ -529,9 +529,7 @@ function parseStudioSchema(
         continue
       }
 
-      // Object field that's itself a named object type → emit a stub row
-      // for the container itself (so the renderer can show a chevron) then
-      // recurse into its children.
+      // Named non-document object type → container stub + recurse.
       if (
         raw.type &&
         objectTypeFields.has(raw.type) &&
@@ -542,7 +540,21 @@ function parseStudioSchema(
         continue
       }
 
-      // Array whose `of` is itself a named object type → stub + recurse with [] suffix.
+      // Inline anonymous object (has its own `fields` array, no named type) →
+      // container stub + walk fields inline. Recurse via a synthetic entry.
+      if (raw.type === 'object' && Array.isArray(raw.fields)) {
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object'})
+        // Walk inline fields directly (no named type to look up).
+        for (const child of raw.fields) {
+          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
+          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
+          const childQualified = `${qualifiedName}.${child.name}`
+          out.push({...childMapped, name: childQualified, parentPath: qualifiedName})
+        }
+        continue
+      }
+
+      // Array whose `of` is itself a named object type → container + recurse.
       if (raw.type === 'array' && Array.isArray(raw.of)) {
         const namedMembers = raw.of.filter(
           (m: any) =>
@@ -559,8 +571,13 @@ function parseStudioSchema(
               ),
             )
           }
+          continue
         }
       }
+
+      // Fall-through: primitive leaf (string, number, boolean, slug, image,
+      // datetime, etc.). Emit as-is so schema browsers see the full shape.
+      out.push({...mapped, name: qualifiedName, parentPath: pathPrefix})
     }
     return out
   }
@@ -593,6 +610,18 @@ function parseStudioSchema(
       ) {
         fields.push({...mapped, containerKind: 'object'})
         fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
+        continue
+      }
+
+      // Inline anonymous object — treat like a named object but walk `raw.fields`.
+      if (raw.type === 'object' && Array.isArray(raw.fields)) {
+        fields.push({...mapped, containerKind: 'object'})
+        for (const child of raw.fields) {
+          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
+          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
+          const childQualified = `${raw.name}.${child.name}`
+          fields.push({...childMapped, name: childQualified, parentPath: raw.name})
+        }
         continue
       }
 
