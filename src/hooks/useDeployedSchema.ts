@@ -525,32 +525,38 @@ function parseStudioSchema(
         mapped.isReference || mapped.isCrossDatasetReference || mapped.isInlineObject
 
       if (isRef) {
-        out.push({...mapped, name: qualifiedName})
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix})
         continue
       }
 
-      // Object field that's itself a named object type → recurse.
-      // `mapStudioField`'s `default` branch returns `type:'object'` for unknown
-      // type names, so we re-check the raw type here.
+      // Object field that's itself a named object type → emit a stub row
+      // for the container itself (so the renderer can show a chevron) then
+      // recurse into its children.
       if (
         raw.type &&
         objectTypeFields.has(raw.type) &&
         !documentTypeNames.has(raw.type)
       ) {
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object'})
         out.push(...flattenObjectTypeRefs(raw.type, qualifiedName, nextVisiting))
         continue
       }
 
-      // Array whose `of` is itself a named object type → recurse with [] suffix.
+      // Array whose `of` is itself a named object type → stub + recurse with [] suffix.
       if (raw.type === 'array' && Array.isArray(raw.of)) {
-        for (const member of raw.of) {
-          if (
-            member?.type &&
-            objectTypeFields.has(member.type) &&
-            !documentTypeNames.has(member.type)
-          ) {
+        const namedMembers = raw.of.filter(
+          (m: any) =>
+            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
+        )
+        if (namedMembers.length > 0) {
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'array'})
+          for (const member of namedMembers) {
             out.push(
-              ...flattenObjectTypeRefs(member.type, `${qualifiedName}[]`, nextVisiting),
+              ...flattenObjectTypeRefs(
+                member.type,
+                `${qualifiedName}[]`,
+                nextVisiting,
+              ),
             )
           }
         }
@@ -573,37 +579,43 @@ function parseStudioSchema(
     const fields: DiscoveredField[] = []
     for (const raw of filtered) {
       const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
-      fields.push(mapped)
 
-      // If this field is typed as a named non-document object type
-      // (e.g. `type: 'productCore'`), expand its nested ref-bearing fields
-      // onto this document so edges are drawn correctly. The plain object
-      // field itself stays in the row list (so the user can still see it).
       const visiting = new Set<string>([docType.name])
 
+      // If this field is typed as a named non-document object type
+      // (e.g. `type: 'productCore'`), stamp it as a container-object stub
+      // then expand its nested ref-bearing fields onto this document so
+      // edges are drawn correctly.
       if (
         raw.type &&
         objectTypeFields.has(raw.type) &&
         !documentTypeNames.has(raw.type)
       ) {
+        fields.push({...mapped, containerKind: 'object'})
         fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
         continue
       }
 
-      // Array of named non-document object types.
+      // Array of named non-document object types → container-array stub +
+      // recurse into each named-object member.
       if (raw.type === 'array' && Array.isArray(raw.of)) {
-        for (const member of raw.of) {
-          if (
-            member?.type &&
-            objectTypeFields.has(member.type) &&
-            !documentTypeNames.has(member.type)
-          ) {
+        const namedMembers = raw.of.filter(
+          (m: any) =>
+            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
+        )
+        if (namedMembers.length > 0) {
+          fields.push({...mapped, containerKind: 'array'})
+          for (const member of namedMembers) {
             fields.push(
               ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
             )
           }
+          continue
         }
       }
+
+      // Non-container field — push as-is.
+      fields.push(mapped)
     }
 
     return {
