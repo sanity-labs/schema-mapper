@@ -497,6 +497,41 @@ function parseStudioSchema(
   }
 
   /**
+   * Detects whether an array field's `of: [...]` shape identifies it as
+   * portable text (i.e. one of its members is `{type: 'block'}` or a
+   * span-shaped primitive). Called at the field level for INLINE portable
+   * text — named PT types like `blockContent` are handled via
+   * `portableTextTypes` above.
+   */
+  function isInlinePortableTextArray(rawField: any): boolean {
+    if (rawField?.type !== 'array' || !Array.isArray(rawField.of)) return false
+    return rawField.of.some((m: any) => m?.type === 'block' || m?.type === 'span')
+  }
+
+  /**
+   * Given the `of: [...]` of an array (inline PT or named PT), return the
+   * de-duplicated list of embed target type names — references + named
+   * object types. Used to surface polymorphic PT connections as
+   * referenceTargets on the row.
+   */
+  function collectEmbedTargets(ofArr: any[]): string[] {
+    const embedTargets: string[] = []
+    for (const m of ofArr) {
+      if (!m || typeof m !== 'object') continue
+      if (m.type === 'reference' && Array.isArray(m.to)) {
+        for (const t of m.to) {
+          if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+        }
+        continue
+      }
+      if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+        if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+      }
+    }
+    return embedTargets
+  }
+
+  /**
    * Recursively walk a named object type's fields and return only the
    * reference-bearing ones (direct refs, array-of-refs, cross-dataset refs,
    * inline object refs). Field names are prefixed with the parent path so
@@ -594,6 +629,27 @@ function parseStudioSchema(
           const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
           const childQualified = `${qualifiedName}.${child.name}`
           out.push({...childMapped, name: childQualified, parentPath: qualifiedName})
+        }
+        continue
+      }
+
+      // Inline portable text array → leaf with 'portable text' badge +
+      // surface embed targets (references + named object types inside
+      // `of`) so orphan lozenges / edges reveal what the PT can contain.
+      if (isInlinePortableTextArray(raw)) {
+        const embedTargets = collectEmbedTargets(raw.of)
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
         }
         continue
       }
@@ -718,6 +774,26 @@ function parseStudioSchema(
           const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
           const childQualified = `${raw.name}.${child.name}`
           out.push({...childMapped, name: childQualified, parentPath: raw.name})
+        }
+        continue
+      }
+
+      // Inline portable text array → leaf with 'portable text' badge +
+      // surface embed targets (see companion branch in flattener). Handles
+      // techCheckInNotes.notes-style fields: `type: 'array'` with
+      // `of: [{type: 'block'}, ...]` and no named PT wrapper.
+      if (isInlinePortableTextArray(raw)) {
+        const embedTargets = collectEmbedTargets(raw.of)
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, type: 'portableText'})
         }
         continue
       }
