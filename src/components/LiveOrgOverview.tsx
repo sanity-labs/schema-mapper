@@ -485,21 +485,19 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
           const status = err?.statusCode
-          if (status === 401 || status === 403 || status === 404) {
-            // We thought we had access (the /projects/{id} check returned 200),
-            // but /projects/{id}/datasets is actually denied. This happens for
-            // org-level read roles that don't include dataset-list permission.
-            // Retroactively move the project into the Locked list — the
-            // accessibleProjects/lockedProjects derivation re-buckets on every
-            // accessResults change.
-            dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess: false})
-            dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
-            return
-          }
-          // Genuine failure (500, network, etc.) — show empty dataset list
-          // and stash the error message.
+          // Show empty dataset list and stash the error. We used to also
+          // dispatch ACCESS_CHECKED{hasAccess:false} on 401/403/404 to
+          // retroactively lock the project, but that made clicked
+          // projects disappear from the list mid-session — a worse UX
+          // than showing "no datasets found". The eager /datasets fetch
+          // (which runs at load time for every accessible project) has
+          // already surfaced the access issue via count=-1; users who
+          // click into it should see the empty state, not have the tab
+          // vanish under their cursor.
           dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
-          dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
+          if (status !== 401 && status !== 403 && status !== 404) {
+            dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
+          }
         })
     },
     [client, projects],
