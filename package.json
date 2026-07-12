@@ -1,7 +1,7 @@
 {
   "name": "schema-mapper",
   "private": true,
-  "version": "1.32.0-expand-toggles.23",
+  "version": "1.32.0-expand-toggles.24",
   "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",

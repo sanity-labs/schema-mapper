@@ -1055,7 +1055,7 @@ function OrgOverview({
           {/* ---- Dataset Info Line ---- */}
           {selectedDataset && !isSchemasLoading && (
             <div
-              className="flex items-center gap-2 mt-3 py-2 text-sm flex-nowrap overflow-hidden min-w-0"
+              className="flex items-center gap-2 mt-3 py-2 text-sm flex-nowrap min-w-0"
               onMouseEnter={() => {
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
               }}
