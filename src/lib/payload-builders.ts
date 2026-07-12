@@ -80,6 +80,7 @@ type SerializedField = {
   type: string
   isReference?: boolean
   referenceTo?: string
+  referenceTargets?: string[]
   isArray?: boolean
   isInlineObject?: boolean
   isCrossDatasetReference?: boolean
@@ -87,12 +88,17 @@ type SerializedField = {
   crossDatasetProjectId?: string
   isGlobalReference?: boolean
   crossDatasetTooltip?: string
+  crossDatasetResourceType?: string
+  parentPath?: string
+  containerKind?: 'object' | 'array'
+  containerElementType?: string
 }
 
 type SerializedType = {
   name: string
   title?: string
   documentCount?: number
+  kind?: 'document' | 'object'
   fields: SerializedField[]
 }
 
@@ -102,6 +108,7 @@ export function serializeField(f: DiscoveredType['fields'][number]): SerializedF
     ...(f.title ? {title: f.title} : {}),
     type: f.type,
     ...(f.isReference ? {isReference: true, referenceTo: f.referenceTo} : {}),
+    ...(f.referenceTargets && f.referenceTargets.length > 0 ? {referenceTargets: f.referenceTargets} : {}),
     ...(f.isArray ? {isArray: true} : {}),
     ...(f.isInlineObject ? {isInlineObject: true, referenceTo: f.referenceTo} : {}),
     ...(f.isCrossDatasetReference
@@ -112,8 +119,12 @@ export function serializeField(f: DiscoveredType['fields'][number]): SerializedF
           referenceTo: f.referenceTo,
           ...(f.isGlobalReference ? {isGlobalReference: true} : {}),
           ...(f.crossDatasetTooltip ? {crossDatasetTooltip: f.crossDatasetTooltip} : {}),
+          ...(f.crossDatasetResourceType ? {crossDatasetResourceType: f.crossDatasetResourceType} : {}),
         }
       : {}),
+    ...(f.parentPath ? {parentPath: f.parentPath} : {}),
+    ...(f.containerKind ? {containerKind: f.containerKind} : {}),
+    ...(f.containerElementType ? {containerElementType: f.containerElementType} : {}),
   }
 }
 
@@ -122,6 +133,7 @@ export function serializeType(t: DiscoveredType): SerializedType {
     name: t.name,
     ...(t.title ? {title: t.title} : {}),
     documentCount: t.documentCount,
+    ...(t.kind ? {kind: t.kind} : {}),
     fields: t.fields.map(serializeField),
   }
 }
