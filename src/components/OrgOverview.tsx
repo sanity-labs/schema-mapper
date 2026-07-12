@@ -941,7 +941,7 @@ function OrgOverview({
                         >
                           {!isLoading ? (
                             <Tooltip
-                              content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
+                              content={<Text size={1} muted>{project.id}{isFreq ? ` · you visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
                               placement="bottom"
                             >
                               <Tab

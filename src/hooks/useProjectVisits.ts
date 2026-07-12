@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'schema-mapper:project-visits'
-const FREQUENT_THRESHOLD = 3 // visits STRICTLY greater than 2 (Adam: "> 2")
+const FREQUENT_THRESHOLD = 2 // visits >= 2 (Adam: threshold 2, not 3)
 
 export type ProjectVisits = Record<string, { count: number; lastVisited: number }>
 
@@ -26,7 +26,7 @@ function writeVisits(v: ProjectVisits): void {
  * Scoped globally (not per-org) — a project's frequency is intrinsic to
  * the user's habits, regardless of which org they're browsing.
  *
- * Frequent = visit count >= 3. These get pinned to the top of the list
+ * Frequent = visit count >= 2. These get pinned to the top of the list
  * (sorted by count desc) with an amber accent.
  */
 export function useProjectVisits(): {
