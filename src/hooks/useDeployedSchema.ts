@@ -279,8 +279,18 @@ function mapStudioField(
   field: any,
   allTypeNames?: Set<string>,
   documentTypeNames?: Set<string>,
+  scalarAliases?: Map<string, string>,
 ): DiscoveredField {
   const {name, type} = field
+
+  // If this field's type is a named scalar alias (top-level entry like
+  // {name:'markdown', type:'string'}), resolve to the underlying primitive
+  // so it renders with the right badge instead of falling through to the
+  // generic `object` case.
+  if (scalarAliases?.has(type)) {
+    const primitive = scalarAliases.get(type)!
+    return mapStudioField({...field, type: primitive}, allTypeNames, documentTypeNames, scalarAliases)
+  }
 
   switch (type) {
     case 'string':
@@ -500,6 +510,15 @@ function parseStudioSchema(
   // `simpleBlockContent`. Without this detection, they'd fall through to a
   // plain `object` badge with no visible content and confuse users.
   const portableTextTypes = new Set<string>()
+  // Named scalar aliases — top-level entries like {name:'markdown', type:'string'}
+  // (no fields, no `of`) where the entry's `type` is a known primitive. When
+  // a field uses this name as its type, we resolve to the underlying primitive
+  // for badge rendering so it doesn't render as a generic `object` blob.
+  const KNOWN_PRIMITIVES = new Set([
+    'string', 'text', 'number', 'boolean', 'datetime', 'date',
+    'url', 'slug', 'email', 'image', 'file', 'geopoint',
+  ])
+  const scalarAliases = new Map<string, string>()
   for (const entry of schema) {
     if (!entry || !entry.name) continue
     if (entry.name.startsWith('sanity.') || entry.name.startsWith('assist.')) continue
@@ -512,6 +531,16 @@ function parseStudioSchema(
     // Portable text: has `of` but no `fields`
     if (Array.isArray(entry.of) && !Array.isArray(entry.fields)) {
       portableTextTypes.add(entry.name)
+    }
+    // Named scalar alias: primitive type, no fields, no of
+    if (
+      typeof entry.type === 'string' &&
+      KNOWN_PRIMITIVES.has(entry.type) &&
+      !Array.isArray(entry.fields) &&
+      !Array.isArray(entry.of) &&
+      entry.name !== entry.type // don't self-alias 'string' -> 'string' etc
+    ) {
+      scalarAliases.set(entry.name, entry.type)
     }
   }
 
@@ -581,7 +610,7 @@ function parseStudioSchema(
     const out: DiscoveredField[] = []
     for (const raw of typeFields) {
       if (SYSTEM_ATTRIBUTES.has(raw.name)) continue
-      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames, scalarAliases)
       const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
 
       const isRef =
@@ -645,7 +674,7 @@ function parseStudioSchema(
         // Walk inline fields directly (no named type to look up).
         for (const child of raw.fields) {
           if (SYSTEM_ATTRIBUTES.has(child.name)) continue
-          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
+          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames, scalarAliases)
           const childQualified = `${qualifiedName}.${child.name}`
           out.push({...childMapped, name: childQualified, parentPath: qualifiedName})
         }
@@ -679,6 +708,26 @@ function parseStudioSchema(
           (m: any) =>
             m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
         )
+        // Weak refs — bare `{type: <docTypeName>}` members. Emit as a
+        // single reference-array row (same shape as processFields'
+        // equivalent branch), no recursion (docs get their own nodes).
+        const weakRefMembers = raw.of.filter(
+          (m: any) => m?.type && documentTypeNames.has(m.type),
+        )
+        if (weakRefMembers.length > 0 && namedMembers.length === 0) {
+          const targets = weakRefMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'reference',
+            isReference: true,
+            isArray: true,
+            referenceTo: targets[0],
+            ...(targets.length > 1 ? {referenceTargets: targets} : {}),
+          })
+          continue
+        }
         if (namedMembers.length > 0) {
           // For single-type arrays, surface the element type; multi-type arrays
           // stay unlabelled (the badge already conveys 'array').
@@ -736,7 +785,7 @@ function parseStudioSchema(
     //     matches what the walker will look up in openPaths.
     const barePrefix = pathPrefix.replace(/\[\]/g, '')
     for (const raw of filtered) {
-      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames, scalarAliases)
       const qualifiedName = barePrefix ? `${barePrefix}.${raw.name}` : raw.name
       const rowParentPath = pathPrefix || undefined
 
@@ -841,6 +890,13 @@ function parseStudioSchema(
         const anonymousObjectMembers = raw.of.filter(
           (m: any) => m?.type === 'object' && Array.isArray(m.fields),
         )
+        // Weak-reference members: bare `{type: <docTypeName>}` inside `of`,
+        // no explicit type:'reference' wrapper. Sanity supports this shape
+        // as an implicit reference-to-document. Common in older schemas
+        // (e.g. selfServeOrg.projects = array of [{type: 'selfServeProject'}]).
+        const weakRefMembers = raw.of.filter(
+          (m: any) => m?.type && documentTypeNames.has(m.type),
+        )
 
         // Array of named object types → single row, references those types.
         if (namedObjectMembers.length > 0 && anonymousObjectMembers.length === 0) {
@@ -854,6 +910,23 @@ function parseStudioSchema(
             referenceTargets: targets.length > 1 ? targets : undefined,
             isArray: true,
             type: 'object',
+          })
+          continue
+        }
+
+        // Array of weak-reference document members → treat as an array of
+        // references. Same emit shape as an explicit reference-with-array.
+        if (weakRefMembers.length > 0 && namedObjectMembers.length === 0 && anonymousObjectMembers.length === 0) {
+          const targets = weakRefMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
+            type: 'reference',
+            isReference: true,
+            isArray: true,
+            referenceTo: targets[0],
+            ...(targets.length > 1 ? {referenceTargets: targets} : {}),
           })
           continue
         }
