@@ -748,6 +748,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
                 (d: {name?: string}) => d.name && !d.name.endsWith('-comments'),
               ).length
               dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
+            } else {
+              // Response was OK but not an array — dispatch -1 sentinel so
+              // consumers waiting on "all resolved" don't hang forever.
+              dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
             }
           } else {
             // 401/403/404 or 429 — treat as "resolved with unknown count" so
@@ -924,6 +928,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
         datasetCounts={state.datasetCounts}
+        datasetCountsLoading={accessibleProjects.some((p) => !state.datasetCounts.has(p.id))}
       />
     </>
   )

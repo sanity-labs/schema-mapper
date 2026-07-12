@@ -140,6 +140,7 @@ interface OrgOverviewProps {
   // sort the non-frequent block in the sidebar by count DESC. Projects
   // without a count yet fall back to alphabetical order.
   readonly datasetCounts?: Map<string, number>
+  readonly datasetCountsLoading?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +226,7 @@ function OrgOverview({
   schemasCache,
   deployedSchemasCache,
   datasetCounts,
+  datasetCountsLoading,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -339,16 +341,6 @@ function OrgOverview({
     recordVisit(projectId)
     onProjectSelect(projectId)
   }, [recordVisit, onProjectSelect])
-
-  // True while dataset counts are still landing — every non-frequent
-  // project doesn't yet have a resolved count. During this window the
-  // list is visibly reordering as counts arrive; we hold every tab in
-  // the loading/greyed state so hover interactions on a shifting tab
-  // can't fire and crash the dashboard's error overlay.
-  const isResorting = useMemo(() => {
-    if (!datasetCounts) return true
-    return projects.some((p) => !isFrequent(p.id) && !datasetCounts.has(p.id))
-  }, [projects, isFrequent, datasetCounts])
 
   // Frequent projects at the top (by visit count desc), rest keeps its
   // upstream alphabetical order.
@@ -920,7 +912,7 @@ function OrgOverview({
                   >
                     <TabList space={1}>
                   {orderedProjects.map((project, idx) => {
-                    const isLoading = isCheckingAccess || isResorting || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
+                    const isLoading = isCheckingAccess || datasetCountsLoading || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     const isFreq = isFrequent(project.id)
                     // Separator between the pinned frequent block and the rest.
                     const prev = idx > 0 ? orderedProjects[idx - 1] : null
