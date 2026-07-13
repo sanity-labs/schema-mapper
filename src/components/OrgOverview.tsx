@@ -337,6 +337,19 @@ function OrgOverview({
 
   // ---- Project visit frequency (for pinning frequent projects) ----
   const { recordVisit, isFrequent, visits } = useProjectVisits()
+
+  // Overlay lingers 300ms after datasetCountsLoading flips false so the
+  // fade-out has time to run before we unmount.
+  const [showOrderingOverlay, setShowOrderingOverlay] = useState(false)
+  useEffect(() => {
+    if (datasetCountsLoading) {
+      setShowOrderingOverlay(true)
+      return
+    }
+    const t = setTimeout(() => setShowOrderingOverlay(false), 300)
+    return () => clearTimeout(t)
+  }, [datasetCountsLoading])
+
   const handleProjectSelect = useCallback((projectId: string) => {
     recordVisit(projectId)
     onProjectSelect(projectId)
@@ -984,6 +997,17 @@ function OrgOverview({
                     style={{ bottom: 0, height: '25px' }}
                     aria-hidden="true"
                   />
+                )}
+                {showOrderingOverlay && (
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center pointer-events-none z-20 transition-opacity duration-300 ${datasetCountsLoading ? 'opacity-100' : 'opacity-0'}`}
+                    aria-live="polite"
+                  >
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm shadow-sm">
+                      <Spinner muted style={{width: 12, height: 12}} />
+                      <Text size={1} muted>Ordering by importance…</Text>
+                    </div>
+                  </div>
                 )}
                 </div>
                   {(projectsOverflow || showAllProjects) && (
