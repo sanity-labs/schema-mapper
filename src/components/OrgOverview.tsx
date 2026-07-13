@@ -1003,9 +1003,9 @@ function OrgOverview({
                     className={`absolute inset-0 flex items-center justify-center pointer-events-none z-20 transition-opacity duration-300 ${datasetCountsLoading ? 'opacity-100' : 'opacity-0'}`}
                     aria-live="polite"
                   >
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm shadow-sm">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/35 dark:bg-gray-900/35 backdrop-blur-sm shadow-sm">
                       <Spinner muted style={{width: 12, height: 12}} />
-                      <Text size={1} muted>Ordering by importance…</Text>
+                      <Text size={1} muted>Ordering by size…</Text>
                     </div>
                   </div>
                 )}
