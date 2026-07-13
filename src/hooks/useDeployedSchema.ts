@@ -279,8 +279,18 @@ function mapStudioField(
   field: any,
   allTypeNames?: Set<string>,
   documentTypeNames?: Set<string>,
+  scalarAliases?: Map<string, string>,
 ): DiscoveredField {
   const {name, type} = field
+
+  // If this field's type is a named scalar alias (top-level entry like
+  // {name:'markdown', type:'string'}), resolve to the underlying primitive
+  // so it renders with the right badge instead of falling through to the
+  // generic `object` case.
+  if (scalarAliases?.has(type)) {
+    const primitive = scalarAliases.get(type)!
+    return mapStudioField({...field, type: primitive}, allTypeNames, documentTypeNames, scalarAliases)
+  }
 
   switch (type) {
     case 'string':
@@ -432,7 +442,26 @@ function mapStudioField(
       if (hasBlocks) {
         return {name, title: field.title || undefined, type: 'block', isArray: true}
       }
-      return {name, title: field.title || undefined, type: 'array', isArray: true}
+      // Surface the element type for primitive arrays (array of number,
+      // array of string, etc.) so the badge can render 'number[]' instead
+      // of just 'array[]'. Only meaningful when every member has the same
+      // simple type; mixed / object members are handled by other branches.
+      const primitiveOf: string | undefined = (() => {
+        if (ofTypes.length === 0) return undefined
+        const types = new Set<string>()
+        for (const o of ofTypes) {
+          if (!o?.type || o.type === 'object' || o.type === 'reference' || o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference') return undefined
+          types.add(o.type)
+        }
+        return types.size === 1 ? [...types][0] : undefined
+      })()
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'array',
+        isArray: true,
+        ...(primitiveOf ? {containerElementType: primitiveOf} : {}),
+      }
     }
     case 'object':
       return {name, title: field.title || undefined, type: 'object'}
@@ -461,7 +490,7 @@ function mapStudioField(
 // eslint-disable-next-line sonarjs/cognitive-complexity
 function parseStudioSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[] {
   // Collect all type names for detecting inline object references
   const allTypeNames = new Set<string>(schema.map((entry: any) => entry.name))
   const documentTypeNames = new Set<string>(
@@ -475,16 +504,79 @@ function parseStudioSchema(
   // document field has `type: 'productCore'`, we expand the productCore's
   // own reference-bearing fields and surface them on the parent document.
   const objectTypeFields = new Map<string, any[]>()
+  // Named types that are portable text arrays (top-level `of: [...]` with no
+  // `fields`). These render as leaves with a "portable text" badge — NOT
+  // as containers or refs. Common Studio idiom is `blockContent` /
+  // `simpleBlockContent`. Without this detection, they'd fall through to a
+  // plain `object` badge with no visible content and confuse users.
+  const portableTextTypes = new Set<string>()
+  // Named scalar aliases — top-level entries like {name:'markdown', type:'string'}
+  // (no fields, no `of`) where the entry's `type` is a known primitive. When
+  // a field uses this name as its type, we resolve to the underlying primitive
+  // for badge rendering so it doesn't render as a generic `object` blob.
+  const KNOWN_PRIMITIVES = new Set([
+    'string', 'text', 'number', 'boolean', 'datetime', 'date',
+    'url', 'slug', 'email', 'image', 'file', 'geopoint',
+  ])
+  const scalarAliases = new Map<string, string>()
   for (const entry of schema) {
+    if (!entry || !entry.name) continue
+    if (entry.name.startsWith('sanity.') || entry.name.startsWith('assist.')) continue
     if (
-      entry &&
       entry.type !== 'document' &&
-      Array.isArray(entry.fields) &&
-      !entry.name.startsWith('sanity.') &&
-      !entry.name.startsWith('assist.')
+      Array.isArray(entry.fields)
     ) {
       objectTypeFields.set(entry.name, entry.fields)
     }
+    // Portable text: has `of` but no `fields`
+    if (Array.isArray(entry.of) && !Array.isArray(entry.fields)) {
+      portableTextTypes.add(entry.name)
+    }
+    // Named scalar alias: primitive type, no fields, no of
+    if (
+      typeof entry.type === 'string' &&
+      KNOWN_PRIMITIVES.has(entry.type) &&
+      !Array.isArray(entry.fields) &&
+      !Array.isArray(entry.of) &&
+      entry.name !== entry.type // don't self-alias 'string' -> 'string' etc
+    ) {
+      scalarAliases.set(entry.name, entry.type)
+    }
+  }
+
+  /**
+   * Detects whether an array field's `of: [...]` shape identifies it as
+   * portable text (i.e. one of its members is `{type: 'block'}` or a
+   * span-shaped primitive). Called at the field level for INLINE portable
+   * text — named PT types like `blockContent` are handled via
+   * `portableTextTypes` above.
+   */
+  function isInlinePortableTextArray(rawField: any): boolean {
+    if (rawField?.type !== 'array' || !Array.isArray(rawField.of)) return false
+    return rawField.of.some((m: any) => m?.type === 'block' || m?.type === 'span')
+  }
+
+  /**
+   * Given the `of: [...]` of an array (inline PT or named PT), return the
+   * de-duplicated list of embed target type names — references + named
+   * object types. Used to surface polymorphic PT connections as
+   * referenceTargets on the row.
+   */
+  function collectEmbedTargets(ofArr: any[]): string[] {
+    const embedTargets: string[] = []
+    for (const m of ofArr) {
+      if (!m || typeof m !== 'object') continue
+      if (m.type === 'reference' && Array.isArray(m.to)) {
+        for (const t of m.to) {
+          if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+        }
+        continue
+      }
+      if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+        if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+      }
+    }
+    return embedTargets
   }
 
   /**
@@ -518,43 +610,346 @@ function parseStudioSchema(
     const out: DiscoveredField[] = []
     for (const raw of typeFields) {
       if (SYSTEM_ATTRIBUTES.has(raw.name)) continue
-      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames, scalarAliases)
       const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
 
       const isRef =
         mapped.isReference || mapped.isCrossDatasetReference || mapped.isInlineObject
 
       if (isRef) {
-        out.push({...mapped, name: qualifiedName})
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix})
         continue
       }
 
-      // Object field that's itself a named object type → recurse.
-      // `mapStudioField`'s `default` branch returns `type:'object'` for unknown
-      // type names, so we re-check the raw type here.
+      // Portable text field → leaf with friendly badge (see note in
+      // processFields for the same branch). Also surface embed targets so
+      // the graph shows what the portable-text can include.
+      if (raw.type && portableTextTypes.has(raw.type)) {
+        const ptEntry = schema.find((e: any) => e?.name === raw.type)
+        const ptOf: any[] = Array.isArray(ptEntry?.of) ? ptEntry.of : []
+        const embedTargets: string[] = []
+        for (const m of ptOf) {
+          if (!m || typeof m !== 'object') continue
+          if (m.type === 'reference' && Array.isArray(m.to)) {
+            for (const t of m.to) {
+              if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+            }
+            continue
+          }
+          if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+            if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+          }
+        }
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
+        }
+        continue
+      }
+
+      // Named non-document object type → container stub + recurse.
       if (
         raw.type &&
         objectTypeFields.has(raw.type) &&
         !documentTypeNames.has(raw.type)
       ) {
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object', containerElementType: raw.type})
         out.push(...flattenObjectTypeRefs(raw.type, qualifiedName, nextVisiting))
         continue
       }
 
-      // Array whose `of` is itself a named object type → recurse with [] suffix.
+      // Inline anonymous object (has its own `fields` array, no named type) →
+      // container stub + walk fields inline. Recurse via a synthetic entry.
+      if (raw.type === 'object' && Array.isArray(raw.fields)) {
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object'})
+        // Walk inline fields directly (no named type to look up).
+        for (const child of raw.fields) {
+          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
+          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames, scalarAliases)
+          const childQualified = `${qualifiedName}.${child.name}`
+          out.push({...childMapped, name: childQualified, parentPath: qualifiedName})
+        }
+        continue
+      }
+
+      // Inline portable text array → leaf with 'portable text' badge +
+      // surface embed targets (references + named object types inside
+      // `of`) so orphan lozenges / edges reveal what the PT can contain.
+      if (isInlinePortableTextArray(raw)) {
+        const embedTargets = collectEmbedTargets(raw.of)
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
+        }
+        continue
+      }
+
+      // Array whose `of` is itself a named object type → container + recurse.
       if (raw.type === 'array' && Array.isArray(raw.of)) {
-        for (const member of raw.of) {
-          if (
-            member?.type &&
-            objectTypeFields.has(member.type) &&
-            !documentTypeNames.has(member.type)
-          ) {
+        const namedMembers = raw.of.filter(
+          (m: any) =>
+            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
+        )
+        // Weak refs — bare `{type: <docTypeName>}` members. Emit as a
+        // single reference-array row (same shape as processFields'
+        // equivalent branch), no recursion (docs get their own nodes).
+        const weakRefMembers = raw.of.filter(
+          (m: any) => m?.type && documentTypeNames.has(m.type),
+        )
+        if (weakRefMembers.length > 0 && namedMembers.length === 0) {
+          const targets = weakRefMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: pathPrefix,
+            type: 'reference',
+            isReference: true,
+            isArray: true,
+            referenceTo: targets[0],
+            ...(targets.length > 1 ? {referenceTargets: targets} : {}),
+          })
+          continue
+        }
+        if (namedMembers.length > 0) {
+          // For single-type arrays, surface the element type; multi-type arrays
+          // stay unlabelled (the badge already conveys 'array').
+          const elementType = namedMembers.length === 1 ? namedMembers[0].type : undefined
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'array', containerElementType: elementType})
+          for (const member of namedMembers) {
             out.push(
-              ...flattenObjectTypeRefs(member.type, `${qualifiedName}[]`, nextVisiting),
+              ...flattenObjectTypeRefs(
+                member.type,
+                `${qualifiedName}[]`,
+                nextVisiting,
+              ),
             )
           }
+          continue
         }
       }
+
+      // Fall-through: primitive leaf (string, number, boolean, slug, image,
+      // datetime, etc.). Emit as-is so schema browsers see the full shape.
+      out.push({...mapped, name: qualifiedName, parentPath: pathPrefix})
+    }
+    return out
+  }
+
+  /**
+   * Process a set of raw Studio fields (from a document type OR from a named
+   * object type at top level) into DiscoveredField rows.
+   *
+   * Rules:
+   * - Named non-document object references (`type: 'personEntry'` where
+   *   personEntry is a top-level object type) emit as inline-object references
+   *   (isInlineObject: true, referenceTo: <name>). They edge out to the named
+   *   type's own node. NOT expanded inline.
+   * - Anonymous inline objects (`type: 'object'` with an inline `fields`
+   *   array) emit as containers + walked children with parentPath.
+   * - Arrays whose members are named non-document object types emit as a
+   *   single reference row with `referenceTargets = [type1, type2, ...]`
+   *   and `isArray: true`. Edges out to each member type's node.
+   * - Arrays of anonymous inline objects → container + walked children
+   *   (rare; kept for completeness).
+   * - Everything else (primitives, refs, cross-dataset refs) emits as-is.
+   */
+  function processFields(rawFields: any[], pathPrefix = ''): DiscoveredField[] {
+    const out: DiscoveredField[] = []
+    const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+    // The visibility walker in SchemaNode.tsx strips trailing `[]` from every
+    // segment of a field's parentPath before matching openPaths. So a container
+    // whose own name contains `[]` in an ancestor segment (because it's nested
+    // inside an array container) would never match — the walker would look
+    // for a bare-form name. We keep two parallel forms:
+    //   • pathPrefix (with `[]`)  — used as children's parentPath so they know
+    //     their array-membership. Also used when RECURSING into arrays.
+    //   • barePrefix (no `[]`)    — used to construct THIS row's `name` so it
+    //     matches what the walker will look up in openPaths.
+    const barePrefix = pathPrefix.replace(/\[\]/g, '')
+    for (const raw of filtered) {
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames, scalarAliases)
+      const qualifiedName = barePrefix ? `${barePrefix}.${raw.name}` : raw.name
+      const rowParentPath = pathPrefix || undefined
+
+      // Portable text field → leaf row with a friendly type label. These
+      // are named types like `blockContent` / `simpleBlockContent` that have
+      // top-level `of: [...]` (array of blocks) and no `fields`. If the
+      // portable-text type's `of` also embeds references or named object
+      // types, we surface those as reference targets so the graph still
+      // shows the polymorphic connections (e.g. blockContent embedding
+      // reusableContentBlock, protip, gotcha etc). The badge stays
+      // 'portable text' — orphan lozenges + edges convey the embeds.
+      if (raw.type && portableTextTypes.has(raw.type)) {
+        const ptEntry = schema.find((e: any) => e?.name === raw.type)
+        const ptOf: any[] = Array.isArray(ptEntry?.of) ? ptEntry.of : []
+        const embedTargets: string[] = []
+        for (const m of ptOf) {
+          if (!m || typeof m !== 'object') continue
+          // Reference member: reference type with to: [{type: X}, ...]
+          if (m.type === 'reference' && Array.isArray(m.to)) {
+            for (const t of m.to) {
+              if (t?.type && !embedTargets.includes(t.type)) embedTargets.push(t.type)
+            }
+            continue
+          }
+          // Named object member (e.g. protip, gotcha)
+          if (m.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type)) {
+            if (!embedTargets.includes(m.type)) embedTargets.push(m.type)
+          }
+        }
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, type: 'portableText'})
+        }
+        continue
+      }
+
+      // Named non-document object type field → treat as inline-object ref.
+      // The named object gets its own node; this row edges out to it.
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        out.push({
+          ...mapped,
+          name: qualifiedName,
+          parentPath: rowParentPath,
+          isInlineObject: true,
+          referenceTo: raw.type,
+          type: 'object',
+        })
+        continue
+      }
+
+      // Anonymous inline object (`type: 'object'`, has inline `fields`) →
+      // container stub + recurse. Recursion means nested containers (an
+      // object inside an object, or an array of objects inside an object)
+      // get their own chevrons all the way down.
+      if (raw.type === 'object' && Array.isArray(raw.fields)) {
+        out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, containerKind: 'object'})
+        out.push(...processFields(raw.fields, qualifiedName))
+        continue
+      }
+
+      // Inline portable text array → leaf with 'portable text' badge +
+      // surface embed targets (see companion branch in flattener). Handles
+      // techCheckInNotes.notes-style fields: `type: 'array'` with
+      // `of: [{type: 'block'}, ...]` and no named PT wrapper.
+      if (isInlinePortableTextArray(raw)) {
+        const embedTargets = collectEmbedTargets(raw.of)
+        if (embedTargets.length > 0) {
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
+            type: 'portableText',
+            isInlineObject: true,
+            referenceTo: embedTargets[0],
+            referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
+          })
+        } else {
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, type: 'portableText'})
+        }
+        continue
+      }
+
+      // Array — check what its members are.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        const namedObjectMembers = raw.of.filter(
+          (m: any) =>
+            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
+        )
+        const anonymousObjectMembers = raw.of.filter(
+          (m: any) => m?.type === 'object' && Array.isArray(m.fields),
+        )
+        // Weak-reference members: bare `{type: <docTypeName>}` inside `of`,
+        // no explicit type:'reference' wrapper. Sanity supports this shape
+        // as an implicit reference-to-document. Common in older schemas
+        // (e.g. selfServeOrg.projects = array of [{type: 'selfServeProject'}]).
+        const weakRefMembers = raw.of.filter(
+          (m: any) => m?.type && documentTypeNames.has(m.type),
+        )
+
+        // Array of named object types → single row, references those types.
+        if (namedObjectMembers.length > 0 && anonymousObjectMembers.length === 0) {
+          const targets = namedObjectMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
+            isInlineObject: true,
+            referenceTo: targets[0],
+            referenceTargets: targets.length > 1 ? targets : undefined,
+            isArray: true,
+            type: 'object',
+          })
+          continue
+        }
+
+        // Array of weak-reference document members → treat as an array of
+        // references. Same emit shape as an explicit reference-with-array.
+        if (weakRefMembers.length > 0 && namedObjectMembers.length === 0 && anonymousObjectMembers.length === 0) {
+          const targets = weakRefMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
+            type: 'reference',
+            isReference: true,
+            isArray: true,
+            referenceTo: targets[0],
+            ...(targets.length > 1 ? {referenceTargets: targets} : {}),
+          })
+          continue
+        }
+
+        // Array of anonymous inline objects → container + recurse.
+        // Each member contributes its fields into the same `${name}[]`
+        // namespace. Recursion means deeper nesting inside a member's fields
+        // (further objects/arrays) gets chevrons too.
+        if (anonymousObjectMembers.length > 0 && namedObjectMembers.length === 0) {
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, containerKind: 'array'})
+          for (const member of anonymousObjectMembers) {
+            out.push(...processFields(member.fields, `${qualifiedName}[]`))
+          }
+          continue
+        }
+
+        // Fall through: array of primitives / refs / mixed. Let mapStudioField's
+        // output stand — it already models refs correctly.
+      }
+
+      // Everything else (primitives, refs, cross-dataset refs, other arrays)
+      // emits as mapped.
+      out.push({...mapped, name: qualifiedName, parentPath: rowParentPath})
     }
     return out
   }
@@ -566,59 +961,42 @@ function parseStudioSchema(
       !entry.name.startsWith('assist.'),
   )
 
-  return documentTypes.map((docType: any) => {
-    const rawFields = docType.fields || []
-    const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+  const documentNodes: DiscoveredType[] = documentTypes.map((docType: any) => ({
+    name: docType.name,
+    title: docType.title || undefined,
+    documentCount: 0,
+    fields: processFields(docType.fields || []),
+    kind: 'document' as const,
+  }))
 
-    const fields: DiscoveredField[] = []
-    for (const raw of filtered) {
-      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
-      fields.push(mapped)
-
-      // If this field is typed as a named non-document object type
-      // (e.g. `type: 'productCore'`), expand its nested ref-bearing fields
-      // onto this document so edges are drawn correctly. The plain object
-      // field itself stays in the row list (so the user can still see it).
-      const visiting = new Set<string>([docType.name])
-
-      if (
-        raw.type &&
-        objectTypeFields.has(raw.type) &&
-        !documentTypeNames.has(raw.type)
-      ) {
-        fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
-        continue
-      }
-
-      // Array of named non-document object types.
-      if (raw.type === 'array' && Array.isArray(raw.of)) {
-        for (const member of raw.of) {
-          if (
-            member?.type &&
-            objectTypeFields.has(member.type) &&
-            !documentTypeNames.has(member.type)
-          ) {
-            fields.push(
-              ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
-            )
-          }
-        }
-      }
+  // Named non-document object types → first-class nodes.
+  const objectNodes: DiscoveredType[] = []
+  for (const entry of schema) {
+    if (
+      entry &&
+      entry.type !== 'document' &&
+      Array.isArray(entry.fields) &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.')
+    ) {
+      objectNodes.push({
+        name: entry.name,
+        title: entry.title || undefined,
+        documentCount: 0,
+        fields: processFields(entry.fields),
+        kind: 'object' as const,
+      })
     }
+  }
 
-    return {
-      name: docType.name,
-      title: docType.title || undefined,
-      fields,
-    }
-  })
+  return [...documentNodes, ...objectNodes]
 }
 
 // --- Parse deployed schema — auto-detect format ---
 
 function parseDeployedSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[] {
   if (!schema || !Array.isArray(schema) || schema.length === 0) return []
 
   // Detect format: Studio schema has 'fields' arrays, GROQ type schema has 'attributes' objects
@@ -787,7 +1165,7 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         }
 
         // Parse ALL workspace entries
-        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]}[] = []
+        const parsedEntries: {entry: any; parsedTypes: {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[]}[] = []
 
         for (const entry of rawSchemas) {
           const schemaData = extractSchemaData(entry)
@@ -811,11 +1189,12 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         setInferenceReason(null)
 
         // Fetch document counts once (shared across all workspace schemas — same dataset)
-        // Collect all unique type names across all workspace schemas
+        // Collect all unique DOCUMENT type names (object types have no
+        // storage, count is meaningless).
         const allTypeNames = new Set<string>()
         for (const {parsedTypes} of parsedEntries) {
           for (const t of parsedTypes) {
-            allTypeNames.add(t.name)
+            if (t.kind !== 'object') allTypeNames.add(t.name)
           }
         }
 

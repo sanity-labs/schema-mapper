@@ -485,21 +485,19 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
           const status = err?.statusCode
-          if (status === 401 || status === 403 || status === 404) {
-            // We thought we had access (the /projects/{id} check returned 200),
-            // but /projects/{id}/datasets is actually denied. This happens for
-            // org-level read roles that don't include dataset-list permission.
-            // Retroactively move the project into the Locked list — the
-            // accessibleProjects/lockedProjects derivation re-buckets on every
-            // accessResults change.
-            dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess: false})
-            dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
-            return
-          }
-          // Genuine failure (500, network, etc.) — show empty dataset list
-          // and stash the error message.
+          // Show empty dataset list and stash the error. We used to also
+          // dispatch ACCESS_CHECKED{hasAccess:false} on 401/403/404 to
+          // retroactively lock the project, but that made clicked
+          // projects disappear from the list mid-session — a worse UX
+          // than showing "no datasets found". The eager /datasets fetch
+          // (which runs at load time for every accessible project) has
+          // already surfaced the access issue via count=-1; users who
+          // click into it should see the empty state, not have the tab
+          // vanish under their cursor.
           dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
-          dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
+          if (status !== 401 && status !== 403 && status !== 404) {
+            dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
+          }
         })
     },
     [client, projects],
@@ -722,25 +720,36 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   // We serialize the fetches with a small delay to avoid triggering
   // rate-limiting on top of the parallel /projects/{id} access checks.
   const datasetCountFetchedRef = useRef<Set<string>>(new Set())
+  const datasetCountInFlightRef = useRef<Set<string>>(new Set())
   useEffect(() => {
+    console.log(`[datasetCounts] effect fired: accessible=${accessibleProjects.length}, hasClient=${!!client}, hasToken=${!!client?.config().token}`)
     if (!client) return
     const token = client.config().token
     if (!token) return
     const cancelled = {current: false}
     const queue = accessibleProjects.filter(
-      (p) => !datasetCountFetchedRef.current.has(p.id) && !state.datasetCounts.has(p.id),
+      (p) =>
+        !datasetCountFetchedRef.current.has(p.id) &&
+        !datasetCountInFlightRef.current.has(p.id) &&
+        !state.datasetCounts.has(p.id),
     )
     if (queue.length === 0) return
+    console.log(`[datasetCounts] queue starting for ${queue.length} projects (accessible=${accessibleProjects.length}, alreadyResolved=${state.datasetCounts.size}, alreadyFetched=${datasetCountFetchedRef.current.size}, inFlight=${datasetCountInFlightRef.current.size})`)
 
     async function processQueue() {
       for (const p of queue) {
         if (cancelled.current) return
-        datasetCountFetchedRef.current.add(p.id)
+        if (datasetCountFetchedRef.current.has(p.id) || datasetCountInFlightRef.current.has(p.id)) continue
+        datasetCountInFlightRef.current.add(p.id)
         try {
           const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
             headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
           })
-          if (cancelled.current) return
+          console.log(`[datasetCounts] ${p.id}: HTTP ${res.status}`)
+          // NOTE: intentionally dispatch even if cancelled — we have the
+          // result in hand, dropping it would strand the project. Reducer
+          // is a plain merge; unmounted-component dispatches are a no-op
+          // in React 18+.
           if (res.ok) {
             const datasets = await res.json()
             if (Array.isArray(datasets)) {
@@ -748,6 +757,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
                 (d: {name?: string}) => d.name && !d.name.endsWith('-comments'),
               ).length
               dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
+            } else {
+              // Response was OK but not an array — dispatch -1 sentinel so
+              // consumers waiting on "all resolved" don't hang forever.
+              dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
             }
           } else {
             // 401/403/404 or 429 — treat as "resolved with unknown count" so
@@ -755,21 +768,38 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             // project at the end forever. count=-1 is the sentinel.
             dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
           }
-        } catch {
+          // Mark as fetched after dispatch.
+          datasetCountFetchedRef.current.add(p.id)
+          datasetCountInFlightRef.current.delete(p.id)
           if (cancelled.current) return
-          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+        } catch {
+          // Only dispatch a sentinel if the fetch itself failed AND we
+          // weren't canceled (a canceled abort would throw here).
+          if (!cancelled.current) {
+            dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+            datasetCountFetchedRef.current.add(p.id)
+          }
+          datasetCountInFlightRef.current.delete(p.id)
+          if (cancelled.current) return
         }
-        // Gentle 50ms stagger — 20 requests/sec across the eager fetch is
-        // well under Sanity's per-token rate limit and prevents piling on
-        // top of the parallel access checks.
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        // 10ms stagger keeps parallelism gentle but total wall time is
+        // dominated by fetch latency, not the delay. For ~80 projects
+        // that's ~800ms of stagger vs seconds of network time.
+        await new Promise((resolve) => setTimeout(resolve, 10))
       }
     }
     processQueue()
     return () => {
       cancelled.current = true
     }
-  }, [accessibleProjects, client, state.datasetCounts])
+    // Intentionally omit state.datasetCounts from deps: the loop reads
+    // datasetCountFetchedRef (a ref, not state) to skip already-started
+    // projects. Including state.datasetCounts causes the effect to cancel
+    // itself on every dispatch, and depending on timing the resumed loop
+    // can stall. Fetched-ref + queue.length===0 early return handles
+    // dedup correctly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessibleProjects, client])
 
   // Derive loading states for the currently selected project/dataset
   const isDatasetsLoading = state.selectedProjectId
@@ -924,6 +954,14 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
         datasetCounts={state.datasetCounts}
+        datasetCountsLoading={(() => {
+          const missing = accessibleProjects.filter((p) => !state.datasetCounts.has(p.id))
+          if (missing.length > 0) {
+            // Diagnostic — will strip once confirmed working
+            console.log(`[datasetCounts] still awaiting ${missing.length} of ${accessibleProjects.length}:`, missing.slice(0, 10).map((p) => p.id))
+          }
+          return missing.length > 0
+        })()}
       />
     </>
   )

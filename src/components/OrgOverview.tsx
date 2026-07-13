@@ -140,6 +140,7 @@ interface OrgOverviewProps {
   // sort the non-frequent block in the sidebar by count DESC. Projects
   // without a count yet fall back to alphabetical order.
   readonly datasetCounts?: Map<string, number>
+  readonly datasetCountsLoading?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +226,7 @@ function OrgOverview({
   schemasCache,
   deployedSchemasCache,
   datasetCounts,
+  datasetCountsLoading,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -335,6 +337,19 @@ function OrgOverview({
 
   // ---- Project visit frequency (for pinning frequent projects) ----
   const { recordVisit, isFrequent, visits } = useProjectVisits()
+
+  // Overlay lingers 300ms after datasetCountsLoading flips false so the
+  // fade-out has time to run before we unmount.
+  const [showOrderingOverlay, setShowOrderingOverlay] = useState(false)
+  useEffect(() => {
+    if (datasetCountsLoading) {
+      setShowOrderingOverlay(true)
+      return
+    }
+    const t = setTimeout(() => setShowOrderingOverlay(false), 300)
+    return () => clearTimeout(t)
+  }, [datasetCountsLoading])
+
   const handleProjectSelect = useCallback((projectId: string) => {
     recordVisit(projectId)
     onProjectSelect(projectId)
@@ -910,8 +925,18 @@ function OrgOverview({
                   >
                     <TabList space={1}>
                   {orderedProjects.map((project, idx) => {
-                    const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     const isFreq = isFrequent(project.id)
+                    const _icaLoading = isCheckingAccess
+                    const _dclLoading = !isFreq && datasetCountsLoading
+                    const _plLoading = project.isProjectLoading
+                    const _dsLoading = isDatasetsLoading && selectedProjectId === project.id
+                    // Frequent projects stay interactive throughout — they're
+                    // pinned at the top by visit count, so they don't shuffle.
+                    // Everyone else gates on the eager-fetch reorder settling.
+                    const isLoading = _icaLoading || _dclLoading || _plLoading || _dsLoading
+                    if (isLoading) {
+                      console.log(`[loading] ${project.id}: ica=${_icaLoading} dcl=${_dclLoading} pl=${_plLoading} ds=${_dsLoading}`)
+                    }
                     // Separator between the pinned frequent block and the rest.
                     const prev = idx > 0 ? orderedProjects[idx - 1] : null
                     const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq
@@ -929,7 +954,7 @@ function OrgOverview({
                         >
                           {!isLoading ? (
                             <Tooltip
-                              content={<Text size={1} muted>{project.id}{isFreq ? ` · visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
+                              content={<Text size={1} muted>{project.id}{isFreq ? ` · you visited ${visits[project.id]?.count ?? 0} times` : ''}</Text>}
                               placement="bottom"
                             >
                               <Tab
@@ -972,6 +997,17 @@ function OrgOverview({
                     style={{ bottom: 0, height: '25px' }}
                     aria-hidden="true"
                   />
+                )}
+                {showOrderingOverlay && (
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center pointer-events-none z-20 transition-opacity duration-300 ${datasetCountsLoading ? 'opacity-100' : 'opacity-0'}`}
+                    aria-live="polite"
+                  >
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/35 dark:bg-gray-900/35 backdrop-blur-sm shadow-sm">
+                      <Spinner muted style={{width: 12, height: 12}} />
+                      <Text size={1} muted>Ordering by size…</Text>
+                    </div>
+                  </div>
                 )}
                 </div>
                   {(projectsOverflow || showAllProjects) && (
@@ -1055,15 +1091,15 @@ function OrgOverview({
           {/* ---- Dataset Info Line ---- */}
           {selectedDataset && !isSchemasLoading && (
             <div
-              className="flex items-center gap-2 mt-3 py-2 text-sm"
+              className="flex items-center gap-2 mt-3 py-2 text-sm flex-nowrap min-w-0"
               onMouseEnter={() => {
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
               }}
             >
-              <GoDatabase className="text-base" />
+              <GoDatabase className="text-base shrink-0" />
               {navigationStack.length > 0 ? (
                 <>
-                  <span className={isGlobalNav ? 'font-normal text-purple-700 dark:text-purple-400' : 'font-normal text-teal-700 dark:text-teal-400'}>
+                  <span className={(isGlobalNav ? 'font-normal text-purple-700 dark:text-purple-400' : 'font-normal text-teal-700 dark:text-teal-400') + ' truncate min-w-0'}>
                     {selectedProject?.displayName} / {selectedDatasetName}
                   </span>
                   <Badge
@@ -1072,24 +1108,24 @@ function OrgOverview({
                       (isGlobalNav
                         ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300'
                         : 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300')
-                      + ' font-normal'
+                      + ' font-normal shrink-0 whitespace-nowrap'
                     }
                   >
                     {isGlobalNav ? 'global reference' : 'cross-dataset reference'}
                   </Badge>
-                  <span className="text-muted-foreground">·</span>
-                  <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+                  <span className="text-muted-foreground shrink-0">·</span>
+                  <span className="shrink-0 whitespace-nowrap">{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               ) : (
                 <>
-                  <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
+                  <span className="font-normal text-green-700 dark:text-green-400 truncate min-w-0">{selectedDataset.name}</span>
                   <Badge
                     variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
                     className={
                       (selectedDataset.aclMode === 'public'
                         ? 'bg-green-100 text-green-800 hover:bg-green-200 font-normal dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
                         : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
-                      + ' cursor-pointer select-none transition-colors'
+                      + ' cursor-pointer select-none transition-colors shrink-0 whitespace-nowrap'
                     }
                     onClick={() => setShowAclDialog(true)}
                   >
@@ -1104,7 +1140,7 @@ function OrgOverview({
                     (effectiveSource === 'deployed'
                       ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-normal dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
                       : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
-                    + ' cursor-pointer select-none transition-colors'
+                    + ' cursor-pointer select-none transition-colors shrink-0 whitespace-nowrap'
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
                 >
@@ -1120,10 +1156,10 @@ function OrgOverview({
                 )}
                 </>
               )}
-              <span className="text-muted-foreground">·</span>
-              <span>{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
-              <span className="text-muted-foreground">·</span>
-              <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="shrink-0 whitespace-nowrap">{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="shrink-0 whitespace-nowrap">{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               )}
               {/* Export dropdown — shown in both normal and navigation modes */}
