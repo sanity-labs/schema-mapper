@@ -142,6 +142,9 @@ interface OrgOverviewProps {
   // without a count yet fall back to alphabetical order.
   readonly datasetCounts?: Map<string, number>
   readonly datasetCountsLoading?: boolean
+  // Field names whose union members are page-builder blocks (hidden by default
+  // via the graph toggle). Defaults to ['pageBuilder'] in collectPageBuilderTypeNames.
+  readonly pageBuilderFieldNames?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +231,7 @@ function OrgOverview({
   deployedSchemasCache,
   datasetCounts,
   datasetCountsLoading,
+  pageBuilderFieldNames,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -680,7 +684,10 @@ function OrgOverview({
   // Page-builder / hero block types referenced from top-level fields. When the
   // toggle is off we hide these nodes from the graph but keep the pageBuilder/
   // hero fields, so they remain as clickable orphan lozenges (click to reveal).
-  const pageBuilderTypeNames = useMemo(() => collectPageBuilderTypeNames(effectiveTypes), [effectiveTypes])
+  const pageBuilderTypeNames = useMemo(
+    () => collectPageBuilderTypeNames(effectiveTypes, pageBuilderFieldNames),
+    [effectiveTypes, pageBuilderFieldNames],
+  )
   const excludeTypeNames = useMemo(
     () => (showPageBuilderBlocks || pageBuilderTypeNames.length === 0 ? undefined : pageBuilderTypeNames),
     [showPageBuilderBlocks, pageBuilderTypeNames],

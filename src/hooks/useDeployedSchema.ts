@@ -1094,19 +1094,10 @@ function parseDeployedSchema(
     }
   })
 
-  // Collect page-builder / hero block type names referenced from documents so
-  // those object types can appear (and be toggled) on the graph. GROQ schemas
-  // otherwise only expose documents.
-  const pageBuilderTargets = new Set<string>()
-  for (const doc of documentNodes) {
-    for (const field of doc.fields) {
-      if (field.parentPath) continue
-      if (field.name !== 'pageBuilder' && field.name !== 'hero') continue
-      if (field.referenceTo) pageBuilderTargets.add(field.referenceTo)
-      for (const target of field.referenceTargets ?? []) pageBuilderTargets.add(target)
-    }
-  }
-
+  // Named non-document object types → first-class nodes, matching the
+  // Studio-format parser (parseStudioSchema). GROQ schemas otherwise only
+  // expose documents. Noise is controlled uniformly via hiddenDocumentTypes
+  // config and the page-builder toggle (excludeTypeNames).
   const objectNodes = schema
     .filter(
       (entry) =>
@@ -1115,8 +1106,7 @@ function parseDeployedSchema(
         entry.value?.type === 'object' &&
         typeof entry.name === 'string' &&
         !entry.name.startsWith('sanity.') &&
-        !entry.name.startsWith('assist.') &&
-        (pageBuilderTargets.has(entry.name) || entry.name.endsWith('Component')),
+        !entry.name.startsWith('assist.'),
     )
     .map((entry) => {
       const attributes = entry.value?.attributes || {}

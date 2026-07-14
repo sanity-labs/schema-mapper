@@ -39,6 +39,11 @@ const hiddenDocumentTypes: string[] = []
 // Empty = show every field.
 const hiddenFields: string[] = []
 
+// Field names whose union members are page-builder blocks, hidden by default
+// (toggle in the graph controls). Add 'hero', 'sections', 'modules', etc. to
+// opt in when your block-union fields use different names.
+const pageBuilderFieldNames: string[] = ['pageBuilder']
+
 // SDK bootstrap config — only projectId is needed for auth context.
 // We intentionally DO NOT specify a dataset here: the SDK would open a
 // real-time `listen` stream against it on mount, which 404s if the project
@@ -126,6 +131,7 @@ export default function App() {
                       allowedProjectIds={allowedProjectIds}
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
+                      pageBuilderFieldNames={pageBuilderFieldNames}
                     />
                   }
                 />
@@ -136,6 +142,7 @@ export default function App() {
                       allowedProjectIds={allowedProjectIds}
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
+                      pageBuilderFieldNames={pageBuilderFieldNames}
                     />
                   }
                 />
@@ -146,6 +153,7 @@ export default function App() {
                       allowedProjectIds={allowedProjectIds}
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
+                      pageBuilderFieldNames={pageBuilderFieldNames}
                     />
                   }
                 />
@@ -156,6 +164,7 @@ export default function App() {
                       allowedProjectIds={allowedProjectIds}
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
+                      pageBuilderFieldNames={pageBuilderFieldNames}
                     />
                   }
                 />

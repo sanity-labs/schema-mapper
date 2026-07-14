@@ -371,10 +371,12 @@ function LiveOrgOverviewInner({
   allowedProjectIds,
   hiddenDocumentTypes,
   hiddenFields,
+  pageBuilderFieldNames,
 }: Readonly<{
   allowedProjectIds?: string[]
   hiddenDocumentTypes?: string[]
   hiddenFields?: string[]
+  pageBuilderFieldNames?: string[]
 }>) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
@@ -949,6 +951,7 @@ function LiveOrgOverviewInner({
       <OrgOverview
         orgId={orgId || ''}
         orgName={orgName || ''}
+        pageBuilderFieldNames={pageBuilderFieldNames}
         projects={accessibleProjects}
         lockedProjects={lockedProjects}
         selectedProjectId={state.selectedProjectId}
@@ -990,10 +993,12 @@ export function LiveOrgOverview({
   allowedProjectIds,
   hiddenDocumentTypes,
   hiddenFields,
+  pageBuilderFieldNames,
 }: {
   allowedProjectIds?: string[]
   hiddenDocumentTypes?: string[]
   hiddenFields?: string[]
+  pageBuilderFieldNames?: string[]
 } = {}) {
   return (
     <ErrorBoundary
@@ -1028,6 +1033,7 @@ export function LiveOrgOverview({
           allowedProjectIds={allowedProjectIds}
           hiddenDocumentTypes={hiddenDocumentTypes}
           hiddenFields={hiddenFields}
+          pageBuilderFieldNames={pageBuilderFieldNames}
         />
       </Suspense>
     </ErrorBoundary>

@@ -7,8 +7,8 @@ export type SchemaMapperHideOptions = {
   hiddenFields?: readonly string[]
 }
 
-/** Field names that commonly hold page-builder / hero block unions. */
-const PAGE_BUILDER_FIELD_NAMES = new Set(['pageBuilder', 'hero'])
+/** Default field name whose union members are treated as page-builder blocks. */
+const DEFAULT_PAGE_BUILDER_FIELD_NAMES = ['pageBuilder']
 
 /**
  * Match a type/field name against a hide pattern.
@@ -75,17 +75,25 @@ function scrubReferenceTargets(
 }
 
 /**
- * Collect type names referenced from top-level `pageBuilder` / `hero` fields.
+ * Collect type names referenced from top-level page-builder fields.
  * These are the block schema types that can be optionally hidden from the graph
  * (via `SchemaGraph`'s `excludeTypeNames`) while keeping the field itself.
+ *
+ * `fieldNames` controls which top-level field names count as page-builder unions
+ * (default `['pageBuilder']`). Customers whose block-union fields are named
+ * `sections` / `modules` / `hero` / etc. can opt in via this list.
  */
-export function collectPageBuilderTypeNames(types: readonly DiscoveredType[]): string[] {
+export function collectPageBuilderTypeNames(
+  types: readonly DiscoveredType[],
+  fieldNames: readonly string[] = DEFAULT_PAGE_BUILDER_FIELD_NAMES,
+): string[] {
+  const fieldNameSet = new Set(fieldNames)
   const names = new Set<string>()
 
   for (const type of types) {
     for (const field of type.fields) {
       if (field.parentPath) continue
-      if (!PAGE_BUILDER_FIELD_NAMES.has(field.name)) continue
+      if (!fieldNameSet.has(field.name)) continue
 
       if (field.referenceTo) names.add(field.referenceTo)
       for (const target of field.referenceTargets ?? []) names.add(target)
