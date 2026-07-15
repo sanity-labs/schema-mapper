@@ -100,12 +100,19 @@ interface State {
   datasetsLoading: Set<string> // project IDs currently loading datasets
   // Schemas per "projectId::dataset" (loaded on demand when dataset tab clicked)
   schemas: Map<string, DiscoveredType[]>
+  // Raw (pre-hiddenDocumentTypes/hiddenFields) schemas — used by the "Show
+  // hidden" toggle to reveal types that config would normally strip. Same
+  // keys as `schemas`. `rawSchemas.get(k)` is a strict superset of
+  // `schemas.get(k)` when hiddenTypes/hiddenFields are non-empty.
+  rawSchemas: Map<string, DiscoveredType[]>
   schemasLoading: Set<string> // "projectId::dataset" keys currently loading
   schemaSource: Map<string, 'deployed' | 'inferred'>
   // Why a key is showing inferred schema (permissions vs no-schema vs error vs null)
   inferenceReason: Map<string, InferenceReason>
   // Deployed schemas per "projectId::dataset" — all workspace entries
   deployedSchemas: Map<string, DeployedSchemaEntry[]>
+  // Raw (pre-filter) versions of deployedSchemas — see rawSchemas above.
+  rawDeployedSchemas: Map<string, DeployedSchemaEntry[]>
   selectedSchemaId: string | null
   // Errors keyed by projectId or "projectId::dataset"
   errors: Map<string, string>
@@ -120,7 +127,7 @@ type Action =
   | {type: 'DATASETS_LOADING'; projectId: string}
   | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
   | {type: 'SCHEMA_LOADING'; key: string}
-  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'; deployedSchemas?: DeployedSchemaEntry[]; inferenceReason?: InferenceReason}
+  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; rawTypes: DiscoveredType[]; source: 'deployed' | 'inferred'; deployedSchemas?: DeployedSchemaEntry[]; rawDeployedSchemas?: DeployedSchemaEntry[]; inferenceReason?: InferenceReason}
   | {type: 'ERROR'; key: string; error: string}
   | {type: 'SELECT_PROJECT'; projectId: string}
   | {type: 'SELECT_DATASET'; datasetName: string}
@@ -134,10 +141,12 @@ const initialState: State = {
   datasets: new Map(),
   datasetsLoading: new Set(),
   schemas: new Map(),
+  rawSchemas: new Map(),
   schemasLoading: new Set(),
   schemaSource: new Map(),
   inferenceReason: new Map(),
   deployedSchemas: new Map(),
+  rawDeployedSchemas: new Map(),
   selectedSchemaId: null,
   errors: new Map(),
   selectedProjectId: null,
@@ -188,6 +197,8 @@ function reducer(state: State, action: Action): State {
     case 'SCHEMA_LOADED': {
       const nextSchemas = new Map(state.schemas)
       nextSchemas.set(action.key, action.types)
+      const nextRawSchemas = new Map(state.rawSchemas)
+      nextRawSchemas.set(action.key, action.rawTypes)
       const nextSource = new Map(state.schemaSource)
       nextSource.set(action.key, action.source)
       const nextReason = new Map(state.inferenceReason)
@@ -196,9 +207,13 @@ function reducer(state: State, action: Action): State {
       nextLoading.delete(action.key)
       // Store deployed schemas if provided, auto-select default or first
       const nextDeployedSchemas = new Map(state.deployedSchemas)
+      const nextRawDeployedSchemas = new Map(state.rawDeployedSchemas)
       let nextSelectedSchemaId = state.selectedSchemaId
       if (action.deployedSchemas && action.deployedSchemas.length > 0) {
         nextDeployedSchemas.set(action.key, action.deployedSchemas)
+        if (action.rawDeployedSchemas) {
+          nextRawDeployedSchemas.set(action.key, action.rawDeployedSchemas)
+        }
         // Auto-select when this is the active dataset and multiple schemas
         // exist. Single-schema datasets don't need a selection (no tab row
         // rendered) and their curated-layouts scope stays schemaId-less to
@@ -211,10 +226,12 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         schemas: nextSchemas,
+        rawSchemas: nextRawSchemas,
         schemaSource: nextSource,
         inferenceReason: nextReason,
         schemasLoading: nextLoading,
         deployedSchemas: nextDeployedSchemas,
+        rawDeployedSchemas: nextRawDeployedSchemas,
         selectedSchemaId: nextSelectedSchemaId,
       }
     }
@@ -274,10 +291,17 @@ function reducer(state: State, action: Action): State {
       const selected = entries.find(e => e.id === action.schemaId)
       if (!selected) return {...state, selectedSchemaId: action.schemaId}
 
-      // Update the schemas map with the selected schema's types
+      // Update the schemas map with the selected schema's types.
+      // Mirror on rawSchemas so the "Show hidden" toggle also swaps workspaces.
       const nextSchemas = new Map(state.schemas)
       nextSchemas.set(currentKey, selected.types)
-      return {...state, selectedSchemaId: action.schemaId, schemas: nextSchemas}
+      const nextRawSchemas = new Map(state.rawSchemas)
+      const rawEntries = state.rawDeployedSchemas.get(currentKey)
+      const rawSelected = rawEntries?.find(e => e.id === action.schemaId)
+      if (rawSelected) {
+        nextRawSchemas.set(currentKey, rawSelected.types)
+      }
+      return {...state, selectedSchemaId: action.schemaId, schemas: nextSchemas, rawSchemas: nextRawSchemas}
     }
 
     default:
@@ -372,11 +396,13 @@ function LiveOrgOverviewInner({
   hiddenDocumentTypes,
   hiddenFields,
   pageBuilderFieldNames,
+  allowShowHidden,
 }: Readonly<{
   allowedProjectIds?: string[]
   hiddenDocumentTypes?: string[]
   hiddenFields?: string[]
   pageBuilderFieldNames?: string[]
+  allowShowHidden?: boolean
 }>) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
@@ -620,26 +646,44 @@ function LiveOrgOverviewInner({
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[], inferenceReason: InferenceReason) => {
       // Resolve cross-dataset/global reference project IDs to display names
       const projectNameMap = new Map(projects.map((p: any) => [p.id, (p as any).displayName || p.id]))
+      // Resolve cross-dataset names ONCE. Then produce two views:
+      //   • rawResolvedTypes — everything the parser found, no hiding applied.
+      //     Used by the "Show hidden" toggle downstream to reveal hidden types.
+      //   • resolvedTypes    — after hiddenDocumentTypes/hiddenFields config.
+      //     Used by the normal (toggle-off) render path.
+      const rawResolvedTypes = types.map(t => ({
+        ...t,
+        fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
+      }))
       const resolvedTypes = filterDiscoveredSchema(
-        types.map(t => ({
+        rawResolvedTypes,
+        {hiddenTypes: hiddenDocumentTypes, hiddenFields},
+      )
+      // Same split for every deployed schema entry (workspace switch source).
+      const rawResolvedDeployedSchemas = deployedSchemas.map(entry => ({
+        ...entry,
+        types: entry.types.map(t => ({
           ...t,
           fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
         })),
-        {hiddenTypes: hiddenDocumentTypes, hiddenFields},
-      )
-      // Also resolve cross-dataset names in ALL deployed schema entries' types
-      // so SELECT_SCHEMA (workspace switch) gets resolved types too
-      const resolvedDeployedSchemas = deployedSchemas.map(entry => ({
+      }))
+      const resolvedDeployedSchemas = rawResolvedDeployedSchemas.map(entry => ({
         ...entry,
         types: filterDiscoveredSchema(
-          entry.types.map(t => ({
-            ...t,
-            fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
-          })),
+          entry.types,
           {hiddenTypes: hiddenDocumentTypes, hiddenFields},
         ),
       }))
-      dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas, inferenceReason})
+      dispatch({
+        type: 'SCHEMA_LOADED',
+        key,
+        types: resolvedTypes,
+        rawTypes: rawResolvedTypes,
+        source,
+        deployedSchemas: resolvedDeployedSchemas,
+        rawDeployedSchemas: rawResolvedDeployedSchemas,
+        inferenceReason,
+      })
 
       // Track schema discovery completion
       const [projectId, datasetName] = key.split('::')
@@ -836,6 +880,27 @@ function LiveOrgOverviewInner({
     ? state.schemas.get(selectedSchemaKey) || []
     : []
 
+  // Raw types (pre-hidden-filter) for the "Show hidden" toggle. When the
+  // toggle is off, this is unused; when on, downstream substitutes it for
+  // `selectedTypes` in graph rendering, and any type in rawTypes but not
+  // in selectedTypes gets the "hidden" visual treatment.
+  const selectedRawTypes = selectedSchemaKey
+    ? state.rawSchemas.get(selectedSchemaKey) || []
+    : []
+
+  // Set of type names that config would normally strip. Used by OrgOverview
+  // to distinguish "revealed hidden" from "regularly visible" nodes when
+  // the toggle is on.
+  const hiddenTypeNames = useMemo(() => {
+    if (selectedRawTypes.length === 0 || selectedTypes.length === 0) return new Set<string>()
+    const visible = new Set(selectedTypes.map(t => t.name))
+    const hidden = new Set<string>()
+    for (const t of selectedRawTypes) {
+      if (!visible.has(t.name)) hidden.add(t.name)
+    }
+    return hidden
+  }, [selectedTypes, selectedRawTypes])
+
   const selectedSchemaSource = selectedSchemaKey
     ? state.schemaSource.get(selectedSchemaKey) || null
     : null
@@ -859,6 +924,9 @@ function LiveOrgOverviewInner({
   // Derive deployed schemas for the current dataset
   const currentDeployedSchemas = selectedSchemaKey
     ? state.deployedSchemas.get(selectedSchemaKey) || []
+    : []
+  const currentRawDeployedSchemas = selectedSchemaKey
+    ? state.rawDeployedSchemas.get(selectedSchemaKey) || []
     : []
 
   const isCheckingAccess = state.phase === 'checking_access'
@@ -952,12 +1020,15 @@ function LiveOrgOverviewInner({
         orgId={orgId || ''}
         orgName={orgName || ''}
         pageBuilderFieldNames={pageBuilderFieldNames}
+        allowShowHidden={allowShowHidden}
         projects={accessibleProjects}
         lockedProjects={lockedProjects}
         selectedProjectId={state.selectedProjectId}
         selectedDatasetName={state.selectedDatasetName}
         datasets={selectedDatasets}
         types={selectedTypes}
+        rawTypes={selectedRawTypes}
+        hiddenTypeNames={hiddenTypeNames}
         schemaSource={selectedSchemaSource}
         inferenceReason={selectedInferenceReason}
         isCheckingAccess={isCheckingAccess}
@@ -967,9 +1038,11 @@ function LiveOrgOverviewInner({
         onDatasetSelect={handleDatasetSelect}
         onPendingDataset={handlePendingDataset}
         deployedSchemas={currentDeployedSchemas}
+        rawDeployedSchemas={currentRawDeployedSchemas}
         selectedSchemaId={state.selectedSchemaId}
         onSchemaSelect={handleSchemaSelect}
         schemasCache={state.schemas}
+        rawSchemasCache={state.rawSchemas}
         deployedSchemasCache={state.deployedSchemas}
         datasetCounts={state.datasetCounts}
         datasetCountsLoading={(() => {
@@ -994,11 +1067,23 @@ export function LiveOrgOverview({
   hiddenDocumentTypes,
   hiddenFields,
   pageBuilderFieldNames,
+  allowShowHidden,
 }: {
   allowedProjectIds?: string[]
   hiddenDocumentTypes?: string[]
   hiddenFields?: string[]
   pageBuilderFieldNames?: string[]
+  /**
+   * When true, users can toggle a "Show hidden" control in the graph to
+   * reveal types/fields that hiddenDocumentTypes/hiddenFields would
+   * normally strip. Off by default in the customer app — hidden means
+   * hidden. Set to true when deploying an SA-facing internal build (or
+   * when the customer's admin wants to allow their users to peek).
+   *
+   * Note: an SA-shared curated layout with showHidden=true overrides
+   * this gate — the customer will see the shared view as intended.
+   */
+  allowShowHidden?: boolean
 } = {}) {
   return (
     <ErrorBoundary
@@ -1034,6 +1119,7 @@ export function LiveOrgOverview({
           hiddenDocumentTypes={hiddenDocumentTypes}
           hiddenFields={hiddenFields}
           pageBuilderFieldNames={pageBuilderFieldNames}
+          allowShowHidden={allowShowHidden}
         />
       </Suspense>
     </ErrorBoundary>
