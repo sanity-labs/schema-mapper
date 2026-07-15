@@ -732,6 +732,22 @@ function OrgOverview({
   // substitute them so the graph sees the full picture. The graph itself
   // distinguishes hidden types via hiddenTypeNames (dashed border + wash).
   const effectiveTypes = showHidden && rawTypes ? rawTypes : types
+  // True if config is hiding anything at all — either whole types OR
+  // fields within visible types. Gate the "Show hidden" toggle on this so
+  // it appears even when only fields (not types) are being stripped.
+  const hasHiddenContent = useMemo(() => {
+    if (!rawTypes) return false
+    if (rawTypes.length !== types.length) return true
+    // Same number of types — check whether any type has fewer fields in
+    // the filtered view than in raw.
+    const filteredByName = new Map(types.map(t => [t.name, t]))
+    for (const rawT of rawTypes) {
+      const filt = filteredByName.get(rawT.name)
+      if (!filt) return true
+      if ((rawT.fields?.length ?? 0) !== (filt.fields?.length ?? 0)) return true
+    }
+    return false
+  }, [rawTypes, types])
   // Names of types present in rawTypes but not in types — the ones config
   // hides. Only meaningful when showHidden is active.
   const effectiveHiddenTypeNames = useMemo(() => {
@@ -1388,7 +1404,7 @@ function OrgOverview({
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
                 extraControls={
-                  (pageBuilderTypeNames.length > 0 || (allowShowHidden && rawTypes && rawTypes.length !== types.length)) ? (
+                  (pageBuilderTypeNames.length > 0 || (allowShowHidden && hasHiddenContent)) ? (
                     <>
                       {pageBuilderTypeNames.length > 0 && (
                         <>
@@ -1410,7 +1426,7 @@ function OrgOverview({
                           </label>
                         </>
                       )}
-                      {allowShowHidden && rawTypes && rawTypes.length !== types.length && (
+                      {allowShowHidden && hasHiddenContent && (
                         <>
                           <span aria-hidden="true" />
                           <label
