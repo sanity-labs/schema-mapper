@@ -873,17 +873,32 @@ function LiveOrgOverviewInner({
     ? state.schemasLoading.has(selectedSchemaKey)
     : false
 
-  const selectedTypes = selectedSchemaKey
-    ? state.schemas.get(selectedSchemaKey) || []
-    : []
+  // Memoize the returned arrays so identity stays stable across LiveOrgOverview
+  // re-renders (e.g. every dataset-count arrival triggers a re-render, but
+  // the schemas Map itself doesn't change identity). Without this, the
+  // fresh `[]` on the cache-miss branch and the `|| []` fallback both create
+  // new array refs → downstream `pageBuilderTypeNames` / `excludeTypeNames` /
+  // `buildGraphExtra` memos invalidate → SchemaGraph re-layouts.
+  const EMPTY_TYPES = useMemo<DiscoveredType[]>(() => [], [])
+  const selectedTypes = useMemo(
+    () =>
+      selectedSchemaKey
+        ? state.schemas.get(selectedSchemaKey) || EMPTY_TYPES
+        : EMPTY_TYPES,
+    [selectedSchemaKey, state.schemas, EMPTY_TYPES],
+  )
 
   // Raw types (pre-hidden-filter) for the "Show hidden" toggle. When the
   // toggle is off, this is unused; when on, downstream substitutes it for
   // `selectedTypes` in graph rendering, and any type in rawTypes but not
   // in selectedTypes gets the "hidden" visual treatment.
-  const selectedRawTypes = selectedSchemaKey
-    ? state.rawSchemas.get(selectedSchemaKey) || []
-    : []
+  const selectedRawTypes = useMemo(
+    () =>
+      selectedSchemaKey
+        ? state.rawSchemas.get(selectedSchemaKey) || EMPTY_TYPES
+        : EMPTY_TYPES,
+    [selectedSchemaKey, state.rawSchemas, EMPTY_TYPES],
+  )
 
   // Set of type names that config would normally strip. Used by OrgOverview
   // to distinguish "revealed hidden" from "regularly visible" nodes when
