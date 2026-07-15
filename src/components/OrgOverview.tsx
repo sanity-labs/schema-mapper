@@ -145,6 +145,25 @@ interface OrgOverviewProps {
   // Field names whose union members are page-builder blocks (hidden by default
   // via the graph toggle). Defaults to ['pageBuilder'] in collectPageBuilderTypeNames.
   readonly pageBuilderFieldNames?: string[]
+  // Raw (pre-hidden-filter) types for the current dataset. When the "Show
+  // hidden" toggle is off, this is unused; when on, replaces `types` in the
+  // graph and any type present in rawTypes but absent from types gets the
+  // "hidden" visual treatment (dashed border, desaturated).
+  readonly rawTypes?: DiscoveredType[]
+  // Names of types that config would normally strip (hiddenDocumentTypes /
+  // hiddenFields effect). Used to distinguish revealed-hidden from regularly
+  // visible nodes when showHidden is on.
+  readonly hiddenTypeNames?: ReadonlySet<string>
+  // When true, users can toggle a "Show hidden" control to reveal
+  // config-hidden types. Off in customer app by default (respecting devs'
+  // intent). An SA-shared curated layout with `showHidden: true` overrides
+  // this gate — the customer sees the shared view as intended.
+  readonly allowShowHidden?: boolean
+  // Raw deployed schemas for workspace switching under Show hidden.
+  readonly rawDeployedSchemas?: DeployedSchemaEntry[]
+  // Cache of raw schemas across all loaded datasets — mirror of schemasCache
+  // used by SendToSanity to carry the pre-filter types into the payload.
+  readonly rawSchemasCache?: Map<string, DiscoveredType[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +251,11 @@ function OrgOverview({
   datasetCounts,
   datasetCountsLoading,
   pageBuilderFieldNames,
+  rawTypes,
+  hiddenTypeNames,
+  allowShowHidden = false,
+  rawDeployedSchemas,
+  rawSchemasCache,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
