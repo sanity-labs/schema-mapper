@@ -882,7 +882,23 @@ function OrgOverview({
         },
         workspace: selectedWorkspaceName && selectedWorkspaceName !== 'default' ? selectedWorkspaceName : undefined,
         types: (effectiveTypes || []).map(serializeType),
-        displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+        // Raw (pre-hidden-filter) types only when they differ from `types`.
+        // Old submissions and configs without hidden filters won't have this
+        // field; internal falls back to `types` for backward compatibility.
+        rawTypes:
+          rawTypes && rawTypes.length !== (effectiveTypes || []).length
+            ? rawTypes.map(serializeType)
+            : undefined,
+        // Names of types config would strip — internal's Show hidden toggle
+        // uses this to mark revealed nodes with the dashed/desaturated
+        // treatment. Empty set → omit.
+        hiddenTypeNames:
+          effectiveHiddenTypeNames && effectiveHiddenTypeNames.size > 0
+            ? Array.from(effectiveHiddenTypeNames)
+            : undefined,
+        displaySettings: Object.keys(displaySettings).length > 0
+          ? { ...displaySettings, showHidden: showHidden || undefined }
+          : (showHidden ? { showHidden: true } : undefined),
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
         focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
         linkedSchemas: linkedSchemas.length > 0 ? linkedSchemas : undefined,
