@@ -18,6 +18,7 @@ import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
 import type {ProjectInfo, DatasetInfo, DiscoveredType, DeployedSchemaEntry, InferenceReason} from '../types'
+import {filterDiscoveredSchema} from '../lib/filterHiddenDocumentTypes'
 import {identifyOrg, trackEvent} from '../lib/analytics'
 
 // ---------------------------------------------------------------------------
@@ -366,7 +367,17 @@ function ActiveSchemaDiscovery({
 // would require prop-drilling refs and a reducer dispatch through layers; the
 // state pipeline is clearer kept as one unit. Reducer is already separated above.
 // eslint-disable-next-line sonarjs/cognitive-complexity
-function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?: string[]}>) {
+function LiveOrgOverviewInner({
+  allowedProjectIds,
+  hiddenDocumentTypes,
+  hiddenFields,
+  pageBuilderFieldNames,
+}: Readonly<{
+  allowedProjectIds?: string[]
+  hiddenDocumentTypes?: string[]
+  hiddenFields?: string[]
+  pageBuilderFieldNames?: string[]
+}>) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()
   // Optional config-level filter: when allowedProjectIds is non-empty,
@@ -609,18 +620,24 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[], inferenceReason: InferenceReason) => {
       // Resolve cross-dataset/global reference project IDs to display names
       const projectNameMap = new Map(projects.map((p: any) => [p.id, (p as any).displayName || p.id]))
-      const resolvedTypes = types.map(t => ({
-        ...t,
-        fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
-      }))
+      const resolvedTypes = filterDiscoveredSchema(
+        types.map(t => ({
+          ...t,
+          fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
+        })),
+        {hiddenTypes: hiddenDocumentTypes, hiddenFields},
+      )
       // Also resolve cross-dataset names in ALL deployed schema entries' types
       // so SELECT_SCHEMA (workspace switch) gets resolved types too
       const resolvedDeployedSchemas = deployedSchemas.map(entry => ({
         ...entry,
-        types: entry.types.map(t => ({
-          ...t,
-          fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
-        })),
+        types: filterDiscoveredSchema(
+          entry.types.map(t => ({
+            ...t,
+            fields: t.fields.map(f => resolveCrossDatasetField(f, projectNameMap)),
+          })),
+          {hiddenTypes: hiddenDocumentTypes, hiddenFields},
+        ),
       }))
       dispatch({type: 'SCHEMA_LOADED', key, types: resolvedTypes, source, deployedSchemas: resolvedDeployedSchemas, inferenceReason})
 
@@ -642,7 +659,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         workspace_names: deployedSchemas.length > 1 ? deployedSchemas.map(s => s.name).join(', ') : undefined,
       })
     },
-    [orgId, projects],
+    [orgId, projects, hiddenDocumentTypes, hiddenFields, resolveCrossDatasetField],
   )
 
   const handleSchemaError = useCallback((key: string, error: string) => {
@@ -934,6 +951,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
       <OrgOverview
         orgId={orgId || ''}
         orgName={orgName || ''}
+        pageBuilderFieldNames={pageBuilderFieldNames}
         projects={accessibleProjects}
         lockedProjects={lockedProjects}
         selectedProjectId={state.selectedProjectId}
@@ -971,7 +989,17 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
 // LiveOrgOverview — public export, wraps inner in Suspense + ErrorBoundary
 // ---------------------------------------------------------------------------
 
-export function LiveOrgOverview({allowedProjectIds}: {allowedProjectIds?: string[]} = {}) {
+export function LiveOrgOverview({
+  allowedProjectIds,
+  hiddenDocumentTypes,
+  hiddenFields,
+  pageBuilderFieldNames,
+}: {
+  allowedProjectIds?: string[]
+  hiddenDocumentTypes?: string[]
+  hiddenFields?: string[]
+  pageBuilderFieldNames?: string[]
+} = {}) {
   return (
     <ErrorBoundary
       fallback={
@@ -1001,7 +1029,12 @@ export function LiveOrgOverview({allowedProjectIds}: {allowedProjectIds?: string
           />
         }
       >
-        <LiveOrgOverviewInner allowedProjectIds={allowedProjectIds} />
+        <LiveOrgOverviewInner
+          allowedProjectIds={allowedProjectIds}
+          hiddenDocumentTypes={hiddenDocumentTypes}
+          hiddenFields={hiddenFields}
+          pageBuilderFieldNames={pageBuilderFieldNames}
+        />
       </Suspense>
     </ErrorBoundary>
   )

@@ -20,6 +20,7 @@ import {
   readNodePositions,
   serializeType,
 } from '../lib/payload-builders'
+import { collectPageBuilderTypeNames } from '../lib/filterHiddenDocumentTypes'
 import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry, InferenceReason } from './types'
 import { SchemaSourceExplainer } from './SchemaSourceExplainer'
 
@@ -141,6 +142,9 @@ interface OrgOverviewProps {
   // without a count yet fall back to alphabetical order.
   readonly datasetCounts?: Map<string, number>
   readonly datasetCountsLoading?: boolean
+  // Field names whose union members are page-builder blocks (hidden by default
+  // via the graph toggle). Defaults to ['pageBuilder'] in collectPageBuilderTypeNames.
+  readonly pageBuilderFieldNames?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +231,7 @@ function OrgOverview({
   deployedSchemasCache,
   datasetCounts,
   datasetCountsLoading,
+  pageBuilderFieldNames,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -245,6 +250,15 @@ function OrgOverview({
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
   const [showCreateLayoutPrompt, setShowCreateLayoutPrompt] = useState(false)
   const [newLayoutName, setNewLayoutName] = useState('')
+  const [showPageBuilderBlocks, setShowPageBuilderBlocks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('schema-mapper:showPageBuilderBlocks')
+      if (saved !== null) return saved === 'true'
+    } catch {
+      /* ignore */
+    }
+    return false
+  })
   const newLayoutInputRef = useRef<HTMLInputElement>(null)
   // Autofocus doesn't stick when the dialog mounts (portal steals focus).
   // Do it imperatively after the dialog is fully open.
@@ -667,6 +681,32 @@ function OrgOverview({
   const effectiveSource = schemaSource
   const effectiveTypes = types
 
+  // Page-builder / hero block types referenced from top-level fields. When the
+  // toggle is off we hide these nodes from the graph but keep the pageBuilder/
+  // hero fields, so they remain as clickable orphan lozenges (click to reveal).
+  const pageBuilderTypeNames = useMemo(
+    () => collectPageBuilderTypeNames(effectiveTypes, pageBuilderFieldNames),
+    [effectiveTypes, pageBuilderFieldNames],
+  )
+  const excludeTypeNames = useMemo(
+    () => (showPageBuilderBlocks || pageBuilderTypeNames.length === 0 ? undefined : pageBuilderTypeNames),
+    [showPageBuilderBlocks, pageBuilderTypeNames],
+  )
+  const visibleTypeCount = useMemo(() => {
+    if (!excludeTypeNames?.length) return effectiveTypes.length
+    const excluded = new Set(excludeTypeNames)
+    return effectiveTypes.filter(t => !excluded.has(t.name)).length
+  }, [effectiveTypes, excludeTypeNames])
+
+  const handleShowPageBuilderChange = useCallback((checked: boolean) => {
+    setShowPageBuilderBlocks(checked)
+    try {
+      localStorage.setItem('schema-mapper:showPageBuilderBlocks', String(checked))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   // Auto-popup the explainer once per dataset when we discover that the
   // schema is inferred specifically because of missing permissions.
   // Other reasons (no-schema, error) get the badge + i-icon but no popup.
@@ -689,7 +729,7 @@ function OrgOverview({
   const totalProjects = projects.length
   // Dataset/type/doc counts: only from the top-level datasets prop (selected project's loaded data)
   const totalDatasets = datasets.length
-  const totalTypes = effectiveTypes.length
+  const totalTypes = visibleTypeCount
   const totalDocuments = selectedDataset?.totalDocuments ?? 0
 
   // Whether we have any data to show at all (not in initial loading with zero projects)
@@ -1254,6 +1294,7 @@ function OrgOverview({
             ) : effectiveTypes.length > 0 ? (
               <SchemaGraph
                 types={effectiveTypes}
+                excludeTypeNames={excludeTypeNames}
                 onStateChange={setGraphState}
                 onViewportChange={handleViewportChange}
                 fitViewTrigger={fitViewTrigger}
@@ -1265,6 +1306,28 @@ function OrgOverview({
                 pendingFocusDepth={pendingNavTarget?.focusDepth}
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
+                extraControls={
+                  pageBuilderTypeNames.length > 0 ? (
+                    <>
+                      <span aria-hidden="true" />
+                      <label
+                        className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                        title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={showPageBuilderBlocks}
+                          onChange={e => handleShowPageBuilderChange(e.target.checked)}
+                          className="w-3 h-3 accent-gray-700 cursor-pointer"
+                        />
+                        <span>
+                          Page builder
+                          {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
+                        </span>
+                      </label>
+                    </>
+                  ) : undefined
+                }
                 curatedActive={
                   curatedSession.activeLayout
                     ? {

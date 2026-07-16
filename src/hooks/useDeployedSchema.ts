@@ -196,6 +196,33 @@ function resolveField(
         if (hasBlock) {
           return {name: fieldName, type: 'block', isArray: true}
         }
+
+        // Array of named object types (e.g. pageBuilder):
+        // union of {type:'object', rest:{type:'inline', name:'bannerComponent'}}
+        const inlineObjectTargets: string[] = []
+        for (const item of unionItems as any[]) {
+          if (item?.type === 'object' && item.rest?.type === 'inline' && item.rest?.name) {
+            if (!inlineObjectTargets.includes(item.rest.name)) {
+              inlineObjectTargets.push(item.rest.name)
+            }
+          } else if (item?.type === 'inline' && item.name && !item.name.endsWith('.reference')) {
+            if (!inlineObjectTargets.includes(item.name)) {
+              inlineObjectTargets.push(item.name)
+            }
+          }
+        }
+        if (inlineObjectTargets.length > 0) {
+          return {
+            name: fieldName,
+            type: 'object',
+            isInlineObject: true,
+            isArray: true,
+            referenceTo: inlineObjectTargets[0],
+            ...(inlineObjectTargets.length > 1
+              ? {referenceTargets: inlineObjectTargets}
+              : {}),
+          }
+        }
       }
 
       return {name: fieldName, type: 'array', isArray: true}
@@ -248,6 +275,29 @@ function resolveField(
       )
       if (allBooleans && unionItems.length > 0) {
         return {name: fieldName, type: 'boolean'}
+      }
+
+      // Named object union (e.g. hero field): objects with rest.inline names
+      const inlineObjectTargets: string[] = []
+      for (const item of unionItems as any[]) {
+        if (item?.type === 'object' && item.rest?.type === 'inline' && item.rest?.name) {
+          if (!inlineObjectTargets.includes(item.rest.name)) {
+            inlineObjectTargets.push(item.rest.name)
+          }
+        } else if (item?.type === 'inline' && item.name && !item.name.endsWith('.reference')) {
+          if (!inlineObjectTargets.includes(item.name)) {
+            inlineObjectTargets.push(item.name)
+          }
+        }
+      }
+      if (inlineObjectTargets.length > 0) {
+        return {
+          name: fieldName,
+          type: 'object',
+          isInlineObject: true,
+          referenceTo: inlineObjectTargets[0],
+          ...(inlineObjectTargets.length > 1 ? {referenceTargets: inlineObjectTargets} : {}),
+        }
       }
 
       return {name: fieldName, type: 'unknown'}
@@ -1023,7 +1073,7 @@ function parseDeployedSchema(
       !entry.name.startsWith('assist.'),
   )
 
-  return documentTypes.map((docType) => {
+  const documentNodes = documentTypes.map((docType) => {
     const attributes = (docType as SchemaEntry).attributes || {}
     const fields: DiscoveredField[] = []
 
@@ -1038,9 +1088,45 @@ function parseDeployedSchema(
     return {
       name: docType.name,
       title: (docType as any).title || undefined,
+      documentCount: 0,
       fields,
+      kind: 'document' as const,
     }
   })
+
+  // Named non-document object types → first-class nodes, matching the
+  // Studio-format parser (parseStudioSchema). GROQ schemas otherwise only
+  // expose documents. Noise is controlled uniformly via hiddenDocumentTypes
+  // config and the page-builder toggle (excludeTypeNames).
+  const objectNodes = schema
+    .filter(
+      (entry) =>
+        entry &&
+        entry.type === 'type' &&
+        entry.value?.type === 'object' &&
+        typeof entry.name === 'string' &&
+        !entry.name.startsWith('sanity.') &&
+        !entry.name.startsWith('assist.'),
+    )
+    .map((entry) => {
+      const attributes = entry.value?.attributes || {}
+      const fields: DiscoveredField[] = []
+      for (const [attrName, attrValue] of Object.entries(attributes)) {
+        if (SYSTEM_ATTRIBUTES.has(attrName)) continue
+        const attr = attrValue as ObjectAttribute
+        if (!attr?.value) continue
+        fields.push(resolveField(attrName, attr.value, refMap, documentTypeNames))
+      }
+      return {
+        name: entry.name as string,
+        title: entry.title || undefined,
+        documentCount: 0,
+        fields,
+        kind: 'object' as const,
+      }
+    })
+
+  return [...documentNodes, ...objectNodes]
 }
 
 // --- Extract schema data from a raw API entry ---
