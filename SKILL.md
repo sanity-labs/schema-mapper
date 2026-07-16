@@ -119,6 +119,8 @@ Run the install command inside the app directory.
 
 Tell the user: "Schema Mapper is installed. Run `npx sanity dev` from `<path>` to start. Then open your Sanity dashboard in the browser — the app runs inside the dashboard as a local app, not directly at localhost."
 
+<!-- SKILL_VERSION: 1.0.0 -->
+
 ## Update
 
 Follow these steps when a user says "update schema mapper".
@@ -127,46 +129,47 @@ Follow these steps when a user says "update schema mapper".
 
 Look for the schema-mapper directory. Check `apps/schema-mapper` first, then ask the user.
 
-### 2. Backup config lines
+### 2. Ensure `scripts/update.mjs` exists
 
-These two files contain the user's project and org IDs (often with commented-out alternatives). Read and save the **exact lines** containing these IDs:
-
-- `<path>/sanity.cli.ts` — find the `organizationId:` line (e.g. `organizationId: 'abc123', // my org`)
-- `<path>/src/App.tsx` — find the `organizationId` line AND the `projectId:` line in the config array
-
-Save the **complete lines** including any inline comments — the user may have other IDs commented alongside. You will reinstate these exact lines after the update.
-
-### 3. Download latest
+If `<path>/scripts/update.mjs` does not exist, this is a pre-v1.33.1 install using the legacy update flow. Do a one-time bootstrap:
 
 ```bash
-cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.tar.gz | tar xz
+cd <path>
+curl -sL https://raw.githubusercontent.com/sanity-labs/schema-mapper/main/scripts/update.mjs -o scripts/update.mjs
+mkdir -p scripts && mv update.mjs scripts/update.mjs 2>/dev/null || true
 ```
 
-### 4. Overwrite ALL source files
-
-Copy **everything** from the extracted `schema-mapper-main/` directory into `<path>`, including any new files that didn't exist before. The only exceptions are `sanity.cli.ts` and `src/App.tsx` — these contain the user's project and org IDs and MUST NOT be overwritten. Use `rsync` or `cp -r` to ensure new files are added and deleted files are removed:
+Or if that's fiddly, just fetch the whole scripts directory:
 
 ```bash
-rsync -a --exclude='sanity.cli.ts' --exclude='src/App.tsx' <path>/schema-mapper-main/ <path>/
+cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.tar.gz | tar xz --strip-components=1 schema-mapper-main/scripts
 ```
 
-### 5. Restore config lines
-
-In the updated `sanity.cli.ts` and `src/App.tsx`, find the placeholder lines (`YOUR_ORG_ID`, `YOUR_PROJECT_ID`) and replace them with the **exact lines** you saved in step 2. This preserves the user's IDs and any commented-out alternatives on the same lines.
-
-### 6. Clean up
+### 3. Run the update script
 
 ```bash
-rm -rf <path>/schema-mapper-main
+cd <path> && node scripts/update.mjs
 ```
 
-### 7. Install dependencies
+This handles everything:
+- Self-updates the skill (SKILL.md + scripts) if a newer skill version exists on GitHub
+- Downloads the latest template
+- Merges the customer's `src/App.tsx` and `sanity.cli.ts` marker blocks (preserves values, adds new settings, logs obsolete ones)
+- Backs up originals as `.pre-update.<timestamp>`
+- Runs `pnpm install`
+- Prints a summary
 
-Run install in case `package.json` changed (use the same package manager detection as setup).
+If any warnings appear in the output, share them with the user verbatim.
 
-### 8. Done
+### 4. First-time migration notice
 
-Tell the user the update is complete.
+If the user is coming from a pre-v1.33.1 install AND their files lack the `▼▼▼ CUSTOMER CONSTS ▼▼▼` markers, the update script will auto-wrap their existing config values in markers and log `! No marker block in current App.tsx — attempting auto-wrap migration`. Tell the user:
+
+> "Your files have been migrated to the new marker-based update system. From now on, updates preserve your config values seamlessly. Backups saved as `src/App.tsx.pre-update.<timestamp>` and `sanity.cli.ts.pre-update.<timestamp>` if you want to compare."
+
+### 5. Done
+
+Tell the user the update is complete. If any obsolete config warnings appeared, mention them.
 
 ## Architecture
 

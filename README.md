@@ -16,7 +16,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 - **Saved Layouts** — Name and save arrangements of the graph. Each layout captures positions, edge style, spacing, and remembers per-focus sub-views (each focused view keeps its own positions, separate from the full graph). Locked by default with an unlock prompt; auto-saves on drag while unlocked. Great for curating a story you can walk someone through.
 - **Cross-dataset references** — Clickable lozenges for cross-dataset and global document references. Navigate to linked schemas across projects and datasets with full back-navigation.
 - **Search** — Live filter by type or field name
-- **Export** — Vector PDF (react-pdf), PNG (3x resolution), SVG — PDF includes structured metadata header with org, project, dataset info. PDF shows focus context when focused.
+- **Export** — PNG (3x resolution), SVG
 - **Multi-project** — Browse all org projects/datasets via tabs, locked projects shown separately
 - **Dark mode** — Follows system preference
 - **Version check** — In-app badge shows current version, pulsing dot when updates are available
@@ -57,23 +57,13 @@ npx sanity dev
 
 ## Updating
 
-The version badge in the app will show a pulsing dot when an update is available. To update, tell your AI agent:
+The version badge in the app footer shows a pulsing dot when a new release is available. To update, tell your AI agent:
 
 > "Update Schema Mapper"
 
-The agent uses an `rsync` that **excludes `src/App.tsx` and `sanity.cli.ts`**, so your project and org IDs are preserved automatically — no stashing required.
+Your `src/App.tsx` and `sanity.cli.ts` config values are preserved automatically via a marker-block system.
 
-Or manually:
-
-```bash
-cd <schema-mapper-path>
-git stash                # saves your config changes
-git pull
-git stash pop            # restores your project/org IDs
-pnpm install
-```
-
-> **Note:** `sanity.cli.ts` and `src/App.tsx` contain your project and org IDs. Both the agent-driven update and the manual stash/pop preserve these across updates.
+For details on how updates work (including a one-time migration notice for pre-v1.33.1 installs), see [docs/updating.md](./docs/updating.md).
 
 ## Permissions
 
@@ -97,7 +87,13 @@ You'll be prompted to choose a hostname (e.g. `my-org-schema-mapper`). After dep
 
 ## Tech Stack
 
-Sanity App SDK · React Flow · ELK · Dagre · react-pdf · Sanity UI · Tailwind v4 · React 19 · TypeScript · Vite
+Sanity App SDK · React Flow · ELK · Dagre · Sanity UI · Tailwind v4 · React 19 · TypeScript · Vite
+
+## Docs
+
+- [Configuration](./docs/configuration.md) — every setting explained, where it goes, and how to use it
+- [Updating](./docs/updating.md) — how updates preserve your config, one-time migration notice
+- [Troubleshooting](./docs/troubleshooting.md) — common issues and fixes
 
 ## License
 

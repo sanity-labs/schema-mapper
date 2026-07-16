@@ -22,36 +22,36 @@ if (typeof globalThis.window !== 'undefined') {
 
 const theme = buildTheme()
 
-const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
+// ▼▼▼ CUSTOMER CONSTS — preserved on update ▼▼▼
+// See docs/configuration.md for details.
+// Values inside this marker block are preserved when Schema Mapper updates.
+// You can comment-out alternatives alongside each const to swap between test values:
+//   // const organizationId = 'oyQ25CIX0' // michael
+//   const organizationId = 'oSyH1iET5'    // 360
+// The update procedure preserves your active line AND commented alternatives.
 
-// Optional: restrict the project list to specific project IDs.
-// When empty, all projects in the org are shown (default behaviour).
-// When populated, only projects whose id is in this list will appear in the UI.
+// Required. Your Sanity organization ID. Must match sanity.cli.ts.
+const organizationId = 'YOUR_ORG_ID'
+
+// Required. Any project ID in your org — used for auth context only.
+const projectId = 'YOUR_PROJECT_ID'
+
+// Optional. Restrict the visible project list. Empty = show all.
 const allowedProjectIds: string[] = []
 
-// Optional: hide types from the graph (documents or objects).
-// Supports exact names (`translation.metadata`) and prefix wildcards
-// (`workflow.*`, `internationalizedArray*`). Empty = show everything.
+// Optional. Hide document/object types from the graph. Supports prefix wildcards.
 const hiddenDocumentTypes: string[] = []
 
-// Optional: hide fields by name on every remaining type in the graph.
-// Supports exact names (`createdBy`) and prefix wildcards (`klaviyo*`).
-// Empty = show every field.
+// Optional. Hide fields on every remaining type. Supports prefix wildcards.
 const hiddenFields: string[] = []
 
-// Field names whose union members are page-builder blocks, hidden by default
-// (toggle in the graph controls). Add 'hero', 'sections', 'modules', etc. to
-// opt in when your block-union fields use different names.
+// Field names whose union members are page-builder blocks (hidden by default).
 const pageBuilderFieldNames: string[] = ['pageBuilder']
 
-// Show-hidden toggle gate — customer app default is OFF, respecting devs'
-// intent to keep certain types out of the graph. Flip to `true` if you want
-// to expose a "Show hidden" checkbox to end users that reveals types your
-// hiddenDocumentTypes / hiddenFields / pageBuilder config strips.
-// (Internal SA app enables this by default when hidden types exist.)
+// Show a "Show hidden" toggle to end users. Default false = respect dev intent.
 const allowShowHidden = false
 
-// TEMP DIAGNOSTIC — remove once verified
+// ▲▲▲ END CUSTOMER CONSTS ▲▲▲
 
 // SDK bootstrap config — only projectId is needed for auth context.
 // We intentionally DO NOT specify a dataset here: the SDK would open a
@@ -60,7 +60,7 @@ const allowShowHidden = false
 // derived from useProjects() / URL params at runtime.
 const config: SanityConfig[] = [
   {
-    projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your Sanity project ID
+    projectId,
   },
 ]
 
