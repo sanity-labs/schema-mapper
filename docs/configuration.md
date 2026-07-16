@@ -5,7 +5,7 @@ Every runtime knob for Schema Mapper. Only **two files** in your install ever ne
 | File | What lives here |
 |------|-----------------|
 | [`src/App.tsx`](#srcapptsx) | Everything about what the app shows, filters, and allows |
-| [`sanity.cli.ts`](#sanitycllits) | Which Sanity project owns this app (build/deploy context) |
+| [`sanity.cli.ts`](#sanityclits) | Which Sanity project owns this app (build/deploy context) |
 
 Everything else is Schema Mapper's own code — leave it alone. Updates only preserve the values inside the marker blocks described below.
 
@@ -39,7 +39,7 @@ Your Sanity organization ID. Schema Mapper discovers all projects in this org.
 
 Find your org ID at [manage.sanity.io](https://manage.sanity.io) → your org → the URL will contain `o<orgId>`.
 
-Also set the same value in [`sanity.cli.ts`](#sanitycllits) so the CLI's app-deploy context matches.
+Also set the same value in [`sanity.cli.ts`](#sanityclits) so the CLI's app-deploy context matches.
 
 ---
 
@@ -53,7 +53,7 @@ Any project ID in your org. The App SDK uses it for auth context only — Schema
 
 Pick any project you have access to. If you're not sure, pick the one you use most.
 
-Also set the same value in [`sanity.cli.ts`](#sanitycllits).
+Also set the same value in [`sanity.cli.ts`](#sanityclits).
 
 ---
 
