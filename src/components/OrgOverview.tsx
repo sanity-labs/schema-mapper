@@ -1433,7 +1433,7 @@ function OrgOverview({
                             <Switch
                               checked={showPageBuilderBlocks}
                               onChange={e => handleShowPageBuilderChange(e.currentTarget.checked)}
-                              style={{ transform: 'scale(0.7)', transformOrigin: 'left center', marginRight: -6 }}
+                              style={{ transform: 'scale(0.85)', transformOrigin: 'left center', marginRight: -4, cursor: 'pointer' }}
                             />
                             <span>
                               Page builder
@@ -1452,7 +1452,7 @@ function OrgOverview({
                             <Switch
                               checked={showHidden}
                               onChange={e => setShowHidden(e.currentTarget.checked)}
-                              style={{ transform: 'scale(0.7)', transformOrigin: 'left center', marginRight: -6 }}
+                              style={{ transform: 'scale(0.85)', transformOrigin: 'left center', marginRight: -4, cursor: 'pointer' }}
                             />
                             <span>
                               Show hidden
