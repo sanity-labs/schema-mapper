@@ -16,7 +16,7 @@ Everything else is Schema Mapper's own code — leave it alone. Updates only pre
 Runtime behaviour. All customer-editable values live inside this marker block near the top of the file:
 
 ```tsx
-// ▼▼▼ CUSTOMER CONFIG — preserved on update ▼▼▼
+// ▼▼▼ CUSTOMER CONSTS — preserved on update ▼▼▼
 const organizationId = 'YOUR_ORG_ID'
 const projectId = 'YOUR_PROJECT_ID'
 const allowedProjectIds: string[] = []
@@ -24,10 +24,41 @@ const hiddenDocumentTypes: string[] = []
 const hiddenFields: string[] = []
 const pageBuilderFieldNames: string[] = ['pageBuilder']
 const allowShowHidden = false
-// ▲▲▲ CUSTOMER CONFIG ▲▲▲
+// ▲▲▲ END CUSTOMER CONSTS ▲▲▲
 ```
 
 **Only edit inside the markers.** Everything outside gets replaced on update.
+
+### Swapping between multiple test values
+
+You can keep several alternatives commented alongside each active const. The update procedure preserves your active line **AND** all commented alternatives — so switching between test values is just a matter of moving `//` around:
+
+```tsx
+// ▼▼▼ CUSTOMER CONSTS — preserved on update ▼▼▼
+
+// const organizationId = 'oyQ25CIX0' // michael
+const organizationId = 'oSyH1iET5'    // 360
+// const organizationId = 'oJgAuCWSp' // swisspost
+// const organizationId = 'o02mZUBKf' // Adam Dev
+
+// const projectId = 'mhr9e9pq' // michael
+const projectId = 'hzao7xsp'    // 360
+// const projectId = '4vfch9m7' // swisspost
+// const projectId = '0iys01al' // Adam Dev
+
+const allowedProjectIds: string[] = []
+const hiddenDocumentTypes: string[] = ['customer']
+const hiddenFields: string[] = ['flags', 'implementation', 'pod']
+const pageBuilderFieldNames: string[] = ['pageBuilder']
+const allowShowHidden = true
+
+// ▲▲▲ END CUSTOMER CONSTS ▲▲▲
+```
+
+Points to note:
+- Commented alternatives must be in `// const NAME = ...` form (const declarations). Don't use `// NAME: ...` — that's object-property syntax and the parser won't recognize it.
+- The `config: SanityConfig[]` array **outside** the marker block should reference `projectId` by name (`{ projectId }`), not hardcode it. That way you swap once at the top and it flows through.
+- If you add new consts inside the block (custom ones not shipped with the template), the update script will preserve them as-is and log a warning that they're not part of the current template.
 
 ### `organizationId`
 
@@ -161,9 +192,27 @@ Toggle state is preserved per saved layout (Curated Layouts feature) and in Send
 Build and deploy context — which Sanity org owns this deployed app, and which project provides the auth context. All customer values live inside this marker block:
 
 ```ts
-// ▼▼▼ CUSTOMER CONFIG — preserved on update ▼▼▼
-const organizationId = 'YOUR_ORG_ID'
-// ▲▲▲ CUSTOMER CONFIG ▲▲▲
+// ▼▼▼ CUSTOMER APP CONFIG — preserved on update ▼▼▼
+app: {
+  organizationId: 'YOUR_ORG_ID',
+  entry: './src/App.tsx',
+  icon: './static/icon.svg',
+},
+// ▲▲▲ END CUSTOMER APP CONFIG ▲▲▲
+```
+
+You can comment-swap the `organizationId` line the same way as in `App.tsx`:
+
+```ts
+// ▼▼▼ CUSTOMER APP CONFIG — preserved on update ▼▼▼
+app: {
+  // organizationId: 'oyQ25CIX0', // michael
+  organizationId: 'oSyH1iET5',    // 360
+  // organizationId: 'oJgAuCWSp', // swisspost
+  entry: './src/App.tsx',
+  icon: './static/icon.svg',
+},
+// ▲▲▲ END CUSTOMER APP CONFIG ▲▲▲
 ```
 
 ### `organizationId` (CLI)
