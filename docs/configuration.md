@@ -215,6 +215,25 @@ app: {
 // ▲▲▲ END CUSTOMER APP CONFIG ▲▲▲
 ```
 
+### After first deploy: preserving `deployment.appId`
+
+After you run `npx sanity deploy` for the first time, the CLI prints an `appId`. Add it to `sanity.cli.ts` **inside the marker block** so it survives updates:
+
+```ts
+// ▼▼▼ CUSTOMER APP CONFIG — preserved on update ▼▼▼
+app: {
+  organizationId: 'oSyH1iET5',
+  entry: './src/App.tsx',
+  icon: './static/icon.svg',
+},
+deployment: {
+  appId: 'siuh9xv92ngqd74xsyf6gyne', // from `npx sanity deploy`
+},
+// ▲▲▲ END CUSTOMER APP CONFIG ▲▲▲
+```
+
+The template ships with `deployment: { ... }` commented out. When you uncomment it and add your appId, moving the whole `deployment: {}` block inside the marker keeps it safe across updates. The update script preserves the entire block verbatim — it doesn't parse individual fields inside `sanity.cli.ts`.
+
 ### `organizationId` (CLI)
 
 Sanity organization ID. Must match `organizationId` in `src/App.tsx`.
