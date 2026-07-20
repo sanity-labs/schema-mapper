@@ -1158,7 +1158,7 @@ function OrgOverview({
                   >
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/35 dark:bg-gray-900/35 backdrop-blur-sm shadow-sm">
                       <Spinner muted style={{width: 12, height: 12}} />
-                      <Text size={1} muted>Ordering by size…</Text>
+                      <Text size={1} muted>Sorting your projects…</Text>
                     </div>
                   </div>
                 )}
